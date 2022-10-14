@@ -8,9 +8,4 @@ public class TestReadForApacheAsyncClient extends TestRead {
   protected StorageNodeClientType getStorageNodeClientType() {
     return StorageNodeClientType.APACHE_HTTP_ASYNC_CLIENT;
   }
-
-  @Override
-  protected boolean isRouterHttp2Enabled() {
-    return true;
-  }
 }
