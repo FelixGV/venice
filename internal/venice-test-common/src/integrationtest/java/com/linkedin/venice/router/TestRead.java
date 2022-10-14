@@ -53,6 +53,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import org.apache.avro.Schema;
@@ -110,7 +111,7 @@ public abstract class TestRead {
   }
 
   protected boolean isRouterHttp2Enabled() {
-    return false;
+    return true;
   }
 
   protected VeniceClusterWrapper getVeniceCluster() {
@@ -274,16 +275,25 @@ public abstract class TestRead {
             .setD2Client(d2Client)
             .setD2ServiceName(D2TestUtils.DEFAULT_TEST_SERVICE_NAME))) {
 
-      // Run multiple rounds
+      // Run multiple rounds in parallel
       int rounds = 100;
       int cur = 0;
-      while (++cur <= rounds) {
-        Set<String> keySet = new HashSet<>();
-        for (int i = 0; i < MAX_KEY_LIMIT - 1; ++i) {
-          keySet.add(KEY_PREFIX + i);
-        }
-        keySet.add("unknown_key");
-        Map<String, GenericRecord> result = storeClient.batchGet(keySet).get();
+      CompletableFuture<Map<String, GenericRecord>>[] batchGetResponses = new CompletableFuture[rounds];
+      Set<String> keySet = new HashSet<>();
+      for (int i = 0; i < MAX_KEY_LIMIT - 1; ++i) {
+        keySet.add(KEY_PREFIX + i);
+      }
+      keySet.add("unknown_key");
+
+      while (cur < rounds) {
+        batchGetResponses[cur] = storeClient.batchGet(keySet);
+        cur++;
+      }
+      cur = 0;
+      while (cur < rounds) {
+        LOGGER.info("Blocking on future for query #{}/{}", cur + 1, rounds);
+        Map<String, GenericRecord> result = batchGetResponses[cur].get();
+        cur++;
         Assert.assertEquals(result.size(), MAX_KEY_LIMIT - 1);
         Map<String, GenericRecord> computeResult =
             storeClient.compute().project(VALUE_FIELD_NAME).execute(keySet).get();
@@ -407,7 +417,7 @@ public abstract class TestRead {
       /**
        * Test batch get limit
        */
-      Set<String> keySet = new HashSet<>();
+      keySet.clear();
       for (int i = 0; i < MAX_KEY_LIMIT + 1; ++i) {
         keySet.add(KEY_PREFIX + i);
       }
