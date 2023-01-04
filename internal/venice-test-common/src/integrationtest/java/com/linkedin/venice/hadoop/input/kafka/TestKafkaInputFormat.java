@@ -9,6 +9,7 @@ import com.linkedin.venice.integration.utils.KafkaBrokerWrapper;
 import com.linkedin.venice.integration.utils.ServiceFactory;
 import com.linkedin.venice.integration.utils.ZkServerWrapper;
 import com.linkedin.venice.kafka.TopicManager;
+import com.linkedin.venice.utils.IntegrationTestPushUtils;
 import com.linkedin.venice.utils.TestUtils;
 import com.linkedin.venice.utils.Time;
 import com.linkedin.venice.utils.Utils;
@@ -44,7 +45,7 @@ public class TestKafkaInputFormat {
         DEFAULT_KAFKA_OPERATION_TIMEOUT_MS,
         100,
         24 * Time.MS_PER_HOUR,
-        TestUtils.getVeniceConsumerFactory(kafka));
+        IntegrationTestPushUtils.getVeniceConsumerFactory(kafka));
   }
 
   @AfterClass

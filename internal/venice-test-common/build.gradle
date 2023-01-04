@@ -11,6 +11,7 @@ configurations {
   }
   jmhImplementation.extendsFrom testImplementation
   integrationTestImplementation.extendsFrom testImplementation
+  integrationTestConf
 }
 
 sourceSets {
@@ -118,4 +119,13 @@ idea {
     testResourceDirs += project.sourceSets.integrationTest.resources.srcDirs
     // testSourceDirs += project.sourceSets.jmh.java.srcDirs // broken, somehow, gotta debug...
   }
+}
+
+task integrationTestJar(type: Jar, dependsOn: integrationTestClasses) {
+  classifier = 'integrationTest'
+  from sourceSets.integrationTest.output
+}
+
+artifacts {
+  integrationTestConf integrationTestJar
 }

@@ -26,6 +26,7 @@ import com.linkedin.venice.message.KafkaKey;
 import com.linkedin.venice.partitioner.DefaultVenicePartitioner;
 import com.linkedin.venice.serialization.VeniceKafkaSerializer;
 import com.linkedin.venice.serialization.avro.VeniceAvroKafkaSerializer;
+import com.linkedin.venice.utils.IntegrationTestPushUtils;
 import com.linkedin.venice.utils.SystemTime;
 import com.linkedin.venice.utils.TestUtils;
 import com.linkedin.venice.utils.Time;
@@ -67,7 +68,7 @@ public class VeniceWriterTest {
   public void setUp() {
     zkServer = ServiceFactory.getZkServer();
     kafka = ServiceFactory.getKafkaBroker(zkServer);
-    kafkaClientFactory = TestUtils.getVeniceConsumerFactory(kafka);
+    kafkaClientFactory = IntegrationTestPushUtils.getVeniceConsumerFactory(kafka);
     topicManager = new TopicManager(kafkaClientFactory);
   }
 
