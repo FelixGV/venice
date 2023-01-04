@@ -5,7 +5,7 @@ import com.linkedin.venice.integration.utils.ServiceFactory;
 import com.linkedin.venice.integration.utils.ZkServerWrapper;
 import com.linkedin.venice.kafka.KafkaClientFactory;
 import com.linkedin.venice.kafka.TopicDoesNotExistException;
-import com.linkedin.venice.utils.TestUtils;
+import com.linkedin.venice.utils.IntegrationTestPushUtils;
 import com.linkedin.venice.utils.Time;
 import com.linkedin.venice.utils.Utils;
 import com.linkedin.venice.utils.lazy.Lazy;
@@ -34,7 +34,7 @@ public class PartitionOffsetFetcherTest {
 
   @Test
   public void testGetPartitionLatestOffsetAndRetry() {
-    KafkaClientFactory kafkaClientFactory = TestUtils.getVeniceConsumerFactory(kafka);
+    KafkaClientFactory kafkaClientFactory = IntegrationTestPushUtils.getVeniceConsumerFactory(kafka);
     try (PartitionOffsetFetcher fetcher = PartitionOffsetFetcherFactory.createDefaultPartitionOffsetFetcher(
         kafkaClientFactory,
         Lazy.of(() -> kafkaClientFactory.getKafkaAdminClient(Optional.empty())),

@@ -69,7 +69,7 @@ public class TestDictionaryUtils {
         DEFAULT_KAFKA_OPERATION_TIMEOUT_MS,
         100,
         MIN_COMPACTION_LAG,
-        TestUtils.getVeniceConsumerFactory(kafka));
+        IntegrationTestPushUtils.getVeniceConsumerFactory(kafka));
   }
 
   @AfterClass

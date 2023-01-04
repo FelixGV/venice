@@ -32,6 +32,7 @@ import com.linkedin.venice.serialization.avro.KafkaValueSerializer;
 import com.linkedin.venice.stats.TehutiUtils;
 import com.linkedin.venice.throttle.EventThrottler;
 import com.linkedin.venice.utils.DataProviderUtils;
+import com.linkedin.venice.utils.IntegrationTestPushUtils;
 import com.linkedin.venice.utils.MockTime;
 import com.linkedin.venice.utils.TestUtils;
 import com.linkedin.venice.utils.Time;
@@ -101,7 +102,7 @@ public class KafkaConsumptionTest {
     mockTime = new MockTime();
     localZkServer = ServiceFactory.getZkServer();
     localKafka = ServiceFactory.getKafkaBroker(localZkServer, Optional.of(mockTime));
-    localKafkaClientFactory = TestUtils.getVeniceConsumerFactory(localKafka);
+    localKafkaClientFactory = IntegrationTestPushUtils.getVeniceConsumerFactory(localKafka);
     topicManager =
         new TopicManager(DEFAULT_KAFKA_OPERATION_TIMEOUT_MS, 100, MIN_COMPACTION_LAG, localKafkaClientFactory);
     Cache cacheNothingCache = mock(Cache.class);
@@ -111,7 +112,7 @@ public class KafkaConsumptionTest {
     remoteZkServer = ServiceFactory.getZkServer();
     remoteMockTime = new MockTime();
     remoteKafka = ServiceFactory.getKafkaBroker(remoteZkServer, Optional.of(remoteMockTime));
-    remoteKafkaClientFactory = TestUtils.getVeniceConsumerFactory(remoteKafka);
+    remoteKafkaClientFactory = IntegrationTestPushUtils.getVeniceConsumerFactory(remoteKafka);
     remoteTopicManager =
         new TopicManager(DEFAULT_KAFKA_OPERATION_TIMEOUT_MS, 100, MIN_COMPACTION_LAG, remoteKafkaClientFactory);
     Cache remoteCacheNothingCache = mock(Cache.class);

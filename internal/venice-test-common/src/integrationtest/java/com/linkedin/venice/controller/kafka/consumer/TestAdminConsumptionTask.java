@@ -91,6 +91,7 @@ import com.linkedin.venice.unit.kafka.consumer.poll.PollStrategy;
 import com.linkedin.venice.unit.kafka.consumer.poll.RandomPollStrategy;
 import com.linkedin.venice.unit.kafka.producer.MockInMemoryProducer;
 import com.linkedin.venice.utils.DataProviderUtils;
+import com.linkedin.venice.utils.IntegrationTestPushUtils;
 import com.linkedin.venice.utils.Pair;
 import com.linkedin.venice.utils.SystemTime;
 import com.linkedin.venice.utils.TestUtils;
@@ -466,8 +467,11 @@ public class TestAdminConsumptionTask {
   public void testSkipMessageEndToEnd() throws ExecutionException, InterruptedException, IOException {
     try (ZkServerWrapper zkServer = ServiceFactory.getZkServer();
         KafkaBrokerWrapper kafka = ServiceFactory.getKafkaBroker(zkServer);
-        TopicManager topicManager =
-            new TopicManager(DEFAULT_KAFKA_OPERATION_TIMEOUT_MS, 100, 0L, TestUtils.getVeniceConsumerFactory(kafka))) {
+        TopicManager topicManager = new TopicManager(
+            DEFAULT_KAFKA_OPERATION_TIMEOUT_MS,
+            100,
+            0L,
+            IntegrationTestPushUtils.getVeniceConsumerFactory(kafka))) {
       String adminTopic = AdminTopicUtils.getTopicNameFromClusterName(clusterName);
       topicManager.createTopic(adminTopic, 1, 1, true);
       String storeName = "test-store";

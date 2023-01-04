@@ -1,6 +1,6 @@
 package com.linkedin.venice.samza;
 
-import static com.linkedin.venice.utils.TestPushUtils.getSamzaProducerConfig;
+import static com.linkedin.venice.utils.IntegrationTestPushUtils.getSamzaProducerConfig;
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertNotNull;
 import static org.testng.Assert.assertNull;
@@ -14,7 +14,7 @@ import com.linkedin.venice.integration.utils.ServiceFactory;
 import com.linkedin.venice.integration.utils.VeniceClusterWrapper;
 import com.linkedin.venice.meta.Version;
 import com.linkedin.venice.schema.writecompute.WriteComputeSchemaConverter;
-import com.linkedin.venice.utils.TestPushUtils;
+import com.linkedin.venice.utils.IntegrationTestPushUtils;
 import com.linkedin.venice.utils.TestUtils;
 import com.linkedin.venice.utils.Utils;
 import java.nio.ByteBuffer;
@@ -94,7 +94,7 @@ public class VeniceSystemFactoryTest {
     SystemProducer producer = null;
 
     try (AvroGenericStoreClient<String, GenericRecord> client = ClientFactory.getAndStartGenericAvroClient(config)) {
-      producer = TestPushUtils.getSamzaProducer(cluster, storeName, Version.PushType.STREAM);
+      producer = IntegrationTestPushUtils.getSamzaProducer(cluster, storeName, Version.PushType.STREAM);
 
       // Send the record to Venice using the SystemProducer
       GenericRecord record = new GenericData.Record(Schema.parse(valueSchema));
@@ -102,7 +102,7 @@ public class VeniceSystemFactoryTest {
       record.put("number", 3.14);
       record.put("intArray", new GenericData.Array<>(intArraySchema, Collections.singletonList(1)));
 
-      TestPushUtils.sendStreamingRecord(producer, storeName, key, record);
+      IntegrationTestPushUtils.sendStreamingRecord(producer, storeName, key, record);
 
       // Verify we got the right record
       TestUtils.waitForNonDeterministicAssertion(10, TimeUnit.SECONDS, true, () -> {
@@ -129,7 +129,7 @@ public class VeniceSystemFactoryTest {
       });
 
       // Delete the record
-      TestPushUtils.sendStreamingRecord(producer, storeName, key, null);
+      IntegrationTestPushUtils.sendStreamingRecord(producer, storeName, key, null);
 
       // Verify the delete
       TestUtils.waitForNonDeterministicAssertion(10, TimeUnit.SECONDS, () -> {
@@ -152,12 +152,12 @@ public class VeniceSystemFactoryTest {
   @Test(timeOut = TEST_TIMEOUT)
   public void testSchemaMismatchError() throws Exception {
     String storeName = cluster.createStore(0);
-    SystemProducer producer = TestPushUtils.getSamzaProducer(cluster, storeName, Version.PushType.BATCH);
+    SystemProducer producer = IntegrationTestPushUtils.getSamzaProducer(cluster, storeName, Version.PushType.BATCH);
     try {
       // Send a record with a wrong schema, this is byte[] of chars "1", "2", "3", expects int
       assertThrows(
           SamzaException.class,
-          () -> TestPushUtils.sendStreamingRecord(producer, storeName, new byte[] { 49, 50, 51 }, 0));
+          () -> IntegrationTestPushUtils.sendStreamingRecord(producer, storeName, new byte[] { 49, 50, 51 }, 0));
     } finally {
       producer.stop();
     }
@@ -209,9 +209,9 @@ public class VeniceSystemFactoryTest {
     cluster.useControllerClient(client -> {
       client.createNewStore(storeName, "owner", schema, schema);
 
-      SystemProducer producer = TestPushUtils.getSamzaProducer(cluster, storeName, Version.PushType.BATCH);
+      SystemProducer producer = IntegrationTestPushUtils.getSamzaProducer(cluster, storeName, Version.PushType.BATCH);
       try {
-        TestPushUtils.sendStreamingRecord(producer, storeName, writeKey, value);
+        IntegrationTestPushUtils.sendStreamingRecord(producer, storeName, writeKey, value);
       } finally {
         producer.stop();
       }

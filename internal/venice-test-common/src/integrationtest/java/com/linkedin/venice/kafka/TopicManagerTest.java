@@ -36,6 +36,7 @@ import com.linkedin.venice.meta.ZKStore;
 import com.linkedin.venice.serialization.KafkaKeySerializer;
 import com.linkedin.venice.serialization.avro.KafkaValueSerializer;
 import com.linkedin.venice.systemstore.schemas.StoreProperties;
+import com.linkedin.venice.utils.IntegrationTestPushUtils;
 import com.linkedin.venice.utils.MockTime;
 import com.linkedin.venice.utils.TestUtils;
 import com.linkedin.venice.utils.Time;
@@ -105,7 +106,7 @@ public class TopicManagerTest {
         DEFAULT_KAFKA_OPERATION_TIMEOUT_MS,
         100,
         MIN_COMPACTION_LAG,
-        TestUtils.getVeniceConsumerFactory(kafka));
+        IntegrationTestPushUtils.getVeniceConsumerFactory(kafka));
     Cache cacheNothingCache = mock(Cache.class);
     Mockito.when(cacheNothingCache.getIfPresent(Mockito.any())).thenReturn(null);
     topicManager.setTopicConfigCache(cacheNothingCache);
@@ -291,7 +292,7 @@ public class TopicManagerTest {
             DEFAULT_KAFKA_OPERATION_TIMEOUT_MS,
             100,
             MIN_COMPACTION_LAG,
-            TestUtils.getVeniceConsumerFactory(kafka)));
+            IntegrationTestPushUtils.getVeniceConsumerFactory(kafka)));
     Mockito.doThrow(VeniceOperationAgainstKafkaTimedOut.class)
         .when(partiallyMockedTopicManager)
         .ensureTopicIsDeletedAndBlock(topicName);
