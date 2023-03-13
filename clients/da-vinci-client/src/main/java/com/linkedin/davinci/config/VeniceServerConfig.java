@@ -407,7 +407,7 @@ public class VeniceServerConfig extends VeniceClusterConfig {
     drainerPoolSizeUnsortedInput = serverProperties.getInt(UNSORTED_INPUT_DRAINER_SIZE, 8);
 
     storeWriterBufferAfterLeaderLogicEnabled =
-        serverProperties.getBoolean(STORE_WRITER_BUFFER_AFTER_LEADER_LOGIC_ENABLED, true);
+        serverProperties.getBoolean(STORE_WRITER_BUFFER_AFTER_LEADER_LOGIC_ENABLED, false);
     // To minimize the GC impact during heavy ingestion.
     storeWriterBufferMemoryCapacity =
         serverProperties.getSizeInBytes(STORE_WRITER_BUFFER_MEMORY_CAPACITY, 10 * 1024 * 1024);
