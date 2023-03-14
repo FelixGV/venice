@@ -6,6 +6,6 @@ public class SITWithPWiseWithoutBufferAfterLeaderTest extends StoreIngestionTask
   }
 
   protected boolean isStoreWriterBufferAfterLeaderLogicEnabled() {
-    return false;
+    return true;
   }
 }
