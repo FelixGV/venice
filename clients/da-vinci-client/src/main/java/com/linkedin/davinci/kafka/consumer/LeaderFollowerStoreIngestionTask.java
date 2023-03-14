@@ -53,6 +53,7 @@ import com.linkedin.venice.stats.StatsErrorCode;
 import com.linkedin.venice.utils.ByteUtils;
 import com.linkedin.venice.utils.LatencyUtils;
 import com.linkedin.venice.utils.PartitionUtils;
+import com.linkedin.venice.utils.ReflectUtils;
 import com.linkedin.venice.utils.Utils;
 import com.linkedin.venice.utils.lazy.Lazy;
 import com.linkedin.venice.writer.ChunkAwareCallback;
@@ -218,10 +219,15 @@ public class LeaderFollowerStoreIngestionTask extends StoreIngestionTask {
     }
     this.nativeReplicationSourceVersionTopicKafkaURLSingletonSet =
         Collections.singleton(nativeReplicationSourceVersionTopicKafkaURL);
-    LOGGER.info(
-        "Native replication source version topic kafka url set to: {} for topic: {}",
-        nativeReplicationSourceVersionTopicKafkaURL,
-        getVersionTopic());
+    try {
+      LOGGER.info(
+          "Native replication source version topic kafka url set to: {} for topic: {}",
+          nativeReplicationSourceVersionTopicKafkaURL,
+          getVersionTopic());
+    } catch (Exception e) {
+      ReflectUtils.printClasspath();
+      throw e;
+    }
 
     this.veniceWriterFactory = builder.getVeniceWriterFactory();
     /**
