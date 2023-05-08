@@ -440,23 +440,23 @@ public class VeniceDelegateMode extends ScatterGatherMode {
         List<K> partitionKeys,
         VenicePath venicePath,
         Map<H, KeyPartitionSet<H, K>> hostMap,
-        Optional<Integer> helixGroupNum,
-        Optional<Integer> assignedHelixGroupId) throws RouterException;
+        int groupNum,
+        int assignedGroupId) throws RouterException;
 
     /**
      * This method is for {@link HelixAssistedScatterGatherMode}.
      * @return
      */
-    protected Optional<Integer> getHelixGroupNum() {
-      return Optional.empty();
+    protected int getHelixGroupNum() {
+      return -1;
     }
 
     /**
      * This method is for {@link HelixAssistedScatterGatherMode}.
      * @return
      */
-    protected Optional<Integer> getAssignedHelixGroupId(VenicePath venicePath) {
-      return Optional.empty();
+    protected int getAssignedHelixGroupId(VenicePath venicePath) {
+      return -1;
     }
 
     @Nonnull
@@ -496,8 +496,8 @@ public class VeniceDelegateMode extends ScatterGatherMode {
        * Group by host
        */
       Map<H, KeyPartitionSet<H, K>> hostMap = new HashMap<>();
-      Optional<Integer> helixGroupNum = getHelixGroupNum();
-      Optional<Integer> assignedHelixGroupId = getAssignedHelixGroupId(venicePath);
+      int helixGroupNum = getHelixGroupNum();
+      int assignedHelixGroupId = getAssignedHelixGroupId(venicePath);
       for (Map.Entry<Integer, List<K>> entry: partitionKeys.entrySet()) {
         String partitionName = HelixUtils.getPartitionName(resourceName, entry.getKey());
         List<H> hosts = hostFinder.findHosts(requestMethod, resourceName, partitionName, hostHealthMonitor, roles);
@@ -507,11 +507,8 @@ public class VeniceDelegateMode extends ScatterGatherMode {
               new ScatterGatherRequest<>(Collections.emptyList(), new TreeSet<>(entry.getValue()), partitionName));
         } else if (hosts.size() == 1) {
           H host = hosts.get(0);
-          KeyPartitionSet<H, K> keyPartitionSet = hostMap.get(host);
-          if (keyPartitionSet == null) {
-            keyPartitionSet = new KeyPartitionSet<>(Collections.singletonList(host));
-            hostMap.put(host, keyPartitionSet);
-          }
+          KeyPartitionSet<H, K> keyPartitionSet =
+              hostMap.computeIfAbsent(host, k -> new KeyPartitionSet<>(Collections.singletonList(host)));
           keyPartitionSet.addKeyPartitions(entry.getValue(), partitionName);
         } else {
           try {
@@ -563,19 +560,12 @@ public class VeniceDelegateMode extends ScatterGatherMode {
         List<K> partitionKeys,
         VenicePath venicePath,
         Map<H, KeyPartitionSet<H, K>> hostMap,
-        Optional<Integer> helixGroupNum,
-        Optional<Integer> assignedHelixGroupId) throws RouterException {
+        int groupNum,
+        int assignedGroupId) throws RouterException {
       for (K key: partitionKeys) {
         H selectedHost = selectLeastLoadedHost(partitionReplicas, venicePath);
-        /**
-         * Using {@link HashMap#get} and checking whether the result is null or not
-         * is faster than {@link HashMap#containsKey(Object)} and {@link HashMap#get}
-         */
-        KeyPartitionSet<H, K> keyPartitionSet = hostMap.get(selectedHost);
-        if (keyPartitionSet == null) {
-          keyPartitionSet = new KeyPartitionSet<>(Collections.singletonList(selectedHost));
-          hostMap.put(selectedHost, keyPartitionSet);
-        }
+        KeyPartitionSet<H, K> keyPartitionSet =
+            hostMap.computeIfAbsent(selectedHost, k -> new KeyPartitionSet<>(Collections.singletonList(k)));
         keyPartitionSet.addKeyPartition(key, partitionName);
       }
     }
@@ -604,20 +594,20 @@ public class VeniceDelegateMode extends ScatterGatherMode {
     }
 
     @Override
-    protected Optional<Integer> getHelixGroupNum() {
-      return Optional.of(helixGroupSelector.getGroupCount());
+    protected int getHelixGroupNum() {
+      return helixGroupSelector.getGroupCount();
     }
 
     @Override
-    protected Optional<Integer> getAssignedHelixGroupId(VenicePath venicePath) {
+    protected int getAssignedHelixGroupId(VenicePath venicePath) {
       if (!venicePath.isRetryRequest()) {
         /**
          * This function only needs to assign a group id to the original Router request, and all the retried requests
          * will share the same group id as the original Router request.
          */
-        venicePath.setHelixGroupId(helixGroupSelector.selectGroup(venicePath.getRequestId(), getHelixGroupNum().get()));
+        venicePath.setHelixGroupId(helixGroupSelector.selectGroup(venicePath.getRequestId(), getHelixGroupNum()));
       }
-      return Optional.of(venicePath.getHelixGroupId());
+      return venicePath.getHelixGroupId();
     }
 
     @Override
@@ -627,12 +617,10 @@ public class VeniceDelegateMode extends ScatterGatherMode {
         List<K> partitionKeys,
         VenicePath venicePath,
         Map<H, KeyPartitionSet<H, K>> hostMap,
-        Optional<Integer> helixGroupNum,
-        Optional<Integer> assignedHelixGroupId) throws RouterException {
+        int groupNum,
+        int assignedGroupId) throws RouterException {
       H selectedHost = null;
       int groupDistance = Integer.MAX_VALUE;
-      int assignedGroupId = assignedHelixGroupId.get();
-      int groupNum = helixGroupNum.get();
 
       for (H host: partitionReplicas) {
         if (!(host instanceof Instance)) {
@@ -677,11 +665,8 @@ public class VeniceDelegateMode extends ScatterGatherMode {
               "Could not find any healthy replica.");
         }
       }
-      KeyPartitionSet<H, K> keyPartitionSet = hostMap.get(selectedHost);
-      if (keyPartitionSet == null) {
-        keyPartitionSet = new KeyPartitionSet<>(Collections.singletonList(selectedHost));
-        hostMap.put(selectedHost, keyPartitionSet);
-      }
+      KeyPartitionSet<H, K> keyPartitionSet =
+          hostMap.computeIfAbsent(selectedHost, k -> new KeyPartitionSet<>(Collections.singletonList(k)));
       keyPartitionSet.addKeyPartitions(partitionKeys, partitionName);
     }
   }

@@ -37,8 +37,6 @@ import com.linkedin.venice.router.throttle.ReadRequestThrottler;
 import com.linkedin.venice.schema.avro.ReadAvroProtocolDefinition;
 import com.linkedin.venice.utils.HelixUtils;
 import com.linkedin.venice.utils.Utils;
-import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.http.HttpMethod;
 import io.tehuti.metrics.MetricsRepository;
 import java.util.ArrayList;
@@ -48,7 +46,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import javax.annotation.Nonnull;
 import org.apache.http.client.methods.HttpUriRequest;
@@ -59,16 +56,23 @@ import org.testng.annotations.Test;
 
 
 public class TestVeniceDelegateMode {
-  private VenicePath getVenicePath(String resourceName, RequestType requestType, List<RouterKey> keys) {
-    return getVenicePath(resourceName, requestType, keys, Collections.emptySet());
+  private VenicePath getVenicePath(
+      String storeName,
+      int version,
+      String resourceName,
+      RequestType requestType,
+      List<RouterKey> keys) {
+    return getVenicePath(storeName, version, resourceName, requestType, keys, Collections.emptySet());
   }
 
   private VenicePath getVenicePath(
+      String storeName,
+      int version,
       String resourceName,
       RequestType requestType,
       List<RouterKey> keys,
       Set<String> slowStorageNodeSet) {
-    return new VenicePath(resourceName, false, -1) {
+    return new VenicePath(storeName, version, resourceName, false, -1) {
       private final String ROUTER_REQUEST_VERSION =
           Integer.toString(ReadAvroProtocolDefinition.SINGLE_GET_ROUTER_REQUEST_V1.getProtocolVersion());
 
@@ -102,13 +106,8 @@ public class TestVeniceDelegateMode {
       }
 
       @Override
-      public ByteBuf getRequestBody() {
-        return Unpooled.EMPTY_BUFFER;
-      }
-
-      @Override
-      public Optional<byte[]> getBody() {
-        return Optional.empty();
+      public byte[] getBody() {
+        return null;
       }
 
       public String getVeniceApiVersionHeader() {
@@ -221,11 +220,12 @@ public class TestVeniceDelegateMode {
   @Test
   public void testScatterWithSingleGet() throws RouterException {
     String storeName = Utils.getUniqueString("test_store");
-    String resourceName = storeName + "_v1";
+    int version = 1;
+    String resourceName = storeName + "_v" + version;
     RouterKey key = new RouterKey("key_1".getBytes());
     List<RouterKey> keys = new ArrayList<>();
     keys.add(key);
-    VenicePath path = getVenicePath(resourceName, RequestType.SINGLE_GET, keys);
+    VenicePath path = getVenicePath(storeName, version, resourceName, RequestType.SINGLE_GET, keys);
     Scatter<Instance, VenicePath, RouterKey> scatter = new Scatter(path, getPathParser(), VeniceRole.REPLICA);
     String requestMethod = HttpMethod.GET.name();
     Map<RouterKey, String> keyPartitionMap = new HashMap<>();
@@ -276,11 +276,12 @@ public class TestVeniceDelegateMode {
   @Test(expectedExceptions = RouterException.class, expectedExceptionsMessageRegExp = ".*not available to serve request of type: SINGLE_GET")
   public void testScatterWithSingleGetWithNotAvailablePartition() throws RouterException {
     String storeName = Utils.getUniqueString("test_store");
-    String resourceName = storeName + "_v1";
+    int version = 1;
+    String resourceName = storeName + "_v" + version;
     RouterKey key = new RouterKey("key_1".getBytes());
     List<RouterKey> keys = new ArrayList<>();
     keys.add(key);
-    VenicePath path = getVenicePath(resourceName, RequestType.SINGLE_GET, keys);
+    VenicePath path = getVenicePath(storeName, version, resourceName, RequestType.SINGLE_GET, keys);
     Scatter<Instance, VenicePath, RouterKey> scatter = new Scatter(path, getPathParser(), VeniceRole.REPLICA);
     String requestMethod = HttpMethod.GET.name();
     Map<RouterKey, String> keyPartitionMap = new HashMap<>();
@@ -313,7 +314,8 @@ public class TestVeniceDelegateMode {
   @Test(expectedExceptions = RouterException.class, expectedExceptionsMessageRegExp = ".*not available to serve retry request of type: MULTI_GET")
   public void testLeastLoadedOnSlowHosts() throws RouterException {
     String storeName = Utils.getUniqueString("test_store");
-    String resourceName = storeName + "_v1";
+    int version = 1;
+    String resourceName = storeName + "_v" + version;
     RouterKey key1 = new RouterKey("key_1".getBytes());
     key1.setPartitionId(1);
     List<RouterKey> keys = new ArrayList<>();
@@ -323,7 +325,7 @@ public class TestVeniceDelegateMode {
     Set<String> slowStorageNodeSet = new HashSet<>();
     slowStorageNodeSet.add(instance1.getNodeId());
     slowStorageNodeSet.add(instance2.getNodeId());
-    VenicePath path = getVenicePath(resourceName, RequestType.MULTI_GET, keys, slowStorageNodeSet);
+    VenicePath path = getVenicePath(storeName, version, resourceName, RequestType.MULTI_GET, keys, slowStorageNodeSet);
     path.setRetryRequest();
     Scatter<Instance, VenicePath, RouterKey> scatter = new Scatter(path, getPathParser(), VeniceRole.REPLICA);
     String requestMethod = HttpMethod.POST.name();
@@ -387,7 +389,8 @@ public class TestVeniceDelegateMode {
   @Test
   public void testScatterWithMultiGet() throws RouterException {
     String storeName = Utils.getUniqueString("test_store");
-    String resourceName = storeName + "_v1";
+    int version = 1;
+    String resourceName = storeName + "_v" + version;
     RouterKey key1 = new RouterKey("key_1".getBytes());
     key1.setPartitionId(1);
     RouterKey key2 = new RouterKey("key_2".getBytes());
@@ -413,7 +416,7 @@ public class TestVeniceDelegateMode {
     Instance instance4 = new Instance("host4_123", "host4", 123);
     Instance instance5 = new Instance("host5_123", "host5", 123);
 
-    VenicePath path = getVenicePath(resourceName, RequestType.MULTI_GET, keys);
+    VenicePath path = getVenicePath(storeName, version, resourceName, RequestType.MULTI_GET, keys);
     Scatter<Instance, VenicePath, RouterKey> scatter = new Scatter(path, getPathParser(), VeniceRole.REPLICA);
     String requestMethod = HttpMethod.POST.name();
 
@@ -504,7 +507,8 @@ public class TestVeniceDelegateMode {
   @Test
   public void testScatterWithStreamingMultiGet() throws RouterException {
     String storeName = Utils.getUniqueString("test_store");
-    String resourceName = storeName + "_v1";
+    int version = 1;
+    String resourceName = storeName + "_v" + version;
     RouterKey key1 = new RouterKey("key_1".getBytes());
     key1.setPartitionId(1);
     RouterKey key2 = new RouterKey("key_2".getBytes());
@@ -524,7 +528,7 @@ public class TestVeniceDelegateMode {
     keys.add(key4);
     keys.add(key5);
     keys.add(key6);
-    VenicePath path = getVenicePath(resourceName, RequestType.MULTI_GET_STREAMING, keys);
+    VenicePath path = getVenicePath(storeName, version, resourceName, RequestType.MULTI_GET_STREAMING, keys);
     Scatter<Instance, VenicePath, RouterKey> scatter = new Scatter(path, getPathParser(), VeniceRole.REPLICA);
     String requestMethod = HttpMethod.POST.name();
 
@@ -596,7 +600,8 @@ public class TestVeniceDelegateMode {
   @Test
   public void testScatterForMultiGetWithHelixAssistedRouting() throws RouterException {
     String storeName = Utils.getUniqueString("test_store");
-    String resourceName = storeName + "_v1";
+    int version = 1;
+    String resourceName = storeName + "_v" + version;
     RouterKey key1 = new RouterKey("key_1".getBytes());
     key1.setPartitionId(1);
     RouterKey key2 = new RouterKey("key_2".getBytes());
@@ -616,7 +621,7 @@ public class TestVeniceDelegateMode {
     keys.add(key4);
     keys.add(key5);
     keys.add(key6);
-    VenicePath path = getVenicePath(resourceName, RequestType.MULTI_GET, keys);
+    VenicePath path = getVenicePath(storeName, version, resourceName, RequestType.MULTI_GET, keys);
     Scatter<Instance, VenicePath, RouterKey> scatter = new Scatter(path, getPathParser(), VeniceRole.REPLICA);
     String requestMethod = HttpMethod.POST.name();
 
@@ -742,7 +747,7 @@ public class TestVeniceDelegateMode {
     slowStorageNodeSet.add(instance1.getNodeId());
     slowStorageNodeSet.add(instance3.getNodeId());
     VenicePath pathForAllSlowReplicas =
-        getVenicePath(resourceName, RequestType.MULTI_GET_STREAMING, keys, slowStorageNodeSet);
+        getVenicePath(storeName, version, resourceName, RequestType.MULTI_GET_STREAMING, keys, slowStorageNodeSet);
     scatter = new Scatter(pathForAllSlowReplicas, getPathParser(), VeniceRole.REPLICA);
     finalScatter = scatterMode.scatter(
         scatter,

@@ -82,7 +82,9 @@ public class TestVeniceComputePath {
 
   @Test
   public void testDeserializationCorrectness() throws RouterException {
-    String resourceName = Utils.getUniqueString("test_store") + "_v1";
+    String storeName = Utils.getUniqueString("test_store");
+    int versionNumber = 1;
+    String resourceName = storeName + "_v" + versionNumber;
 
     String keyPrefix = "key_";
     List<ByteBuffer> keys = new ArrayList<>();
@@ -113,8 +115,17 @@ public class TestVeniceComputePath {
     for (int version = 1; version <= LATEST_SCHEMA_VERSION_FOR_COMPUTE_REQUEST; version++) {
       BasicFullHttpRequest request = getComputeHttpRequest(resourceName, output.toByteArray(), version);
 
-      VeniceComputePath computePath =
-          new VeniceComputePath(resourceName, request, getVenicePartitionFinder(-1), 10, false, -1, false, 1);
+      VeniceComputePath computePath = new VeniceComputePath(
+          storeName,
+          versionNumber,
+          resourceName,
+          request,
+          getVenicePartitionFinder(-1),
+          10,
+          false,
+          -1,
+          false,
+          1);
       Assert.assertEquals(computePath.getComputeRequestLengthInBytes(), expectedLength);
 
       ComputeRequestWrapper requestInPath = computePath.getComputeRequest();
