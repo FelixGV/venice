@@ -113,7 +113,7 @@ public class VeniceChunkedResponse {
 
   // Response metadata should be sent when everything is good.
   private HttpResponse responseMetadata;
-  private CompressionStrategy responseCompression = null;
+  private volatile CompressionStrategy responseCompression = null;
 
   protected static final RedundantExceptionFilter REDUNDANT_LOGGING_FILTER =
       RedundantExceptionFilter.getRedundantExceptionFilter();
@@ -276,20 +276,20 @@ public class VeniceChunkedResponse {
       CompressionStrategy compression,
       StreamingCallback<Long> callback) {
     if (this.requestType.equals(RequestType.MULTI_GET_STREAMING)) {
-      if (responseCompression == null) {
+      if (this.responseCompression == null) {
         synchronized (this) {
-          if (responseCompression == null) {
-            responseCompression = compression;
-            responseMetadata = RESPONSE_META_MAP_FOR_MULTI_GET.get(compression);
+          if (this.responseCompression == null) {
+            this.responseCompression = compression;
+            this.responseMetadata = RESPONSE_META_MAP_FOR_MULTI_GET.get(compression);
           }
         }
       }
-      if (!responseCompression.equals(compression)) {
+      if (!this.responseCompression.equals(compression)) {
         // Defensive code, not expected
         LOGGER.error(
             "Received inconsistent compression for the new write: {}, and previous compression: {}",
             compression,
-            responseCompression);
+            this.responseCompression);
         /**
          * Skip the write with wrong compression.
          * {@link VeniceResponseAggregator#buildStreamingResponse} will perform the same check
