@@ -2,6 +2,7 @@ package com.linkedin.venice.router.api;
 
 import static com.linkedin.venice.router.api.VeniceMultiKeyRoutingStrategy.HELIX_ASSISTED_ROUTING;
 import static com.linkedin.venice.router.api.VeniceMultiKeyRoutingStrategy.LEAST_LOADED_ROUTING;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyInt;
 import static org.mockito.Mockito.doReturn;
@@ -11,6 +12,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import com.linkedin.alpini.base.concurrency.TimeoutProcessor;
 import com.linkedin.alpini.base.misc.Metrics;
@@ -50,6 +52,7 @@ import java.util.Map;
 import java.util.Set;
 import javax.annotation.Nonnull;
 import org.apache.http.client.methods.HttpUriRequest;
+import org.mockito.ArgumentCaptor;
 import org.testng.Assert;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
@@ -169,29 +172,19 @@ public class TestVeniceDelegateMode {
   }
 
   private HostFinder<Instance, VeniceRole> getHostFinder(Map<String, List<Instance>> partitionHostMap) {
-    return new HostFinder<Instance, VeniceRole>() {
-      @Nonnull
-      @Override
-      public List<Instance> findHosts(
-          @Nonnull String requestMethod,
-          @Nonnull String resourceName,
-          @Nonnull String partitionName,
-          @Nonnull HostHealthMonitor<Instance> hostHealthMonitor,
-          @Nonnull VeniceRole roles) throws RouterException {
-        if (partitionHostMap.containsKey(partitionName)) {
-          return partitionHostMap.get(partitionName);
-        }
-        return Collections.EMPTY_LIST;
-      }
-
-      @Nonnull
-      @Override
-      public Collection<Instance> findAllHosts(VeniceRole roles) throws RouterException {
-        Set<Instance> instanceSet = new HashSet<>();
-        partitionHostMap.values().stream().forEach(value -> instanceSet.addAll(value));
-        return new ArrayList<>(instanceSet);
-      }
-    };
+    VeniceHostFinder veniceHostFinder = mock(VeniceHostFinder.class);
+    ArgumentCaptor<String> resourceNameCaptor = ArgumentCaptor.forClass(String.class);
+    ArgumentCaptor<Integer> partitionNumberCaptor = ArgumentCaptor.forClass(Integer.class);
+    when(
+        veniceHostFinder
+            .findHosts(anyString(), resourceNameCaptor.capture(), anyString(), partitionNumberCaptor.capture(), any()))
+                .then(invocation -> {
+                  String partitionName =
+                      HelixUtils.getPartitionName(resourceNameCaptor.getValue(), partitionNumberCaptor.getValue());
+                  List<Instance> hosts = partitionHostMap.get(partitionName);
+                  return hosts == null ? Collections.emptyList() : hosts;
+                });
+    return veniceHostFinder;
   }
 
   private HostHealthMonitor<Instance> getHostHealthMonitor() {
@@ -240,7 +233,7 @@ public class TestVeniceDelegateMode {
     Scatter<Instance, VenicePath, RouterKey> scatter = new Scatter(path, getPathParser(), VeniceRole.REPLICA);
     String requestMethod = HttpMethod.GET.name();
     Map<RouterKey, String> keyPartitionMap = new HashMap<>();
-    String partitionName = "p1";
+    String partitionName = resourceName + "_1";
     keyPartitionMap.put(key, partitionName);
     PartitionFinder partitionFinder = getPartitionFinder(keyPartitionMap);
     Instance instance1 = new Instance("host1_123", "host1", 123);
@@ -296,7 +289,7 @@ public class TestVeniceDelegateMode {
     Scatter<Instance, VenicePath, RouterKey> scatter = new Scatter(path, getPathParser(), VeniceRole.REPLICA);
     String requestMethod = HttpMethod.GET.name();
     Map<RouterKey, String> keyPartitionMap = new HashMap<>();
-    String partitionName = "p1";
+    String partitionName = resourceName + "_1";
     keyPartitionMap.put(key, partitionName);
     PartitionFinder partitionFinder = getPartitionFinder(keyPartitionMap);
 

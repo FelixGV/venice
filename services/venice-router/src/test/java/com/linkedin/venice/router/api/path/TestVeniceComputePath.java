@@ -1,6 +1,7 @@
 package com.linkedin.venice.router.api.path;
 
 import static com.linkedin.venice.compute.ComputeRequestWrapper.LATEST_SCHEMA_VERSION_FOR_COMPUTE_REQUEST;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyInt;
 import static org.mockito.Mockito.mock;
@@ -16,6 +17,7 @@ import com.linkedin.venice.compute.protocol.request.ComputeRequestV2;
 import com.linkedin.venice.compute.protocol.request.CosineSimilarity;
 import com.linkedin.venice.compute.protocol.request.DotProduct;
 import com.linkedin.venice.compute.protocol.request.enums.ComputeOperationType;
+import com.linkedin.venice.partitioner.VenicePartitioner;
 import com.linkedin.venice.router.api.VenicePartitionFinder;
 import com.linkedin.venice.schema.avro.ReadAvroProtocolDefinition;
 import com.linkedin.venice.serializer.RecordDeserializer;
@@ -76,7 +78,9 @@ public class TestVeniceComputePath {
 
   private VenicePartitionFinder getVenicePartitionFinder(int partitionId) {
     VenicePartitionFinder mockedPartitionFinder = mock(VenicePartitionFinder.class);
-    when(mockedPartitionFinder.findPartitionNumber(any(), anyInt(), any(), anyInt())).thenReturn(partitionId);
+    VenicePartitioner venicePartitioner = mock(VenicePartitioner.class);
+    when(venicePartitioner.getPartitionId(any(ByteBuffer.class), anyInt())).thenReturn(partitionId);
+    when(mockedPartitionFinder.findPartitioner(anyString(), anyInt())).thenReturn(venicePartitioner);
     return mockedPartitionFinder;
   }
 

@@ -71,12 +71,12 @@ public class Partition {
     instances.addAll(this.helixStateToInstancesMap.get(HelixState.LEADER));
     this.readyInstances = Collections.unmodifiableList(instances);
 
-    instances.clear();
-    instances.addAll(this.helixStateToInstancesMap.get(HelixState.ONLINE));
-    instances.addAll(this.helixStateToInstancesMap.get(HelixState.BOOTSTRAP));
-    instances.addAll(this.helixStateToInstancesMap.get(HelixState.STANDBY));
-    instances.addAll(this.helixStateToInstancesMap.get(HelixState.LEADER));
-    this.workingInstances = Collections.unmodifiableList(instances);
+    List<Instance> instances2 = new ArrayList<>();
+    instances2.addAll(this.helixStateToInstancesMap.get(HelixState.ONLINE));
+    instances2.addAll(this.helixStateToInstancesMap.get(HelixState.BOOTSTRAP));
+    instances2.addAll(this.helixStateToInstancesMap.get(HelixState.STANDBY));
+    instances2.addAll(this.helixStateToInstancesMap.get(HelixState.LEADER));
+    this.workingInstances = Collections.unmodifiableList(instances2);
   }
 
   public List<Instance> getInstancesInState(String state) {

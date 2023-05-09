@@ -9,6 +9,7 @@ import com.linkedin.alpini.netty4.misc.BasicFullHttpRequest;
 import com.linkedin.alpini.router.api.RouterException;
 import com.linkedin.venice.HttpConstants;
 import com.linkedin.venice.meta.ReadOnlyStoreRepository;
+import com.linkedin.venice.partitioner.VenicePartitioner;
 import com.linkedin.venice.router.RouterThrottleHandler;
 import com.linkedin.venice.router.api.RouterExceptionAndTrackingUtils;
 import com.linkedin.venice.router.api.VenicePartitionFinder;
@@ -58,7 +59,9 @@ public class TestVeniceMultiGetPath {
 
   private VenicePartitionFinder getVenicePartitionFinder(int partitionId) {
     VenicePartitionFinder mockedPartitionFinder = mock(VenicePartitionFinder.class);
-    when(mockedPartitionFinder.findPartitionNumber(any(), anyInt(), any(), anyInt())).thenReturn(partitionId);
+    VenicePartitioner venicePartitioner = mock(VenicePartitioner.class);
+    when(venicePartitioner.getPartitionId(any(ByteBuffer.class), anyInt())).thenReturn(partitionId);
+    when(mockedPartitionFinder.findPartitioner(any(), anyInt())).thenReturn(venicePartitioner);
     return mockedPartitionFinder;
   }
 

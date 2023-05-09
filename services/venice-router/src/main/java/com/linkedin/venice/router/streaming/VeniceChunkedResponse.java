@@ -398,10 +398,7 @@ public class VeniceChunkedResponse {
       footerResponse = Unpooled.wrappedBuffer(COMPUTE_RESPONSE_SERIALIZER.serialize(record, reusableObjects));
     } else {
       // not possible
-      LOGGER.error(
-          "Received unsupported request type: {} for streaming response",
-          this.requestType,
-          new VeniceException());
+      LOGGER.error("Received unsupported request type: {} for streaming response", this.requestType);
       return;
     }
 
