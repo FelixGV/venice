@@ -68,7 +68,7 @@ public class RouterThrottleHandler extends SimpleChannelInboundHandler<HttpReque
         int keyCount;
 
         // single-get
-        if (VeniceRouterUtils.isHttpGet(msg.method())) {
+        if (VeniceRouterUtils.isHttpGet(msg.method().name())) {
           keyCount = 1;
         } else { // batch-get/compute requests
           BasicFullHttpRequest basicFullHttpRequest = (BasicFullHttpRequest) msg;

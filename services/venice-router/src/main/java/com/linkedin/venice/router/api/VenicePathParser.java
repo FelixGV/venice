@@ -31,7 +31,6 @@ import com.linkedin.venice.router.streaming.VeniceChunkedWriteHandler;
 import com.linkedin.venice.router.utils.VeniceRouterUtils;
 import com.linkedin.venice.streaming.StreamingUtils;
 import io.netty.channel.ChannelHandlerContext;
-import io.netty.handler.codec.http.HttpMethod;
 import java.util.Collection;
 import java.util.Objects;
 import java.util.Optional;
@@ -146,7 +145,7 @@ public class VenicePathParser<HTTP_REQUEST extends BasicHttpRequest>
 
       RouterStats<AggRouterHttpRequestStats> stats = routerConfig.isKeyValueProfilingEnabled() ? routerStats : null;
 
-      HttpMethod method = fullHttpRequest.method();
+      String method = fullHttpRequest.method().name();
       if (VeniceRouterUtils.isHttpGet(method)) {
         // single-get request
         path =
