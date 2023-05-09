@@ -269,7 +269,7 @@ public abstract class VenicePath implements ResourcePath<RouterKey> {
       throw new IllegalStateException("VeniceChunkedWriteHandler has already been setup");
     }
     this.chunkedResponse =
-        new VeniceChunkedResponse(storeName, getRequestType(), ctx, chunkedWriteHandler, routerStats);
+        new VeniceChunkedResponse(storeName, getStreamingRequestType(), ctx, chunkedWriteHandler, routerStats);
   }
 
   public void setResponseDecompressor(VeniceResponseDecompressor decompressor) {
@@ -302,6 +302,10 @@ public abstract class VenicePath implements ResourcePath<RouterKey> {
   }
 
   public abstract RequestType getRequestType();
+
+  protected RequestType getStreamingRequestType() {
+    throw new IllegalStateException("This should not be called on " + this.getClass().getSimpleName());
+  }
 
   public abstract VenicePath substitutePartitionKey(RouterKey s);
 

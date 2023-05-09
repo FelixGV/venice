@@ -25,6 +25,7 @@ import com.linkedin.venice.exceptions.VeniceException;
 import com.linkedin.venice.helix.HelixInstanceConfigRepository;
 import com.linkedin.venice.meta.Instance;
 import com.linkedin.venice.meta.ReadOnlyStoreRepository;
+import com.linkedin.venice.meta.Version;
 import com.linkedin.venice.read.RequestType;
 import com.linkedin.venice.router.VeniceRouterConfig;
 import com.linkedin.venice.router.api.path.VenicePath;
@@ -153,6 +154,16 @@ public class TestVeniceDelegateMode {
       @Override
       public int getNumPartitions(@Nonnull String resourceName) throws RouterException {
         return getAllPartitionNames(resourceName).size();
+      }
+
+      @Override
+      public int findPartitionNumber(
+          @Nonnull RouterKey partitionKey,
+          int numPartitions,
+          String storeName,
+          int versionNumber) throws RouterException {
+        String partitionName = findPartitionName(Version.composeKafkaTopic(storeName, versionNumber), partitionKey);
+        return HelixUtils.getPartitionId(partitionName);
       }
     };
   }

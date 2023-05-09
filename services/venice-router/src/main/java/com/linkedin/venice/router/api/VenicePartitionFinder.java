@@ -54,6 +54,7 @@ public class VenicePartitionFinder implements PartitionFinder<RouterKey> {
     return HelixUtils.getPartitionName(resourceName, partitionId);
   }
 
+  @Override
   public int findPartitionNumber(RouterKey partitionKey, int numPartitions, String storeName, int versionNumber) {
     return findPartitioner(storeName, versionNumber).getPartitionId(partitionKey.getKeyBuffer(), numPartitions);
   }

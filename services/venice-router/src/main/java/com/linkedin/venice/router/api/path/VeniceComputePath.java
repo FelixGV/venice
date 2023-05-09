@@ -139,7 +139,12 @@ public class VeniceComputePath extends VeniceMultiKeyPath<ComputeRouterRequestKe
 
   @Override
   public final RequestType getRequestType() {
-    return isStreamingRequest() ? RequestType.COMPUTE_STREAMING : RequestType.COMPUTE;
+    return isStreamingRequest() ? getStreamingRequestType() : RequestType.COMPUTE;
+  }
+
+  @Override
+  public final RequestType getStreamingRequestType() {
+    return RequestType.COMPUTE_STREAMING;
   }
 
   /**

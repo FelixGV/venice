@@ -160,13 +160,11 @@ public class VeniceChunkedResponse {
     this.storeName = storeName;
     this.requestType = requestType;
     this.routerStats = routerStats;
-    /**
-     * At this point, the request type is still be {@link RequestType#MULTI_GET} or {@link RequestType#COMPUTE}.
-     */
-    if (!requestType.equals(RequestType.MULTI_GET) && !requestType.equals(RequestType.COMPUTE)) {
+    if (!requestType.equals(RequestType.MULTI_GET_STREAMING) && !requestType.equals(RequestType.COMPUTE_STREAMING)) {
       throw new VeniceException(
           "Unexpected request type for streaming: " + requestType + ", and currently only"
-              + " the following types are supported: [" + RequestType.MULTI_GET + ", " + RequestType.COMPUTE + "]");
+              + " the following types are supported: [" + RequestType.MULTI_GET_STREAMING + ", "
+              + RequestType.COMPUTE_STREAMING + "]");
     }
     this.ctx = ctx;
     this.chunkedWriteHandler = handler;
@@ -400,7 +398,10 @@ public class VeniceChunkedResponse {
       footerResponse = Unpooled.wrappedBuffer(COMPUTE_RESPONSE_SERIALIZER.serialize(record, reusableObjects));
     } else {
       // not possible
-      LOGGER.error("Received unsupported request type: {} for streaming response", this.requestType);
+      LOGGER.error(
+          "Received unsupported request type: {} for streaming response",
+          this.requestType,
+          new VeniceException());
       return;
     }
 

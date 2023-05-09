@@ -82,6 +82,11 @@ public class VeniceSingleGetPath extends VenicePath {
     return RequestType.SINGLE_GET;
   }
 
+  @Override
+  protected RequestType getStreamingRequestType() {
+    throw new IllegalStateException("This should not be called on " + this.getClass().getSimpleName());
+  }
+
   /**
    * For single-get request, the substituted request is same as the original request.
    */

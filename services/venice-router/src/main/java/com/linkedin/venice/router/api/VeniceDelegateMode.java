@@ -368,25 +368,23 @@ public class VeniceDelegateMode extends ScatterGatherMode {
       VenicePath venicePath;
       VeniceHostFinder veniceHostFinder;
       HostHealthMonitor<Instance> veniceHostHealthMonitor;
-      VenicePartitionFinder venicePartitionFinder;
 
       try {
         venicePath = (VenicePath) path;
         veniceHostFinder = (VeniceHostFinder) hostFinder;
         veniceHostHealthMonitor = (HostHealthMonitor<Instance>) hostHealthMonitor;
-        venicePartitionFinder = (VenicePartitionFinder) partitionFinder;
       } catch (ClassCastException e) {
         throw RouterExceptionAndTrackingUtils.newRouterExceptionAndTracking(
             Optional.empty(),
             Optional.empty(),
             INTERNAL_SERVER_ERROR,
-            "VenicePath, VeniceHostFinder and HostHealthMonitor<Instance> are expected, but received: "
-                + path.getClass() + ", " + hostFinder.getClass() + " and " + hostHealthMonitor.getClass());
+            "VenicePath, VeniceHostFinder and HostHealthMonitor<Instance> are expected, " + "but received: "
+                + path.getClass() + " and " + hostFinder.getClass() + ", " + hostHealthMonitor.getClass());
       }
       K key = path.getPartitionKey();
-      int partitionNumber = venicePartitionFinder.findPartitionNumber(
-          (RouterKey) key,
-          venicePartitionFinder.getNumPartitions(resourceName),
+      int partitionNumber = partitionFinder.findPartitionNumber(
+          key,
+          partitionFinder.getNumPartitions(resourceName),
           venicePath.getStoreName(),
           venicePath.getVersionNumber());
       List<H> hosts = (List<H>) veniceHostFinder
