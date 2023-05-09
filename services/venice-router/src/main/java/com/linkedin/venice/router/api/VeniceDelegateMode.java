@@ -25,16 +25,12 @@ import com.linkedin.venice.router.stats.AggRouterHttpRequestStats;
 import com.linkedin.venice.router.stats.RouteHttpRequestStats;
 import com.linkedin.venice.router.stats.RouterStats;
 import com.linkedin.venice.router.throttle.RouterThrottler;
-import com.linkedin.venice.utils.HelixUtils;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import javax.annotation.Nonnull;
@@ -221,20 +217,14 @@ public class VeniceDelegateMode extends ScatterGatherMode {
         RouterExceptionAndTrackingUtils
             .recordUnavailableReplicaStreamingRequest(storeName, venicePath.getRequestType());
       } else {
-        Collection<ScatterGatherRequest<H, K>> offlineRequests = scatter.getOfflineRequests();
-        StringBuilder partitions = new StringBuilder();
-
-        for (ScatterGatherRequest scatterGatherRequest: offlineRequests) {
-          partitions.append(scatterGatherRequest.getPartitionsNames());
-        }
         RouterExceptionAndTrackingUtils.FailureType failureType = RouterExceptionAndTrackingUtils.FailureType.REGULAR;
         if (venicePath.isRetryRequest()) {
           // don't record it as unhealthy request.
           failureType = RouterExceptionAndTrackingUtils.FailureType.RETRY_ABORTED_BY_NO_AVAILABLE_REPLICA;
         }
         String isRetry = venicePath.isRetryRequest() ? "retry " : "";
-        String errMsg = "Partitions : " + partitions + " not available to serve " + isRetry + "request of type: "
-            + venicePath.getRequestType();
+        String errMsg =
+            resourceName + " not available to serve " + isRetry + "request of type: " + venicePath.getRequestType();
         throw RouterExceptionAndTrackingUtils.newRouterExceptionAndTracking(
             Optional.of(storeName),
             Optional.of(venicePath.getRequestType()),
@@ -375,28 +365,41 @@ public class VeniceDelegateMode extends ScatterGatherMode {
         @Nonnull R roles,
         Metrics metrics) throws RouterException {
       P path = scatter.getPath();
-      if (!(path instanceof VenicePath)) {
+      VenicePath venicePath;
+      VeniceHostFinder veniceHostFinder;
+      HostHealthMonitor<Instance> veniceHostHealthMonitor;
+      VenicePartitionFinder venicePartitionFinder;
+
+      try {
+        venicePath = (VenicePath) path;
+        veniceHostFinder = (VeniceHostFinder) hostFinder;
+        veniceHostHealthMonitor = (HostHealthMonitor<Instance>) hostHealthMonitor;
+        venicePartitionFinder = (VenicePartitionFinder) partitionFinder;
+      } catch (ClassCastException e) {
         throw RouterExceptionAndTrackingUtils.newRouterExceptionAndTracking(
             Optional.empty(),
             Optional.empty(),
             INTERNAL_SERVER_ERROR,
-            "VenicePath is expected, but received " + path.getClass());
+            "VenicePath, VeniceHostFinder and HostHealthMonitor<Instance> are expected, but received: "
+                + path.getClass() + ", " + hostFinder.getClass() + " and " + hostHealthMonitor.getClass());
       }
       K key = path.getPartitionKey();
-      String partitionName = partitionFinder.findPartitionName(resourceName, key);
-      List<H> hosts = hostFinder.findHosts(requestMethod, resourceName, partitionName, hostHealthMonitor, roles);
+      int partitionNumber = venicePartitionFinder.findPartitionNumber(
+          (RouterKey) key,
+          venicePartitionFinder.getNumPartitions(resourceName),
+          venicePath.getStoreName(),
+          venicePath.getVersionNumber());
+      List<H> hosts = (List<H>) veniceHostFinder
+          .findHosts(requestMethod, resourceName, venicePath.getStoreName(), partitionNumber, veniceHostHealthMonitor);
       SortedSet<K> keySet = new TreeSet<>();
       keySet.add(key);
       if (hosts.isEmpty()) {
-        scatter.addOfflineRequest(new ScatterGatherRequest<>(Collections.emptyList(), keySet, partitionName));
+        scatter.addOfflineRequest(new ScatterGatherRequest<>(Collections.emptyList(), keySet));
       } else if (hosts.size() > 1) {
-        VenicePath venicePath = (VenicePath) path;
-
         H host = selectLeastLoadedHost(hosts, venicePath);
-
-        scatter.addOnlineRequest(new ScatterGatherRequest<>(Collections.singletonList(host), keySet, partitionName));
+        scatter.addOnlineRequest(new ScatterGatherRequest<>(Collections.singletonList(host), keySet));
       } else {
-        scatter.addOnlineRequest(new ScatterGatherRequest<>(hosts, keySet, partitionName));
+        scatter.addOnlineRequest(new ScatterGatherRequest<>(hosts, keySet));
       }
       return scatter;
     }
@@ -408,21 +411,18 @@ public class VeniceDelegateMode extends ScatterGatherMode {
      */
     class KeyPartitionSet<H, K> {
       public TreeSet<K> keySet = new TreeSet<>();
-      public Set<String> partitionNames = new HashSet<>();
       public List<H> hosts;
 
       public KeyPartitionSet(List<H> hosts) {
         this.hosts = hosts;
       }
 
-      public void addKeyPartitions(List<K> keys, String partitionName) {
+      public void addKeys(List<K> keys) {
         this.keySet.addAll(keys);
-        this.partitionNames.add(partitionName);
       }
 
-      public void addKeyPartition(K key, String partitionName) {
+      public void addKey(K key) {
         this.keySet.add(key);
-        this.partitionNames.add(partitionName);
       }
     }
 
@@ -435,7 +435,6 @@ public class VeniceDelegateMode extends ScatterGatherMode {
      * @throws RouterException
      */
     protected abstract <H, K> void selectHostForPartition(
-        String partitionName,
         List<H> partitionReplicas,
         List<K> partitionKeys,
         VenicePath venicePath,
@@ -471,14 +470,23 @@ public class VeniceDelegateMode extends ScatterGatherMode {
         @Nonnull R roles,
         Metrics metrics) throws RouterException {
       P path = scatter.getPath();
-      if (!(path instanceof VenicePath)) {
+      VenicePath venicePath;
+      VeniceHostFinder veniceHostFinder;
+      HostHealthMonitor<Instance> veniceHostHealthMonitor;
+
+      try {
+        venicePath = (VenicePath) path;
+        veniceHostFinder = (VeniceHostFinder) hostFinder;
+        veniceHostHealthMonitor = (HostHealthMonitor<Instance>) hostHealthMonitor;
+      } catch (ClassCastException e) {
         throw RouterExceptionAndTrackingUtils.newRouterExceptionAndTracking(
             Optional.empty(),
             Optional.empty(),
             INTERNAL_SERVER_ERROR,
-            "VenicePath is expected, but received " + path.getClass());
+            "VenicePath, VeniceHostFinder and HostHealthMonitor<Instance> are expected, but received: "
+                + path.getClass() + ", " + hostFinder.getClass() + " and " + hostHealthMonitor.getClass());
       }
-      VenicePath venicePath = (VenicePath) path;
+
       /**
        * Group by partition
        *
@@ -495,37 +503,30 @@ public class VeniceDelegateMode extends ScatterGatherMode {
       /**
        * Group by host
        */
-      Map<H, KeyPartitionSet<H, K>> hostMap = new HashMap<>();
+      Map<Instance, KeyPartitionSet<Instance, K>> hostMap = new HashMap<>();
       int helixGroupNum = getHelixGroupNum();
       int assignedHelixGroupId = getAssignedHelixGroupId(venicePath);
       for (Map.Entry<Integer, List<K>> entry: partitionKeys.entrySet()) {
-        String partitionName = HelixUtils.getPartitionName(resourceName, entry.getKey());
-        List<H> hosts = hostFinder.findHosts(requestMethod, resourceName, partitionName, hostHealthMonitor, roles);
+        List<Instance> hosts = veniceHostFinder
+            .findHosts(requestMethod, resourceName, venicePath.getStoreName(), entry.getKey(), veniceHostHealthMonitor);
 
         if (hosts.isEmpty()) {
-          scatter.addOfflineRequest(
-              new ScatterGatherRequest<>(Collections.emptyList(), new TreeSet<>(entry.getValue()), partitionName));
+          scatter
+              .addOfflineRequest(new ScatterGatherRequest<>(Collections.emptyList(), new TreeSet<>(entry.getValue())));
         } else if (hosts.size() == 1) {
-          H host = hosts.get(0);
-          KeyPartitionSet<H, K> keyPartitionSet =
+          Instance host = hosts.get(0);
+          KeyPartitionSet<Instance, K> keyPartitionSet =
               hostMap.computeIfAbsent(host, k -> new KeyPartitionSet<>(Collections.singletonList(host)));
-          keyPartitionSet.addKeyPartitions(entry.getValue(), partitionName);
+          keyPartitionSet.addKeys(entry.getValue());
         } else {
           try {
-            selectHostForPartition(
-                partitionName,
-                hosts,
-                entry.getValue(),
-                venicePath,
-                hostMap,
-                helixGroupNum,
-                assignedHelixGroupId);
+            selectHostForPartition(hosts, entry.getValue(), venicePath, hostMap, helixGroupNum, assignedHelixGroupId);
           } catch (RouterException e) {
             /**
              * We don't want to throw exception here to fail the whole request since for streaming, partial scatter is acceptable.
              */
             scatter.addOfflineRequest(
-                new ScatterGatherRequest<>(Collections.emptyList(), new TreeSet<>(entry.getValue()), partitionName));
+                new ScatterGatherRequest<>(Collections.emptyList(), new TreeSet<>(entry.getValue())));
           }
         }
       }
@@ -533,12 +534,8 @@ public class VeniceDelegateMode extends ScatterGatherMode {
       /**
        * Populate online requests
        */
-      for (Map.Entry<H, KeyPartitionSet<H, K>> entry: hostMap.entrySet()) {
-        scatter.addOnlineRequest(
-            new ScatterGatherRequest<>(
-                entry.getValue().hosts,
-                entry.getValue().keySet,
-                entry.getValue().partitionNames));
+      for (KeyPartitionSet<Instance, K> value: hostMap.values()) {
+        scatter.addOnlineRequest((ScatterGatherRequest<H, K>) new ScatterGatherRequest<>(value.hosts, value.keySet));
       }
 
       return scatter;
@@ -555,7 +552,6 @@ public class VeniceDelegateMode extends ScatterGatherMode {
 
     @Override
     protected <H, K> void selectHostForPartition(
-        String partitionName,
         List<H> partitionReplicas,
         List<K> partitionKeys,
         VenicePath venicePath,
@@ -566,7 +562,7 @@ public class VeniceDelegateMode extends ScatterGatherMode {
         H selectedHost = selectLeastLoadedHost(partitionReplicas, venicePath);
         KeyPartitionSet<H, K> keyPartitionSet =
             hostMap.computeIfAbsent(selectedHost, k -> new KeyPartitionSet<>(Collections.singletonList(k)));
-        keyPartitionSet.addKeyPartition(key, partitionName);
+        keyPartitionSet.addKey(key);
       }
     }
   }
@@ -612,7 +608,6 @@ public class VeniceDelegateMode extends ScatterGatherMode {
 
     @Override
     protected <H, K> void selectHostForPartition(
-        String partitionName,
         List<H> partitionReplicas,
         List<K> partitionKeys,
         VenicePath venicePath,
@@ -667,7 +662,7 @@ public class VeniceDelegateMode extends ScatterGatherMode {
       }
       KeyPartitionSet<H, K> keyPartitionSet =
           hostMap.computeIfAbsent(selectedHost, k -> new KeyPartitionSet<>(Collections.singletonList(k)));
-      keyPartitionSet.addKeyPartitions(partitionKeys, partitionName);
+      keyPartitionSet.addKeys(partitionKeys);
     }
   }
 }

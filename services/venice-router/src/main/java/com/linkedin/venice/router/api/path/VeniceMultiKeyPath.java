@@ -6,6 +6,7 @@ import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import com.linkedin.alpini.router.api.RouterException;
 import com.linkedin.venice.exceptions.VeniceException;
 import com.linkedin.venice.exceptions.VeniceNoHelixResourceException;
+import com.linkedin.venice.partitioner.VenicePartitioner;
 import com.linkedin.venice.read.RequestType;
 import com.linkedin.venice.router.api.RouterExceptionAndTrackingUtils;
 import com.linkedin.venice.router.api.RouterKey;
@@ -83,11 +84,13 @@ public abstract class VeniceMultiKeyPath<K> extends VenicePath {
       RouterStats<AggRouterHttpRequestStats> stats) throws RouterException {
     keyNum = 0;
     int keyIdx = 0;
-    int partitionNum = -1;
+    int partitionNum;
+    VenicePartitioner partitioner;
     try {
       partitionNum = partitionFinder.getNumPartitions(resourceName);
+      partitioner = partitionFinder.findPartitioner(getStoreName(), getVersionNumber());
     } catch (VeniceNoHelixResourceException e) {
-      throw RouterExceptionAndTrackingUtils.newRouterExceptionAndTrackingResourceNotFound(
+      throw RouterExceptionAndTrackingUtils.newRouterExceptionAndTracking(
           Optional.of(getStoreName()),
           Optional.of(RequestType.COMPUTE),
           e.getHttpResponseStatus(),
@@ -104,17 +107,8 @@ public abstract class VeniceMultiKeyPath<K> extends VenicePath {
       }
 
       // partition lookup
-      int partitionId;
-      try {
-        partitionId = partitionFinder.findPartitionNumber(routerKey, partitionNum, getStoreName(), getVersionNumber());
-        routerKey.setPartitionId(partitionId);
-      } catch (VeniceNoHelixResourceException e) {
-        throw RouterExceptionAndTrackingUtils.newRouterExceptionAndTracking(
-            Optional.of(getStoreName()),
-            Optional.of(RequestType.COMPUTE),
-            e.getHttpResponseStatus(),
-            e.getMessage());
-      }
+      int partitionId = partitioner.getPartitionId(routerKey.getKeyBuffer(), partitionNum);
+      routerKey.setPartitionId(partitionId);
       K routerRequestKey = createRouterRequestKey(key, keyIdx, partitionId);
       this.routerKeyMap.put(routerKey, routerRequestKey);
       ++keyIdx;

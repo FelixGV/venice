@@ -29,6 +29,10 @@ public class ScatterGatherRequest<H, K> {
     this(host, new TreeSet<>(), new HashSet<>());
   }
 
+  public ScatterGatherRequest(List<H> host, SortedSet<K> partitionKeys) {
+    this(host, partitionKeys, Collections.emptySet());
+  }
+
   public ScatterGatherRequest(List<H> host, SortedSet<K> partitionKeys, String partitionName) {
     this(host, partitionKeys, new HashSet<>(Collections.singleton(partitionName)));
   }
@@ -50,11 +54,6 @@ public class ScatterGatherRequest<H, K> {
     _keys = partitionKeys;
     _partitions = partitionNames;
     _partitionIdsToQuery = partitionIdsToQuery;
-  }
-
-  public void addKeys(Set<K> partitionKeys, String partitionName) {
-    _keys.addAll(partitionKeys);
-    _partitions.add(partitionName);
   }
 
   public void addPartitionNameToQuery(String partitionName) {

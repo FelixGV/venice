@@ -8,7 +8,6 @@ import com.linkedin.alpini.base.misc.QueryStringDecoder;
 import com.linkedin.alpini.router.api.RouterException;
 import com.linkedin.venice.RequestConstants;
 import com.linkedin.venice.exceptions.VeniceNoHelixResourceException;
-import com.linkedin.venice.meta.Version;
 import com.linkedin.venice.read.RequestType;
 import com.linkedin.venice.router.api.RouterExceptionAndTrackingUtils;
 import com.linkedin.venice.router.api.RouterKey;
@@ -64,11 +63,7 @@ public class VeniceSingleGetPath extends VenicePath {
 
     try {
       int partitionNum = partitionFinder.getNumPartitions(resourceName);
-      int partitionId = partitionFinder.findPartitionNumber(
-          routerKey,
-          partitionNum,
-          storeName,
-          Version.parseVersionFromKafkaTopicName(resourceName));
+      int partitionId = partitionFinder.findPartitionNumber(routerKey, partitionNum, storeName, versionNumber);
       routerKey.setPartitionId(partitionId);
       String partition = Integer.toString(partitionId);
       setPartitionKeys(Collections.singleton(routerKey));

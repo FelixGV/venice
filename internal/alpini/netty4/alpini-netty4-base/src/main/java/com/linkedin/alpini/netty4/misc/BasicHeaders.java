@@ -14,7 +14,7 @@ import javax.annotation.Nonnull;
 /**
  * @author Antony T Curtis {@literal <acurtis@linkedin.com>}
  */
-public class BasicHeaders implements Headers {
+public class BasicHeaders implements com.linkedin.alpini.base.misc.Headers {
   private final HttpHeaders _headers;
 
   public BasicHeaders(@Nonnull HttpHeaders headers) {
