@@ -10,6 +10,7 @@ import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericDatumReader;
 import org.apache.avro.io.BinaryDecoder;
 import org.apache.avro.io.DatumReader;
+import org.apache.avro.io.Decoder;
 
 
 public class AvroGenericDeserializer<V> implements RecordDeserializer<V> {
@@ -67,12 +68,12 @@ public class AvroGenericDeserializer<V> implements RecordDeserializer<V> {
   }
 
   @Override
-  public V deserialize(BinaryDecoder decoder) throws VeniceSerializationException {
+  public V deserialize(Decoder decoder) throws VeniceSerializationException {
     return deserialize(null, decoder);
   }
 
   @Override
-  public V deserialize(V reuseRecord, BinaryDecoder decoder) throws VeniceSerializationException {
+  public V deserialize(V reuseRecord, Decoder decoder) throws VeniceSerializationException {
     try {
       return datumReader.read(reuseRecord, decoder);
     } catch (Exception e) {
@@ -87,17 +88,11 @@ public class AvroGenericDeserializer<V> implements RecordDeserializer<V> {
   }
 
   @Override
-  public Iterable<V> deserializeObjects(byte[] bytes) throws VeniceSerializationException {
-    InputStream in = new ByteArrayInputStream(bytes);
-    BinaryDecoder decoder = AvroCompatibilityHelper.newBinaryDecoder(in, BUFFERED_AVRO_DECODER, null);
-    return deserializeObjects(decoder);
-  }
-
-  @Override
-  public Iterable<V> deserializeObjects(BinaryDecoder decoder) throws VeniceSerializationException {
+  public Iterable<V> deserializeObjects(Decoder decoder, DecoderStatus decoderStatus)
+      throws VeniceSerializationException {
     List<V> objects = new ArrayList();
     try {
-      while (!decoder.isEnd()) {
+      while (!decoderStatus.isDone()) {
         objects.add(datumReader.read(null, decoder));
       }
     } catch (Exception e) {

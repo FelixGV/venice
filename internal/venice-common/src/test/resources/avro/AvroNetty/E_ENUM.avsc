@@ -1,0 +1,8 @@
+{
+  "namespace": "com.linkedin.avro.test.event",
+  "type": "record",
+  "name": "E_ENUM",
+  "fields": [
+    {"name": "f_value", "type": {"type": "enum", "name": "E_SUIT", "symbols":["SPADES", "HEARTS", "DIAMONDS", "CLUBS"]}}
+  ]
+}

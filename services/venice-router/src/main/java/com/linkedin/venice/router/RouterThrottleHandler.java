@@ -7,6 +7,7 @@ import static io.netty.handler.codec.http.HttpResponseStatus.INTERNAL_SERVER_ERR
 import static io.netty.handler.codec.http.HttpResponseStatus.TOO_MANY_REQUESTS;
 
 import com.linkedin.alpini.netty4.misc.BasicFullHttpRequest;
+import com.linkedin.avro.netty.ByteBufDecoder;
 import com.linkedin.venice.exceptions.QuotaExceededException;
 import com.linkedin.venice.router.api.RouterResourceType;
 import com.linkedin.venice.router.api.VenicePathParserHelper;
@@ -21,20 +22,15 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpRequest;
-import io.netty.util.AttributeKey;
 import io.netty.util.ReferenceCountUtil;
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import org.apache.avro.io.OptimizedBinaryDecoder;
-import org.apache.avro.io.OptimizedBinaryDecoderFactory;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 
 @ChannelHandler.Sharable
 public class RouterThrottleHandler extends SimpleChannelInboundHandler<HttpRequest> {
-  public static final AttributeKey<byte[]> THROTTLE_HANDLER_BYTE_ATTRIBUTE_KEY =
-      AttributeKey.valueOf("THROTTLE_HANDLER_BYTE_ATTRIBUTE_KEY");
   private static final Logger LOGGER = LogManager.getLogger(RouterThrottleHandler.class);
   private static final byte[] EMPTY_BYTES = new byte[0];
 
@@ -77,15 +73,9 @@ public class RouterThrottleHandler extends SimpleChannelInboundHandler<HttpReque
             keyCount = Integer.parseInt((String) keyCountsHeader);
           } else if (helper.getResourceType() == RouterResourceType.TYPE_STORAGE) {
             ByteBuf byteBuf = basicFullHttpRequest.content();
-            byte[] bytes = new byte[byteBuf.readableBytes()];
-            int readerIndex = byteBuf.readerIndex();
-
-            byteBuf.getBytes(readerIndex, bytes);
-            OptimizedBinaryDecoder binaryDecoder =
-                OptimizedBinaryDecoderFactory.defaultFactory().createOptimizedBinaryDecoder(bytes, 0, bytes.length);
-            keyCount = getKeyCount(binaryDecoder);
-            // Reuse the byte array in VeniceMultiGetPath
-            basicFullHttpRequest.attr(THROTTLE_HANDLER_BYTE_ATTRIBUTE_KEY).set(bytes);
+            ByteBufDecoder decoder = new ByteBufDecoder();
+            decoder.setBuffer(byteBuf);
+            keyCount = getKeyCount(decoder);
           } else {
             // Pass request to the next channel for compute request with older client
             ReferenceCountUtil.retain(msg);
@@ -115,12 +105,12 @@ public class RouterThrottleHandler extends SimpleChannelInboundHandler<HttpReque
    * @return
    * @throws IOException
    */
-  public int getKeyCount(OptimizedBinaryDecoder binaryDecoder) throws IOException {
+  public int getKeyCount(ByteBufDecoder decoder) throws IOException {
     int count = 0;
 
-    while (binaryDecoder.inputStream().available() > 0) {
-      int bytesLength = binaryDecoder.readInt();
-      binaryDecoder.skipFixed(bytesLength);
+    while (!decoder.isEnd()) {
+      int bytesLength = decoder.readInt();
+      decoder.skipFixed(bytesLength);
       count++;
     }
     return count;

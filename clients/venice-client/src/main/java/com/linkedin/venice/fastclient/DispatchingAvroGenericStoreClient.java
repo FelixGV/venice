@@ -42,6 +42,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import org.apache.avro.Schema;
+import org.apache.avro.io.BinaryDecoder;
 import org.apache.avro.io.ByteBufferOptimizedBinaryDecoder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -464,8 +465,8 @@ public class DispatchingAvroGenericStoreClient<K, V> extends InternalAvroStoreCl
     RecordDeserializer<MultiGetResponseRecordV1> deserializer =
         getMultiGetResponseRecordDeserializer(transportClientResponse.getSchemaId());
     long timestampBeforeRequestDeserialization = System.nanoTime();
-    Iterable<MultiGetResponseRecordV1> records =
-        deserializer.deserializeObjects(new ByteBufferOptimizedBinaryDecoder(transportClientResponse.getBody()));
+    BinaryDecoder binaryDecoder = new ByteBufferOptimizedBinaryDecoder(transportClientResponse.getBody());
+    Iterable<MultiGetResponseRecordV1> records = deserializer.deserializeObjects(binaryDecoder, binaryDecoder::isEnd);
     requestContext.recordRequestDeserializationTime(
         transportClientResponse.getRouteId(),
         getLatencyInNS(timestampBeforeRequestDeserialization));

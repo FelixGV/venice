@@ -49,6 +49,8 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import org.apache.avro.Schema;
+import org.apache.avro.io.BinaryDecoder;
+import org.apache.avro.io.ByteBufferOptimizedBinaryDecoder;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
@@ -112,8 +114,8 @@ public class TestVeniceResponseAggregator {
   private Iterable<CharSequence> deserializeResponse(byte[] content) {
     RecordDeserializer<CharSequence> deserializer =
         SerializerDeserializerFactory.getAvroGenericDeserializer(STRING_SCHEMA);
-
-    return deserializer.deserializeObjects(content);
+    BinaryDecoder decoder = new ByteBufferOptimizedBinaryDecoder(content);
+    return deserializer.deserializeObjects(decoder, decoder::isEnd);
   }
 
   private FullHttpResponse buildFullHttpResponse(

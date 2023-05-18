@@ -1,0 +1,8 @@
+{
+  "namespace": "com.linkedin.avro.test.event",
+  "type": "record",
+  "name": "E_MAP",
+    "fields": [
+      {"name": "f_value", "type": {"type": "map", "values": "long"}}
+    ]
+}

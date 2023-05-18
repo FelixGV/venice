@@ -32,7 +32,6 @@ import com.linkedin.venice.router.stats.RouterStats;
 import com.linkedin.venice.router.streaming.VeniceChunkedResponse;
 import com.linkedin.venice.router.throttle.PendingRequestThrottler;
 import com.linkedin.venice.utils.LatencyUtils;
-import com.linkedin.venice.utils.Pair;
 import com.linkedin.venice.utils.Utils;
 import com.linkedin.venice.utils.concurrent.VeniceConcurrentHashMap;
 import io.netty.buffer.ByteBuf;
@@ -289,9 +288,12 @@ public final class VeniceDispatcher implements PartitionDispatchHandler4<Instanc
       if (path.isStreamingRequest()) {
         VeniceChunkedResponse chunkedResponse = path.getChunkedResponse();
         if (path.getRequestType().equals(RequestType.MULTI_GET_STREAMING)) {
-          Pair<ByteBuf, CompressionStrategy> chunk =
-              responseDecompressor.processMultiGetResponseForStreaming(contentCompression, content);
-          chunkedResponse.write(chunk.getFirst(), chunk.getSecond());
+          if (responseDecompressor.canPassThroughResponse(contentCompression)) {
+            chunkedResponse.write(content, contentCompression);
+          } else {
+            chunkedResponse
+                .write(responseDecompressor.processMultiGetResponseForStreaming(CompressionStrategy.NO_OP, content));
+          }
         } else {
           chunkedResponse.write(content);
         }

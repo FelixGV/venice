@@ -6,6 +6,7 @@ import com.linkedin.venice.HttpConstants;
 import com.linkedin.venice.exceptions.VeniceException;
 import com.linkedin.venice.listener.request.GetRouterRequest;
 import com.linkedin.venice.listener.request.HealthCheckRequest;
+import com.linkedin.venice.listener.request.RequestHelper;
 import com.linkedin.venice.listener.response.HttpShortcutResponse;
 import com.linkedin.venice.meta.QueryAction;
 import io.netty.channel.ChannelHandlerContext;
@@ -72,7 +73,7 @@ public class RouterRequestHttpHandlerTest {
     Assert.assertEquals(requestObject.getKeyBytes(), expectedKey, "Key from path: " + path + " was parsed incorrectly");
 
     // Test parse method
-    GetRouterRequest getRouterRequest = GetRouterRequest.parseGetHttpRequest(msg);
+    GetRouterRequest getRouterRequest = GetRouterRequest.parse(msg, RequestHelper.getRequestParts(msg.uri()));
     Assert.assertEquals(
         getRouterRequest.getResourceName(),
         expectedStore,
@@ -137,7 +138,8 @@ public class RouterRequestHttpHandlerTest {
 
   public void doActionTest(String urlString, HttpMethod method, QueryAction expectedAction) {
     HttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, method, urlString);
-    QueryAction parsedAction = RouterRequestHttpHandler.getQueryActionFromRequest(request);
+    QueryAction parsedAction =
+        RouterRequestHttpHandler.getQueryActionFromRequest(request, RequestHelper.getRequestParts(request.uri()));
     Assert.assertEquals(parsedAction, expectedAction, "parsed wrong query action from string: " + urlString);
   }
 

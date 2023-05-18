@@ -7,6 +7,7 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import org.apache.avro.io.BinaryDecoder;
+import org.apache.avro.io.Decoder;
 import org.apache.avro.io.OptimizedBinaryDecoder;
 import org.apache.commons.io.IOUtils;
 
@@ -47,18 +48,18 @@ public class IdentityRecordDeserializer implements RecordDeserializer<ByteBuffer
   }
 
   @Override
-  public ByteBuffer deserialize(BinaryDecoder binaryDecoder) throws VeniceSerializationException {
-    if (!(binaryDecoder instanceof OptimizedBinaryDecoder)) {
+  public ByteBuffer deserialize(Decoder decoder) throws VeniceSerializationException {
+    if (!(decoder instanceof OptimizedBinaryDecoder)) {
       throw new UnsupportedOperationException(
           "Cannot extract raw value when using a BinaryDecoder unless it is an OptimizedBinaryDecoder.");
     }
 
-    return deserialize(((OptimizedBinaryDecoder) binaryDecoder).getRawBytes());
+    return deserialize(((OptimizedBinaryDecoder) decoder).getRawBytes());
   }
 
   @Override
-  public ByteBuffer deserialize(ByteBuffer reuse, BinaryDecoder binaryDecoder) throws VeniceSerializationException {
-    return deserialize(binaryDecoder);
+  public ByteBuffer deserialize(ByteBuffer reuse, Decoder decoder) throws VeniceSerializationException {
+    return deserialize(decoder);
   }
 
   @Override
@@ -74,12 +75,8 @@ public class IdentityRecordDeserializer implements RecordDeserializer<ByteBuffer
   }
 
   @Override
-  public Iterable<ByteBuffer> deserializeObjects(byte[] bytes) throws VeniceSerializationException {
-    return Collections.singleton(deserialize(bytes));
-  }
-
-  @Override
-  public Iterable<ByteBuffer> deserializeObjects(BinaryDecoder binaryDecoder) throws VeniceSerializationException {
+  public Iterable<ByteBuffer> deserializeObjects(Decoder binaryDecoder, DecoderStatus decoderStatus)
+      throws VeniceSerializationException {
     return Collections.singleton(deserialize(binaryDecoder));
   }
 }

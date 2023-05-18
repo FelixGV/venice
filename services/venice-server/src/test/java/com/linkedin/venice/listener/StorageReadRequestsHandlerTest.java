@@ -10,6 +10,7 @@ import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.linkedin.avro.netty.ByteBufDecoder;
 import com.linkedin.davinci.compression.StorageEngineBackedCompressorFactory;
 import com.linkedin.davinci.config.VeniceServerConfig;
 import com.linkedin.davinci.kafka.consumer.PartitionConsumptionState;
@@ -28,6 +29,7 @@ import com.linkedin.venice.listener.request.GetRouterRequest;
 import com.linkedin.venice.listener.request.HealthCheckRequest;
 import com.linkedin.venice.listener.request.MetadataFetchRequest;
 import com.linkedin.venice.listener.request.MultiGetRouterRequestWrapper;
+import com.linkedin.venice.listener.request.RequestHelper;
 import com.linkedin.venice.listener.response.HttpShortcutResponse;
 import com.linkedin.venice.listener.response.MultiGetResponseWrapper;
 import com.linkedin.venice.listener.response.StorageResponseObject;
@@ -62,6 +64,7 @@ import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpVersion;
+import java.net.URI;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -95,7 +98,8 @@ public class StorageReadRequestsHandlerTest {
     // [0]""/[1]"action"/[2]"store"/[3]"partition"/[4]"key"
     String uri = "/" + TYPE_STORAGE + "/" + topic + "/" + partition + "/" + keyString;
     HttpRequest httpRequest = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, uri);
-    GetRouterRequest testRequest = GetRouterRequest.parseGetHttpRequest(httpRequest);
+    GetRouterRequest testRequest =
+        GetRouterRequest.parse(httpRequest, RequestHelper.getRequestParts(httpRequest.uri()));
 
     AbstractStorageEngine testStore = mock(AbstractStorageEngine.class);
     doReturn(valueBytes).when(testStore).get(partition, ByteBuffer.wrap(keyString.getBytes()));
@@ -267,7 +271,9 @@ public class StorageReadRequestsHandlerTest {
         .set(
             HttpConstants.VENICE_API_VERSION,
             ReadAvroProtocolDefinition.MULTI_GET_ROUTER_REQUEST_V1.getProtocolVersion());
-    MultiGetRouterRequestWrapper testRequest = MultiGetRouterRequestWrapper.parseMultiGetHttpRequest(httpRequest);
+    URI fullUri = URI.create(uri);
+    MultiGetRouterRequestWrapper testRequest =
+        MultiGetRouterRequestWrapper.parse(httpRequest, fullUri, RequestHelper.getRequestParts(fullUri));
 
     StorageEngineRepository testRepository = mock(StorageEngineRepository.class);
     doReturn(testStore).when(testRepository).getLocalStorageEngine(topic);
@@ -323,12 +329,14 @@ public class StorageReadRequestsHandlerTest {
       MultiGetResponseWrapper multiGetResponseWrapper = (MultiGetResponseWrapper) outputArray.get(0);
       RecordDeserializer<MultiGetResponseRecordV1> deserializer =
           SerializerDeserializerFactory.getAvroSpecificDeserializer(MultiGetResponseRecordV1.class);
-      Iterable<MultiGetResponseRecordV1> values =
-          deserializer.deserializeObjects(multiGetResponseWrapper.getResponseBody().array());
+      ByteBufDecoder decoder = new ByteBufDecoder();
+      decoder.setBuffer(multiGetResponseWrapper.getResponseBody());
+      Iterable<MultiGetResponseRecordV1> values = deserializer.deserializeObjects(decoder, decoder::isEnd);
       Map<Integer, String> results = new HashMap<>();
-      values.forEach(K -> {
-        String valueString = new String(K.value.array(), StandardCharsets.UTF_8);
-        results.put(K.keyIndex, valueString);
+      values.forEach(multiGetResponseRecord -> {
+        ByteBuffer bb = multiGetResponseRecord.value;
+        String valueString = new String(bb.array(), bb.position(), bb.remaining(), StandardCharsets.UTF_8);
+        results.put(multiGetResponseRecord.keyIndex, valueString);
       });
       Assert.assertEquals(results.size(), recordCount);
       for (int i = 0; i < recordCount; i++) {
@@ -352,7 +360,8 @@ public class StorageReadRequestsHandlerTest {
     // [0]""/[1]"action"/[2]"store"/[3]"partition"/[4]"key"
     String uri = "/" + TYPE_STORAGE + "/" + topic + "/" + partition + "/" + keyString;
     HttpRequest httpRequest = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, uri);
-    GetRouterRequest testRequest = GetRouterRequest.parseGetHttpRequest(httpRequest);
+    GetRouterRequest testRequest =
+        GetRouterRequest.parse(httpRequest, RequestHelper.getRequestParts(httpRequest.uri()));
 
     AbstractStorageEngine testStore = mock(AbstractStorageEngine.class);
     doReturn(valueBytes).when(testStore).get(partition, ByteBuffer.wrap(keyString.getBytes()));
@@ -441,7 +450,8 @@ public class StorageReadRequestsHandlerTest {
     String uri = "/" + QueryAction.ADMIN.toString().toLowerCase() + "/" + topic + "/"
         + ServerAdminAction.DUMP_INGESTION_STATE.toString();
     HttpRequest httpRequest = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, uri);
-    AdminRequest testRequest = AdminRequest.parseAdminHttpRequest(httpRequest);
+    AdminRequest testRequest =
+        AdminRequest.parseAdminHttpRequest(httpRequest, RequestHelper.getRequestParts(httpRequest.uri()));
 
     // Mock the AdminResponse from ingestion task
     AdminResponse expectedAdminResponse = new AdminResponse();
@@ -518,7 +528,8 @@ public class StorageReadRequestsHandlerTest {
     // [0]""/[1]"action"/[2]"store"
     String uri = "/" + QueryAction.METADATA.toString().toLowerCase() + "/" + storeName;
     HttpRequest httpRequest = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, uri);
-    MetadataFetchRequest testRequest = MetadataFetchRequest.parseGetHttpRequest(httpRequest);
+    MetadataFetchRequest testRequest =
+        MetadataFetchRequest.parseGetHttpRequest(httpRequest, RequestHelper.getRequestParts(httpRequest.uri()));
 
     // Mock the MetadataResponse from ingestion task
     MetadataResponse expectedMetadataResponse = new MetadataResponse();

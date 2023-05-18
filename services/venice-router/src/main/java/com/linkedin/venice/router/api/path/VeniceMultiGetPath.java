@@ -5,10 +5,10 @@ import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 
 import com.linkedin.alpini.netty4.misc.BasicFullHttpRequest;
 import com.linkedin.alpini.router.api.RouterException;
+import com.linkedin.avro.netty.ByteBufDecoder;
 import com.linkedin.venice.HttpConstants;
 import com.linkedin.venice.read.RequestType;
 import com.linkedin.venice.read.protocol.request.router.MultiGetRouterRequestKeyV1;
-import com.linkedin.venice.router.RouterThrottleHandler;
 import com.linkedin.venice.router.api.RouterExceptionAndTrackingUtils;
 import com.linkedin.venice.router.api.RouterKey;
 import com.linkedin.venice.router.api.VenicePartitionFinder;
@@ -23,15 +23,20 @@ import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.Optional;
 import javax.annotation.Nonnull;
-import org.apache.avro.io.OptimizedBinaryDecoderFactory;
 
 
 public class VeniceMultiGetPath extends VeniceMultiKeyPath<MultiGetRouterRequestKeyV1> {
   private static final String ROUTER_REQUEST_VERSION =
       Integer.toString(ReadAvroProtocolDefinition.MULTI_GET_ROUTER_REQUEST_V1.getProtocolVersion());
 
+  private static final RecordSerializer<MultiGetRouterRequestKeyV1> MULTI_GET_ROUTER_REQUEST_KEY_V1_SERIALIZER =
+      FastSerializerDeserializerFactory.getAvroGenericSerializer(MultiGetRouterRequestKeyV1.getClassSchema());
+
   protected static final ReadAvroProtocolDefinition EXPECTED_PROTOCOL =
       ReadAvroProtocolDefinition.MULTI_GET_CLIENT_REQUEST_V1;
+
+  private static final RecordDeserializer<ByteBuffer> EXPECTED_PROTOCOL_DESERIALIZER =
+      FastSerializerDeserializerFactory.getAvroGenericDeserializer(EXPECTED_PROTOCOL.getSchema());
 
   public VeniceMultiGetPath(
       String storeName,
@@ -62,17 +67,9 @@ public class VeniceMultiGetPath extends VeniceMultiKeyPath<MultiGetRouterRequest
           "Expected api version: " + EXPECTED_PROTOCOL.getProtocolVersion() + ", but received: " + apiVersion);
     }
 
-    Iterable<ByteBuffer> keys;
-    byte[] content;
-
-    if (request.hasAttr(RouterThrottleHandler.THROTTLE_HANDLER_BYTE_ATTRIBUTE_KEY)) {
-      content = request.attr(RouterThrottleHandler.THROTTLE_HANDLER_BYTE_ATTRIBUTE_KEY).get();
-    } else {
-      content = new byte[request.content().readableBytes()];
-      request.content().readBytes(content);
-    }
-
-    keys = deserialize(content);
+    ByteBufDecoder decoder = new ByteBufDecoder();
+    decoder.setBuffer(request.content());
+    Iterable<ByteBuffer> keys = EXPECTED_PROTOCOL_DESERIALIZER.deserializeObjects(decoder, decoder::isEnd);
     initialize(storeName, resourceName, keys, partitionFinder, maxKeyCount, stats);
   }
 
@@ -144,16 +141,7 @@ public class VeniceMultiGetPath extends VeniceMultiKeyPath<MultiGetRouterRequest
 
   @Override
   protected byte[] serializeRouterRequest() {
-    RecordSerializer<MultiGetRouterRequestKeyV1> serializer =
-        FastSerializerDeserializerFactory.getAvroGenericSerializer(MultiGetRouterRequestKeyV1.getClassSchema());
-    return serializer.serializeObjects(routerKeyMap.values());
-  }
-
-  private static Iterable<ByteBuffer> deserialize(byte[] content) {
-    RecordDeserializer<ByteBuffer> deserializer =
-        FastSerializerDeserializerFactory.getAvroGenericDeserializer(EXPECTED_PROTOCOL.getSchema());
-    return deserializer.deserializeObjects(
-        OptimizedBinaryDecoderFactory.defaultFactory().createOptimizedBinaryDecoder(content, 0, content.length));
+    return MULTI_GET_ROUTER_REQUEST_KEY_V1_SERIALIZER.serializeObjects(routerKeyMap.values());
   }
 
   @Override

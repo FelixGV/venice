@@ -43,9 +43,8 @@ public class GetRouterRequest extends RouterRequest {
     return 1;
   }
 
-  public static GetRouterRequest parseGetHttpRequest(HttpRequest request) {
+  public static GetRouterRequest parse(HttpRequest request, String[] requestParts) {
     String uri = request.uri();
-    String[] requestParts = RequestHelper.getRequestParts(uri);
     if (requestParts.length == 5) {
       // [0]""/[1]"action"/[2]"store"/[3]"partition"/[4]"key"
       String topicName = requestParts[2];

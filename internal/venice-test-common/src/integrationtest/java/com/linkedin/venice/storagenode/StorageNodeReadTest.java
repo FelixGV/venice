@@ -55,6 +55,8 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import org.apache.avro.generic.GenericDatumWriter;
 import org.apache.avro.generic.GenericRecord;
+import org.apache.avro.io.BinaryDecoder;
+import org.apache.avro.io.ByteBufferOptimizedBinaryDecoder;
 import org.apache.avro.io.Encoder;
 import org.apache.commons.httpclient.HttpStatus;
 import org.apache.commons.io.FileUtils;
@@ -215,7 +217,8 @@ public class StorageNodeReadTest {
             multiGetResponse.getStatusLine().getStatusCode(),
             HttpStatus.SC_OK,
             "Response did not return 200: " + new String(body));
-        Iterable<MultiGetResponseRecordV1> values = deserializer.deserializeObjects(body);
+        BinaryDecoder decoder = new ByteBufferOptimizedBinaryDecoder(body);
+        Iterable<MultiGetResponseRecordV1> values = deserializer.deserializeObjects(decoder, decoder::isEnd);
         Map<Integer, String> results = new HashMap<>();
         values.forEach(K -> {
           Object value = valueSerializer.deserialize(null, K.value.array());

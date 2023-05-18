@@ -1068,16 +1068,17 @@ public abstract class AbstractAvroStoreClient<K, V> extends InternalAvroStoreCli
       // empty key set
       return;
     }
-    Optional<ClientStats> clientStats = Optional.empty();
-    if (callback instanceof TrackingStreamingCallback) {
-      clientStats = Optional.of(((TrackingStreamingCallback<K, V>) callback).getStats());
-    }
 
     List<K> keyList = new ArrayList<>(keys);
-    long preRequestSerializationNS = System.nanoTime();
-    byte[] multiGetBody = serializeMultiGetRequest(keyList);
-    clientStats.ifPresent(
-        stats -> stats.recordRequestSerializationTime(LatencyUtils.getLatencyInMS(preRequestSerializationNS)));
+    byte[] multiGetBody;
+    if (callback instanceof TrackingStreamingCallback) {
+      ClientStats clientStats = ((TrackingStreamingCallback<K, V>) callback).getStats();
+      long preRequestSerializationNS = System.nanoTime();
+      multiGetBody = serializeMultiGetRequest(keyList);
+      clientStats.recordRequestSerializationTime(LatencyUtils.getLatencyInMS(preRequestSerializationNS));
+    } else {
+      multiGetBody = serializeMultiGetRequest(keyList);
+    }
 
     Map<Integer, RecordDeserializer<V>> deserializerCache = new VeniceConcurrentHashMap<>();
     Map<String, String> headerMap = new HashMap<>(MULTI_GET_HEADER_MAP_FOR_STREAMING);

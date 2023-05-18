@@ -4,7 +4,6 @@ import com.linkedin.venice.exceptions.VeniceException;
 import com.linkedin.venice.meta.ServerAdminAction;
 import com.linkedin.venice.meta.Version;
 import io.netty.handler.codec.http.HttpRequest;
-import java.net.URI;
 
 
 /**
@@ -23,9 +22,7 @@ public class AdminRequest {
     this.partition = partition;
   }
 
-  public static AdminRequest parseAdminHttpRequest(HttpRequest request) {
-    URI fullUri = URI.create(request.uri());
-    String[] requestParts = fullUri.getRawPath().split("/");
+  public static AdminRequest parseAdminHttpRequest(HttpRequest request, String[] requestParts) {
     // [0]""/[1]"action"/[2]"store_version"/[3]"admin_action"/[4](optional)"partition_id"
     if (requestParts.length >= 4 && requestParts.length <= 5) {
       String topicName = requestParts[2];

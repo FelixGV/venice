@@ -18,10 +18,7 @@ public class DictionaryFetchRequest {
     this.resourceName = resourceName;
   }
 
-  public static DictionaryFetchRequest parseGetHttpRequest(HttpRequest request) {
-    String uri = request.uri();
-    String[] requestParts = RequestHelper.getRequestParts(uri);
-
+  public static DictionaryFetchRequest parseGetHttpRequest(HttpRequest request, String[] requestParts) {
     if (requestParts.length == 4) {
       // [0]""/[1]"action"/[2]"store"/[3]"version"
       String storeName = requestParts[2];
@@ -29,7 +26,7 @@ public class DictionaryFetchRequest {
       String topicName = Version.composeKafkaTopic(storeName, storeVersion);
       return new DictionaryFetchRequest(storeName, topicName);
     } else {
-      throw new VeniceException("Not a valid request for a DICTIONARY action: " + uri);
+      throw new VeniceException("Not a valid request for a DICTIONARY action: " + request.uri());
     }
   }
 

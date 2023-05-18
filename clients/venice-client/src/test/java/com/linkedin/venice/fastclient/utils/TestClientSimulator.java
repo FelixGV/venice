@@ -45,6 +45,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import org.apache.avro.Schema;
+import org.apache.avro.io.BinaryDecoder;
 import org.apache.avro.io.ByteBufferOptimizedBinaryDecoder;
 import org.apache.avro.specific.SpecificRecord;
 import org.apache.avro.util.Utf8;
@@ -234,8 +235,9 @@ public class TestClientSimulator implements Client {
           expectedRequestEvent.info.requestId);
 
       ByteString entity = request.getEntity();
+      BinaryDecoder binaryDecoder = new ByteBufferOptimizedBinaryDecoder(entity.copyBytes());
       Iterable<MultiGetRouterRequestKeyV1> multiGetRouterRequestKeyV1s =
-          multiGetRequestDeserializer.deserializeObjects(new ByteBufferOptimizedBinaryDecoder(entity.copyBytes()));
+          multiGetRequestDeserializer.deserializeObjects(binaryDecoder, binaryDecoder::isEnd);
       for (MultiGetRouterRequestKeyV1 keyRecord: multiGetRouterRequestKeyV1s) {
         Utf8 key = keyDeserializer.deserialize(keyRecord.keyBytes);
         LOGGER.info("t:{} Received key {} on route {} ", currentTimeTick.get(), key, route);

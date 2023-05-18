@@ -7,6 +7,7 @@ import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
 import static io.netty.handler.codec.http.HttpResponseStatus.SERVICE_UNAVAILABLE;
 
 import com.linkedin.alpini.netty4.misc.BasicFullHttpRequest;
+import com.linkedin.avro.netty.ByteBufDecoder;
 import com.linkedin.venice.compression.CompressionStrategy;
 import com.linkedin.venice.compression.CompressorFactory;
 import com.linkedin.venice.compression.VeniceCompressor;
@@ -19,7 +20,6 @@ import com.linkedin.venice.serializer.FastSerializerDeserializerFactory;
 import com.linkedin.venice.serializer.RecordDeserializer;
 import com.linkedin.venice.serializer.RecordSerializer;
 import com.linkedin.venice.utils.LatencyUtils;
-import com.linkedin.venice.utils.Pair;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.CompositeByteBuf;
 import io.netty.buffer.Unpooled;
@@ -27,7 +27,6 @@ import io.netty.handler.codec.http.HttpRequest;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Optional;
-import org.apache.avro.io.OptimizedBinaryDecoderFactory;
 
 
 /**
@@ -35,9 +34,9 @@ import org.apache.avro.io.OptimizedBinaryDecoderFactory;
  * {@link VeniceResponseAggregator} for regular requests and {@link VeniceDispatcher} for streaming requests.
  */
 public class VeniceResponseDecompressor {
-  private static final RecordSerializer<MultiGetResponseRecordV1> recordSerializer =
+  private static final RecordSerializer<MultiGetResponseRecordV1> MULTI_GET_RESPONSE_RECORD_V1_SERIALIZER =
       FastSerializerDeserializerFactory.getFastAvroGenericSerializer(MultiGetResponseRecordV1.getClassSchema());
-  private static final RecordDeserializer<MultiGetResponseRecordV1> recordDeserializer =
+  private static final RecordDeserializer<MultiGetResponseRecordV1> MULTI_GET_RESPONSE_RECORD_V1_DESERIALIZER =
       FastSerializerDeserializerFactory
           .getFastAvroSpecificDeserializer(MultiGetResponseRecordV1.getClassSchema(), MultiGetResponseRecordV1.class);
 
@@ -150,22 +149,14 @@ public class VeniceResponseDecompressor {
     }
   }
 
-  public Pair<ByteBuf, CompressionStrategy> processMultiGetResponseForStreaming(
-      CompressionStrategy responseCompression,
-      ByteBuf content) {
-    if (canPassThroughResponse(responseCompression)) {
-      // Decompress record on the client side if needed
-      return new Pair<>(content, responseCompression);
-    }
-
+  public ByteBuf processMultiGetResponseForStreaming(CompressionStrategy responseCompression, ByteBuf content) {
     AggRouterHttpRequestStats stats = routerStats.getStatsByType(MULTI_GET_STREAMING);
     stats.recordCompressedResponseSize(storeName, content.readableBytes());
     long startTimeInNs = System.nanoTime();
-    ByteBuf copy = content.isReadOnly() ? content.copy() : content;
-    ByteBuf decompressedContent = decompressMultiGetRecords(responseCompression, copy, MULTI_GET_STREAMING);
+    ByteBuf decompressedContent = decompressMultiGetRecords(responseCompression, content, MULTI_GET_STREAMING);
     stats.recordDecompressionTime(storeName, LatencyUtils.getLatencyInMS(startTimeInNs));
     content.release();
-    return new Pair<>(decompressedContent, CompressionStrategy.NO_OP);
+    return decompressedContent;
   }
 
   private ByteBuffer decompressRecord(
@@ -200,10 +191,10 @@ public class VeniceResponseDecompressor {
       CompressionStrategy compressionStrategy,
       ByteBuf data,
       RequestType requestType) {
-    ByteBuf copy = data.isReadOnly() ? data.copy() : data;
-    Iterable<MultiGetResponseRecordV1> records = recordDeserializer.deserializeObjects(
-        OptimizedBinaryDecoderFactory.defaultFactory()
-            .createOptimizedBinaryDecoder(copy.array(), 0, copy.readableBytes()));
+    ByteBufDecoder decoder = new ByteBufDecoder();
+    decoder.setBuffer(data);
+    Iterable<MultiGetResponseRecordV1> records =
+        MULTI_GET_RESPONSE_RECORD_V1_DESERIALIZER.deserializeObjects(decoder, decoder::isEnd);
 
     try {
       VeniceCompressor compressor;
@@ -229,6 +220,6 @@ public class VeniceResponseDecompressor {
           .newVeniceExceptionAndTracking(Optional.of(storeName), Optional.of(requestType), BAD_GATEWAY, errorMsg);
     }
 
-    return Unpooled.wrappedBuffer(recordSerializer.serializeObjects(records));
+    return Unpooled.wrappedBuffer(MULTI_GET_RESPONSE_RECORD_V1_SERIALIZER.serializeObjects(records));
   }
 }

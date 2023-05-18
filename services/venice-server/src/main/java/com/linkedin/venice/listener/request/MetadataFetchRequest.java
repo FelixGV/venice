@@ -15,16 +15,13 @@ public class MetadataFetchRequest {
     this.storeName = storeName;
   }
 
-  public static MetadataFetchRequest parseGetHttpRequest(HttpRequest request) {
-    String uri = request.uri();
-    String[] requestParts = RequestHelper.getRequestParts(uri);
-
+  public static MetadataFetchRequest parseGetHttpRequest(HttpRequest request, String[] requestParts) {
     if (requestParts.length == 3) {
       // [0]""/[1]"action"/[2]"store"
       String storeName = requestParts[2];
       return new MetadataFetchRequest(storeName);
     } else {
-      throw new VeniceException("not a valid request for a METADATA action: " + uri);
+      throw new VeniceException("not a valid request for a METADATA action: " + request.uri());
     }
   }
 

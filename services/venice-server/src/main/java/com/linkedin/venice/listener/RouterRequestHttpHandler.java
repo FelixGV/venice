@@ -8,6 +8,7 @@ import com.linkedin.venice.listener.request.GetRouterRequest;
 import com.linkedin.venice.listener.request.HealthCheckRequest;
 import com.linkedin.venice.listener.request.MetadataFetchRequest;
 import com.linkedin.venice.listener.request.MultiGetRouterRequestWrapper;
+import com.linkedin.venice.listener.request.RequestHelper;
 import com.linkedin.venice.listener.request.RouterRequest;
 import com.linkedin.venice.listener.response.HttpShortcutResponse;
 import com.linkedin.venice.meta.QueryAction;
@@ -72,20 +73,25 @@ public class RouterRequestHttpHandler extends SimpleChannelInboundHandler<FullHt
   @Override
   protected void channelRead0(ChannelHandlerContext ctx, FullHttpRequest req) throws Exception {
     try {
-      QueryAction action = getQueryActionFromRequest(req);
+      URI uri = URI.create(req.uri());
+      String[] requestParts = RequestHelper.getRequestParts(uri);
+      QueryAction action = getQueryActionFromRequest(req, requestParts);
       statsHandler.setRequestSize(req.content().readableBytes());
       switch (action) {
-        case STORAGE: // GET /storage/store/partition/key
+        case STORAGE:
           HttpMethod requestMethod = req.method();
           if (requestMethod.equals(HttpMethod.GET)) {
+            // Single get
+            // GET /storage/<store_name>/partition/key
             // TODO: evaluate whether we can replace single-get by multi-get
-            GetRouterRequest getRouterRequest = GetRouterRequest.parseGetHttpRequest(req);
+            GetRouterRequest getRouterRequest = GetRouterRequest.parse(req, requestParts);
             setupRequestTimeout(getRouterRequest);
             statsHandler.setRequestInfo(getRouterRequest);
             ctx.fireChannelRead(getRouterRequest);
           } else if (requestMethod.equals(HttpMethod.POST)) {
             // Multi-get
-            MultiGetRouterRequestWrapper multiGetRouterReq = MultiGetRouterRequestWrapper.parseMultiGetHttpRequest(req);
+            // POST /storage/<store_name>
+            MultiGetRouterRequestWrapper multiGetRouterReq = MultiGetRouterRequestWrapper.parse(req, uri, requestParts);
             setupRequestTimeout(multiGetRouterReq);
             statsHandler.setRequestInfo(multiGetRouterReq);
             ctx.fireChannelRead(multiGetRouterReq);
@@ -93,10 +99,11 @@ public class RouterRequestHttpHandler extends SimpleChannelInboundHandler<FullHt
             throw new VeniceException("Unknown request method: " + requestMethod + " for " + QueryAction.STORAGE);
           }
           break;
-        case COMPUTE: // compute request
+        case COMPUTE:
           if (req.method().equals(HttpMethod.POST)) {
-            ComputeRouterRequestWrapper computeRouterReq =
-                ComputeRouterRequestWrapper.parseComputeRequest(req, useFastAvro);
+            // Read compute
+            // POST /compute/<store_name>
+            ComputeRouterRequestWrapper computeRouterReq = ComputeRouterRequestWrapper.parse(req, uri, requestParts);
             setupRequestTimeout(computeRouterReq);
             statsHandler.setRequestInfo(computeRouterReq);
             ctx.fireChannelRead(computeRouterReq);
@@ -110,17 +117,17 @@ public class RouterRequestHttpHandler extends SimpleChannelInboundHandler<FullHt
           ctx.fireChannelRead(healthCheckRequest);
           break;
         case DICTIONARY:
-          DictionaryFetchRequest dictionaryFetchRequest = DictionaryFetchRequest.parseGetHttpRequest(req);
+          DictionaryFetchRequest dictionaryFetchRequest = DictionaryFetchRequest.parseGetHttpRequest(req, requestParts);
           statsHandler.setStoreName(dictionaryFetchRequest.getStoreName());
           ctx.fireChannelRead(dictionaryFetchRequest);
           break;
         case ADMIN:
-          AdminRequest adminRequest = AdminRequest.parseAdminHttpRequest(req);
+          AdminRequest adminRequest = AdminRequest.parseAdminHttpRequest(req, requestParts);
           statsHandler.setStoreName(adminRequest.getStoreName());
           ctx.fireChannelRead(adminRequest);
           break;
         case METADATA:
-          MetadataFetchRequest metadataFetchRequest = MetadataFetchRequest.parseGetHttpRequest(req);
+          MetadataFetchRequest metadataFetchRequest = MetadataFetchRequest.parseGetHttpRequest(req, requestParts);
           statsHandler.setStoreName(metadataFetchRequest.getStoreName());
           ctx.fireChannelRead(metadataFetchRequest);
           break;
@@ -154,10 +161,7 @@ public class RouterRequestHttpHandler extends SimpleChannelInboundHandler<FullHt
     super.userEventTriggered(ctx, evt);
   }
 
-  static QueryAction getQueryActionFromRequest(HttpRequest req) {
-    // Sometimes req.uri() gives a full uri (eg https://host:port/path) and sometimes it only gives a path
-    // Generating a URI lets us always take just the path.
-    String[] requestParts = URI.create(req.uri()).getPath().split("/");
+  static QueryAction getQueryActionFromRequest(HttpRequest req, String[] requestParts) {
     HttpMethod reqMethod = req.method();
     if ((!reqMethod.equals(HttpMethod.GET) && !reqMethod.equals(HttpMethod.POST)) || requestParts.length < 2) {
       String actions =

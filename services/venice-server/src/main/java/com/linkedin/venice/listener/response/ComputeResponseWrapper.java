@@ -7,16 +7,16 @@ import com.linkedin.venice.serializer.RecordSerializer;
 
 
 public class ComputeResponseWrapper extends MultiKeyResponseWrapper<ComputeResponseRecordV1> {
+  private static final RecordSerializer<ComputeResponseRecordV1> SERIALIZER =
+      FastSerializerDeserializerFactory.getAvroGenericSerializer(ComputeResponseRecordV1.getClassSchema());
+
   public ComputeResponseWrapper(int maxKeyCount) {
     super(maxKeyCount);
   }
 
   @Override
   protected byte[] serializedResponse() {
-    RecordSerializer<ComputeResponseRecordV1> serializer =
-        FastSerializerDeserializerFactory.getAvroGenericSerializer(ComputeResponseRecordV1.getClassSchema());
-
-    return serializer.serializeObjects(records);
+    return SERIALIZER.serializeObjects(records);
   }
 
   @Override
