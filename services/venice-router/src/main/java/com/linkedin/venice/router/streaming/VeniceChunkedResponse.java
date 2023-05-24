@@ -279,6 +279,12 @@ public class VeniceChunkedResponse {
         synchronized (this) {
           if (this.responseCompression == null) {
             this.responseCompression = compression;
+            // Thread.yield();
+            // try {
+            // Thread.sleep(2);
+            // } catch (InterruptedException e) {
+            // throw new RuntimeException(e);
+            // }
             this.responseMetadata = RESPONSE_META_MAP_FOR_MULTI_GET.get(compression);
           }
         }
