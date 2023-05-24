@@ -20,6 +20,7 @@ import com.linkedin.venice.schema.avro.ReadAvroProtocolDefinition;
 import com.linkedin.venice.serializer.FastSerializerDeserializerFactory;
 import com.linkedin.venice.serializer.RecordDeserializer;
 import com.linkedin.venice.serializer.RecordSerializer;
+import com.linkedin.venice.utils.NettyUtils;
 import io.netty.buffer.ByteBuf;
 import java.nio.ByteBuffer;
 import java.util.Map;
@@ -176,8 +177,9 @@ public class VeniceComputePath extends VeniceMultiKeyPath<ComputeRouterRequestKe
 
   @Override
   protected byte[] serializeRouterRequest() {
-    return COMPUTE_ROUTER_REQUEST_KEY_V1_SERIALIZER
-        .serializeObjects(routerKeyMap.values(), requestContent.internalNioBuffer(0, computeRequestLengthInBytes));
+    return COMPUTE_ROUTER_REQUEST_KEY_V1_SERIALIZER.serializeObjects(
+        routerKeyMap.values(),
+        NettyUtils.getNioByteBuffer(requestContent, 0, computeRequestLengthInBytes));
   }
 
   public int getValueSchemaId() {

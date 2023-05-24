@@ -1,5 +1,6 @@
 package com.linkedin.avro.netty;
 
+import com.linkedin.venice.utils.NettyUtils;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import java.io.EOFException;
@@ -115,9 +116,7 @@ public class ByteBufDecoder extends Decoder {
   public ByteBuffer readBytes(final ByteBuffer old) throws IOException {
     final int length = this.readInt();
     int byteBufReaderIndex = this.buffer.readerIndex();
-    ByteBuffer result = this.buffer.hasArray()
-        ? ByteBuffer.wrap(this.buffer.array(), byteBufReaderIndex, length)
-        : this.buffer.internalNioBuffer(byteBufReaderIndex, length);
+    ByteBuffer result = NettyUtils.getNioByteBuffer(this.buffer, byteBufReaderIndex, length);
     this.buffer.readerIndex(byteBufReaderIndex + length);
     return result;
   }

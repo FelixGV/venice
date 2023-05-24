@@ -3,6 +3,7 @@ package com.linkedin.venice.serializer;
 import com.linkedin.avroutil1.compatibility.AvroCompatibilityHelper;
 import com.linkedin.avroutil1.compatibility.AvroCompatibilityHelperCommon;
 import com.linkedin.venice.exceptions.VeniceException;
+import com.linkedin.venice.io.ByteOutputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -29,7 +30,7 @@ public class AvroSerializer<K> implements RecordSerializer<K> {
   private final boolean buffered;
 
   private static class ReusableObjects {
-    public final ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+    public final ByteOutputStream outputStream = new ByteOutputStream();
     public final BinaryEncoder binaryEncoder = AvroCompatibilityHelper.newBinaryEncoder(outputStream, true, null);
   }
 
@@ -96,7 +97,7 @@ public class AvroSerializer<K> implements RecordSerializer<K> {
   public byte[] serializeObjects(Iterable<K> objects, ByteBuffer prefix) throws VeniceException {
     ReusableObjects reusableObjects = REUSABLE_OBJECTS.get();
     reusableObjects.outputStream.reset();
-    reusableObjects.outputStream.write(prefix.array(), prefix.position(), prefix.remaining());
+    reusableObjects.outputStream.write(prefix);
     return serializeObjects(objects, reusableObjects.binaryEncoder, reusableObjects.outputStream);
   }
 

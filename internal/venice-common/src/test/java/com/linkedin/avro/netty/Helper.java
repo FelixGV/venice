@@ -38,7 +38,7 @@ public class Helper {
     final ByteBuf buffer = ByteBufAllocator.DEFAULT.buffer(1024);
     final ByteBufEncoder encoder = new ByteBufEncoder();
     encoder.setBuffer(buffer);
-    final DatumWriter<GenericRecord> writer = new GenericDatumWriter<GenericRecord>(record.getSchema());
+    final DatumWriter<GenericRecord> writer = new GenericDatumWriter<>(record.getSchema());
     try {
       writer.write(record, encoder);
       return getBytes(encoder.getBuffer());
@@ -52,7 +52,7 @@ public class Helper {
   public static GenericRecord avroGenericByteBufDecoder(final ByteBuf buffer, final Schema schema) {
     final ByteBufDecoder decoder = new ByteBufDecoder();
     decoder.setBuffer(buffer);
-    final GenericDatumReader<GenericRecord> reader = new GenericDatumReader<GenericRecord>(schema);
+    final GenericDatumReader<GenericRecord> reader = new GenericDatumReader<>(schema, schema);
     try {
       return reader.read(null, decoder);
     } catch (final IOException e) {

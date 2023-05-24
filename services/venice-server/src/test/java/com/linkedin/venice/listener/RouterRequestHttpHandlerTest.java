@@ -40,7 +40,7 @@ public class RouterRequestHttpHandlerTest {
   @Test
   public void respondsToHealthCheck() throws Exception {
     RouterRequestHttpHandler testHander =
-        new RouterRequestHttpHandler(Mockito.mock(StatsHandler.class), false, Collections.emptyMap());
+        new RouterRequestHttpHandler(Mockito.mock(StatsHandler.class), Collections.emptyMap());
     ChannelHandlerContext mockContext = Mockito.mock(ChannelHandlerContext.class);
     ArgumentCaptor<HealthCheckRequest> argumentCaptor = ArgumentCaptor.forClass(HealthCheckRequest.class);
     HttpRequest healthMsg = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/health");
@@ -55,7 +55,7 @@ public class RouterRequestHttpHandlerTest {
 
     // Test handler
     RouterRequestHttpHandler testHander =
-        new RouterRequestHttpHandler(Mockito.mock(StatsHandler.class), false, Collections.emptyMap());
+        new RouterRequestHttpHandler(Mockito.mock(StatsHandler.class), Collections.emptyMap());
     ChannelHandlerContext mockContext = Mockito.mock(ChannelHandlerContext.class);
     ArgumentCaptor<GetRouterRequest> argumentCaptor = ArgumentCaptor.forClass(GetRouterRequest.class);
     HttpRequest msg = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, path);
@@ -90,7 +90,7 @@ public class RouterRequestHttpHandlerTest {
 
   public void testBadRequest(String path, HttpMethod method) throws Exception {
     RouterRequestHttpHandler testHander =
-        new RouterRequestHttpHandler(Mockito.mock(StatsHandler.class), false, Collections.emptyMap());
+        new RouterRequestHttpHandler(Mockito.mock(StatsHandler.class), Collections.emptyMap());
     ChannelHandlerContext mockContext = Mockito.mock(ChannelHandlerContext.class);
     ArgumentCaptor<HttpShortcutResponse> argumentCaptor = ArgumentCaptor.forClass(HttpShortcutResponse.class);
     HttpRequest msg = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, method, path);

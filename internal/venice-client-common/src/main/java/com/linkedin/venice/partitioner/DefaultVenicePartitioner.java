@@ -54,8 +54,25 @@ public class DefaultVenicePartitioner extends VenicePartitioner {
 
   public int getPartitionId(byte[] keyBytes, int offset, int length, int numPartitions) {
     PartitionerState ps = partitionerState.get();
-
     ps.md.update(keyBytes, offset, length);
+    return getPartitionIdAfterMessageDigestUpdate(ps, numPartitions);
+  }
+
+  @Override
+  public int getPartitionId(byte[] keyBytes, int numPartitions) {
+    return getPartitionId(keyBytes, 0, keyBytes.length, numPartitions);
+  }
+
+  @Override
+  public int getPartitionId(ByteBuffer keyByteBuffer, int numPartitions) {
+    PartitionerState ps = partitionerState.get();
+    keyByteBuffer.mark();
+    ps.md.update(keyByteBuffer);
+    keyByteBuffer.reset();
+    return getPartitionIdAfterMessageDigestUpdate(ps, numPartitions);
+  }
+
+  private int getPartitionIdAfterMessageDigestUpdate(PartitionerState ps, int numPartitions) {
     try {
       ps.digestSize = ps.md.digest(ps.digestOutput, 0, ps.digestOutput.length);
     } catch (Exception e) {
@@ -74,15 +91,5 @@ public class DefaultVenicePartitioner extends VenicePartitioner {
 
     ps.md.reset();
     return partition;
-  }
-
-  @Override
-  public int getPartitionId(byte[] keyBytes, int numPartitions) {
-    return getPartitionId(keyBytes, 0, keyBytes.length, numPartitions);
-  }
-
-  @Override
-  public int getPartitionId(ByteBuffer keyByteBuffer, int numPartitions) {
-    return getPartitionId(keyByteBuffer.array(), keyByteBuffer.position(), keyByteBuffer.remaining(), numPartitions);
   }
 }

@@ -229,6 +229,7 @@ public class VeniceResponseAggregator implements ResponseAggregatorFactory<Basic
     }
 
     HttpResponseStatus responseStatus = finalResponse.status();
+    boolean healthyStatus = HEALTHY_STATUSES.contains(responseStatus);
     Map<String, TimeValue> allMetrics = metrics.getMetrics();
     /**
      * All the metrics in {@link com.linkedin.ddsstorage.router.api.MetricNames} are supported in {@link Metrics}.
@@ -236,13 +237,13 @@ public class VeniceResponseAggregator implements ResponseAggregatorFactory<Basic
      * 1. {@link ROUTER_PARSE_URI}
      * 2. {@link ROUTER_ROUTING_TIME}
      */
-    if (allMetrics.containsKey(ROUTER_SERVER_TIME.name())) {
+    TimeValue metric = allMetrics.get(ROUTER_SERVER_TIME.name());
+    if (metric != null) {
       // TODO: When a batch get throws a quota exception, the ROUTER_SERVER_TIME is missing, so we can't record anything
       // here...
-      double latency = LatencyUtils
-          .convertLatencyFromNSToMS(allMetrics.get(ROUTER_SERVER_TIME.name()).getRawValue(TimeUnit.NANOSECONDS));
+      double latency = LatencyUtils.convertLatencyFromNSToMS(metric.getRawValue(TimeUnit.NANOSECONDS));
       stats.recordLatency(storeName, latency);
-      if (HEALTHY_STATUSES.contains(responseStatus)) {
+      if (healthyStatus) {
         routerStats.getStatsByType(RequestType.SINGLE_GET)
             .recordReadQuotaUsage(storeName, venicePath.getPartitionKeys().size());
         if (isFastRequest(latency, requestType)) {
@@ -258,22 +259,22 @@ public class VeniceResponseAggregator implements ResponseAggregatorFactory<Basic
         stats.recordUnhealthyRequest(storeName, latency);
       }
     }
-    if (allMetrics.containsKey(ROUTER_RESPONSE_WAIT_TIME.name())) {
-      double waitingTime = LatencyUtils
-          .convertLatencyFromNSToMS(allMetrics.get(ROUTER_RESPONSE_WAIT_TIME.name()).getRawValue(TimeUnit.NANOSECONDS));
+    metric = allMetrics.get(ROUTER_RESPONSE_WAIT_TIME.name());
+    if (metric != null) {
+      double waitingTime = LatencyUtils.convertLatencyFromNSToMS(metric.getRawValue(TimeUnit.NANOSECONDS));
       stats.recordResponseWaitingTime(storeName, waitingTime);
     }
-    if (allMetrics.containsKey(ROUTER_PARSE_URI.name())) {
-      double parsingTime = LatencyUtils
-          .convertLatencyFromNSToMS(allMetrics.get(ROUTER_PARSE_URI.name()).getRawValue(TimeUnit.NANOSECONDS));
+    metric = allMetrics.get(ROUTER_PARSE_URI.name());
+    if (metric != null) {
+      double parsingTime = LatencyUtils.convertLatencyFromNSToMS(metric.getRawValue(TimeUnit.NANOSECONDS));
       stats.recordRequestParsingLatency(storeName, parsingTime);
     }
-    if (allMetrics.containsKey(ROUTER_ROUTING_TIME.name())) {
-      double routingTime = LatencyUtils
-          .convertLatencyFromNSToMS(allMetrics.get(ROUTER_ROUTING_TIME.name()).getRawValue(TimeUnit.NANOSECONDS));
+    metric = allMetrics.get(ROUTER_ROUTING_TIME.name());
+    if (metric != null) {
+      double routingTime = LatencyUtils.convertLatencyFromNSToMS(metric.getRawValue(TimeUnit.NANOSECONDS));
       stats.recordRequestRoutingLatency(storeName, routingTime);
     }
-    if (HEALTHY_STATUSES.contains(responseStatus) && !venicePath.isStreamingRequest()) {
+    if (healthyStatus && !venicePath.isStreamingRequest()) {
       // Only record successful response
       stats.recordResponseSize(storeName, finalResponse.content().readableBytes());
     }
@@ -360,7 +361,7 @@ public class VeniceResponseAggregator implements ResponseAggregatorFactory<Basic
      * 1. {@link HttpHeaderNames.CONTENT_TYPE}
      * 2. {@link HttpConstants.VENICE_SCHEMA_ID}
      */
-    CompositeByteBuf content = Unpooled.compositeBuffer();
+    CompositeByteBuf content = Unpooled.compositeBuffer(responses.size());
     int totalRequestRcu = 0;
     for (FullHttpResponse response: responses) {
       if (response.status() != OK) {

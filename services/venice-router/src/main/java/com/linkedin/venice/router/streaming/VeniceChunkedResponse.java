@@ -46,6 +46,7 @@ import io.netty.util.concurrent.GenericFutureListener;
 import io.netty.util.concurrent.GenericProgressiveFutureListener;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Queue;
@@ -125,7 +126,8 @@ public class VeniceChunkedResponse {
    * For {@link RequestType#MULTI_GET}, there will be one header map per {@link CompressionStrategy} since
    * the Streaming response headers include {@link HttpConstants#VENICE_COMPRESSION_STRATEGY}.
     */
-  private static final Map<CompressionStrategy, HttpResponse> RESPONSE_META_MAP_FOR_MULTI_GET = new HashMap<>();
+  private static final Map<CompressionStrategy, HttpResponse> RESPONSE_META_MAP_FOR_MULTI_GET =
+      new EnumMap<>(CompressionStrategy.class);
   static {
     for (CompressionStrategy compressionStrategy: CompressionStrategy.values()) {
       final Map<CharSequence, String> headerMap = new HashMap<>(MULTI_GET_VALID_HEADER_MAP);

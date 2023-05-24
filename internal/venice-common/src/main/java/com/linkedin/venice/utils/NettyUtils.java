@@ -6,11 +6,14 @@ import static io.netty.handler.codec.http.HttpHeaderNames.CONTENT_TYPE;
 import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 
 import com.linkedin.venice.HttpConstants;
+import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
+import io.netty.buffer.UnpooledHeapByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.http.DefaultFullHttpResponse;
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
+import java.nio.ByteBuffer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -38,4 +41,15 @@ public class NettyUtils {
     response.headers().set(CONTENT_LENGTH, response.content().readableBytes());
     ctx.writeAndFlush(response);
   }
+
+  /**
+   * N.B. there is a bug in {@link UnpooledHeapByteBuf#nioBuffer()} where it calls {@link ByteBuffer#slice()}, which
+   * removes the position information. Hence, we do the BB wrapping ourselves to avoid it.
+   */
+  public static ByteBuffer getNioByteBuffer(ByteBuf nettyByteBuf, int index, int length) {
+    return nettyByteBuf.hasArray()
+        ? ByteBuffer.wrap(nettyByteBuf.array(), index, length)
+        : nettyByteBuf.nioBuffer(index, length);
+  }
+
 }

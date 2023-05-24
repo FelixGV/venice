@@ -268,16 +268,23 @@ public class StatsHandler extends ChannelDuplexHandler {
        * multiple times for a single request
        */
       if (!statCallbackExecuted) {
-        ServerHttpRequestStats serverHttpRequestStats = currentStats.getStoreStats(storeName);
-        recordBasicMetrics(serverHttpRequestStats);
-
         double elapsedTime = LatencyUtils.getLatencyInMS(startTimeInNS);
-        // if ResponseStatus is either OK or NOT_FOUND and the channel write is succeed,
-        // records a successRequest in stats. Otherwise, records a errorRequest in stats;
-        if (result.isSuccess() && (responseStatus.equals(OK) || responseStatus.equals(NOT_FOUND))) {
-          successRequest(serverHttpRequestStats, elapsedTime);
+        if (storeName != null) {
+          ServerHttpRequestStats serverHttpRequestStats = currentStats.getStoreStats(storeName);
+          recordBasicMetrics(serverHttpRequestStats);
+
+          // if ResponseStatus is either OK or NOT_FOUND and the channel write is succeed,
+          // records a successRequest in stats. Otherwise, records a errorRequest in stats;
+          if (result.isSuccess() && (responseStatus.equals(OK) || responseStatus.equals(NOT_FOUND))) {
+            serverHttpRequestStats.recordSuccessRequest();
+            serverHttpRequestStats.recordSuccessRequestLatency(elapsedTime);
+          } else {
+            serverHttpRequestStats.recordErrorRequest();
+            serverHttpRequestStats.recordErrorRequestLatency(elapsedTime);
+          }
         } else {
-          errorRequest(serverHttpRequestStats, elapsedTime);
+          currentStats.recordErrorRequest();
+          currentStats.recordErrorRequestLatency(elapsedTime);
         }
         statCallbackExecuted = true;
       }
@@ -285,100 +292,77 @@ public class StatsHandler extends ChannelDuplexHandler {
   }
 
   private void recordBasicMetrics(ServerHttpRequestStats serverHttpRequestStats) {
-    if (storeName != null) {
-      if (databaseLookupLatency >= 0) {
-        serverHttpRequestStats.recordDatabaseLookupLatency(databaseLookupLatency, isAssembledMultiChunkLargeValue());
-      }
-      if (storageExecutionSubmissionWaitTime >= 0) {
-        currentStats.recordStorageExecutionHandlerSubmissionWaitTime(storageExecutionSubmissionWaitTime);
-      }
-      if (storageExecutionQueueLen >= 0) {
-        currentStats.recordStorageExecutionQueueLen(storageExecutionQueueLen);
-      }
-      if (multiChunkLargeValueCount > 0) {
-        // We only record this metric for requests where large values occurred
-        serverHttpRequestStats.recordMultiChunkLargeValueCount(multiChunkLargeValueCount);
-      }
-      if (requestKeyCount > 0) {
-        serverHttpRequestStats.recordRequestKeyCount(requestKeyCount);
-      }
-      if (successRequestKeyCount > 0) {
-        serverHttpRequestStats.recordSuccessRequestKeyCount(successRequestKeyCount);
-      }
-      if (requestSizeInBytes > 0) {
-        serverHttpRequestStats.recordRequestSizeInBytes(requestSizeInBytes);
-      }
-      if (firstPartLatency > 0) {
-        serverHttpRequestStats.recordRequestFirstPartLatency(firstPartLatency);
-      }
-      if (partsInvokeDelayLatency > 0) {
-        serverHttpRequestStats.recordRequestPartsInvokeDelayLatency(partsInvokeDelayLatency);
-      }
-      if (secondPartLatency > 0) {
-        serverHttpRequestStats.recordRequestSecondPartLatency(secondPartLatency);
-      }
-      if (requestPartCount > 0) {
-        serverHttpRequestStats.recordRequestPartCount(requestPartCount);
-      }
-      if (readComputeLatency >= 0) {
-        serverHttpRequestStats.recordReadComputeLatency(readComputeLatency, isAssembledMultiChunkLargeValue());
-      }
-      if (readComputeDeserializationLatency >= 0) {
-        serverHttpRequestStats.recordReadComputeDeserializationLatency(
-            readComputeDeserializationLatency,
-            isAssembledMultiChunkLargeValue());
-      }
-      if (readComputeSerializationLatency >= 0) {
-        serverHttpRequestStats
-            .recordReadComputeSerializationLatency(readComputeSerializationLatency, isAssembledMultiChunkLargeValue());
-      }
-      if (dotProductCount > 0) {
-        serverHttpRequestStats.recordDotProductCount(dotProductCount);
-      }
-      if (cosineSimilarityCount > 0) {
-        serverHttpRequestStats.recordCosineSimilarityCount(cosineSimilarityCount);
-      }
-      if (hadamardProductCount > 0) {
-        serverHttpRequestStats.recordHadamardProduct(hadamardProductCount);
-      }
-      if (countOperatorCount > 0) {
-        serverHttpRequestStats.recordCountOperator(countOperatorCount);
-      }
-      if (isRequestTerminatedEarly) {
-        serverHttpRequestStats.recordEarlyTerminatedEarlyRequest();
-      }
-      if (keySizeList != null) {
-        for (int i = 0; i < keySizeList.size(); i++) {
-          serverHttpRequestStats.recordKeySizeInByte(keySizeList.getInt(i));
-        }
-      }
-      if (valueSizeList != null) {
-        for (int i = 0; i < valueSizeList.size(); i++) {
-          if (valueSizeList.getInt(i) != -1)
-            serverHttpRequestStats.recordValueSizeInByte(valueSizeList.getInt(i));
-        }
+    if (databaseLookupLatency >= 0) {
+      serverHttpRequestStats.recordDatabaseLookupLatency(databaseLookupLatency, isAssembledMultiChunkLargeValue());
+    }
+    if (storageExecutionSubmissionWaitTime >= 0) {
+      currentStats.recordStorageExecutionHandlerSubmissionWaitTime(storageExecutionSubmissionWaitTime);
+    }
+    if (storageExecutionQueueLen >= 0) {
+      currentStats.recordStorageExecutionQueueLen(storageExecutionQueueLen);
+    }
+    if (multiChunkLargeValueCount > 0) {
+      // We only record this metric for requests where large values occurred
+      serverHttpRequestStats.recordMultiChunkLargeValueCount(multiChunkLargeValueCount);
+    }
+    if (requestKeyCount > 0) {
+      serverHttpRequestStats.recordRequestKeyCount(requestKeyCount);
+    }
+    if (successRequestKeyCount > 0) {
+      serverHttpRequestStats.recordSuccessRequestKeyCount(successRequestKeyCount);
+    }
+    if (requestSizeInBytes > 0) {
+      serverHttpRequestStats.recordRequestSizeInBytes(requestSizeInBytes);
+    }
+    if (firstPartLatency > 0) {
+      serverHttpRequestStats.recordRequestFirstPartLatency(firstPartLatency);
+    }
+    if (partsInvokeDelayLatency > 0) {
+      serverHttpRequestStats.recordRequestPartsInvokeDelayLatency(partsInvokeDelayLatency);
+    }
+    if (secondPartLatency > 0) {
+      serverHttpRequestStats.recordRequestSecondPartLatency(secondPartLatency);
+    }
+    if (requestPartCount > 0) {
+      serverHttpRequestStats.recordRequestPartCount(requestPartCount);
+    }
+    if (readComputeLatency >= 0) {
+      serverHttpRequestStats.recordReadComputeLatency(readComputeLatency, isAssembledMultiChunkLargeValue());
+    }
+    if (readComputeDeserializationLatency >= 0) {
+      serverHttpRequestStats.recordReadComputeDeserializationLatency(
+          readComputeDeserializationLatency,
+          isAssembledMultiChunkLargeValue());
+    }
+    if (readComputeSerializationLatency >= 0) {
+      serverHttpRequestStats
+          .recordReadComputeSerializationLatency(readComputeSerializationLatency, isAssembledMultiChunkLargeValue());
+    }
+    if (dotProductCount > 0) {
+      serverHttpRequestStats.recordDotProductCount(dotProductCount);
+    }
+    if (cosineSimilarityCount > 0) {
+      serverHttpRequestStats.recordCosineSimilarityCount(cosineSimilarityCount);
+    }
+    if (hadamardProductCount > 0) {
+      serverHttpRequestStats.recordHadamardProduct(hadamardProductCount);
+    }
+    if (countOperatorCount > 0) {
+      serverHttpRequestStats.recordCountOperator(countOperatorCount);
+    }
+    if (isRequestTerminatedEarly) {
+      serverHttpRequestStats.recordEarlyTerminatedEarlyRequest();
+    }
+    if (keySizeList != null) {
+      for (int i = 0; i < keySizeList.size(); i++) {
+        serverHttpRequestStats.recordKeySizeInByte(keySizeList.getInt(i));
       }
     }
-  }
-
-  // This method does not have to be synchronised since operations in Tehuti are already synchronised.
-  // Please re-consider the race condition if new logic is added.
-  private void successRequest(ServerHttpRequestStats stats, double elapsedTime) {
-    if (storeName != null) {
-      stats.recordSuccessRequest();
-      stats.recordSuccessRequestLatency(elapsedTime);
-    } else {
-      throw new VeniceException("store name could not be null if request succeeded");
-    }
-  }
-
-  private void errorRequest(ServerHttpRequestStats stats, double elapsedTime) {
-    if (storeName == null) {
-      currentStats.recordErrorRequest();
-      currentStats.recordErrorRequestLatency(elapsedTime);
-    } else {
-      stats.recordErrorRequest();
-      stats.recordErrorRequestLatency(elapsedTime);
+    if (valueSizeList != null) {
+      for (int i = 0; i < valueSizeList.size(); i++) {
+        if (valueSizeList.getInt(i) != -1)
+          serverHttpRequestStats.recordValueSizeInByte(valueSizeList.getInt(i));
+      }
     }
   }
 }
