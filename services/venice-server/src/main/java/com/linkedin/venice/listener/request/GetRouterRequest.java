@@ -7,7 +7,6 @@ import com.linkedin.venice.read.RequestType;
 import com.linkedin.venice.utils.EncodingUtils;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpRequest;
-import io.netty.handler.codec.http.QueryStringDecoder;
 import java.nio.charset.StandardCharsets;
 
 
@@ -43,30 +42,24 @@ public class GetRouterRequest extends RouterRequest {
     return 1;
   }
 
-  public static GetRouterRequest parse(HttpRequest request, String[] requestParts) {
+  public static GetRouterRequest parse(HttpRequest request, String[] requestParts, String rawQuery) {
     String uri = request.uri();
     if (requestParts.length == 5) {
       // [0]""/[1]"action"/[2]"store"/[3]"partition"/[4]"key"
       String topicName = requestParts[2];
       int partition = Integer.parseInt(requestParts[3]);
-      byte[] keyBytes = getKeyBytesFromUrlKeyString(requestParts[4]);
+      byte[] keyBytes = getKeyBytesFromUrlKeyString(requestParts[4], rawQuery);
       return new GetRouterRequest(topicName, partition, keyBytes, request);
     } else {
       throw new VeniceException("Not a valid request for a STORAGE action: " + uri);
     }
   }
 
-  public static byte[] getKeyBytesFromUrlKeyString(String keyString) {
-    QueryStringDecoder queryStringParser = new QueryStringDecoder(keyString, StandardCharsets.UTF_8);
-    String format = RequestConstants.DEFAULT_FORMAT;
-    if (queryStringParser.parameters().containsKey(RequestConstants.FORMAT_KEY)) {
-      format = queryStringParser.parameters().get(RequestConstants.FORMAT_KEY).get(0);
-    }
-    switch (format) {
-      case RequestConstants.B64_FORMAT:
-        return EncodingUtils.base64DecodeFromString(queryStringParser.path());
-      default:
-        return queryStringParser.path().getBytes(StandardCharsets.UTF_8);
+  public static byte[] getKeyBytesFromUrlKeyString(String keyString, String rawQuery) {
+    if (RequestConstants.B64_FORMAT_KEY_VALUE.equals(rawQuery)) {
+      return EncodingUtils.base64DecodeFromString(keyString);
+    } else {
+      return keyString.getBytes(StandardCharsets.UTF_8);
     }
   }
 

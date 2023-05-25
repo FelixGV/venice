@@ -49,14 +49,7 @@ public class ComputeRouterRequestWrapper extends MultiKeyRouterRequestWrapper<Co
 
     ByteBufDecoder decoder = new ByteBufDecoder();
     decoder.setBuffer(httpRequest.content());
-
-    // // TODO: xplore the possibility of streaming in the request bytes, and processing it in pipelined fashion
-    // byte[] requestContent = new byte[httpRequest.content().readableBytes()];
-    // httpRequest.content().readBytes(requestContent);
-
     ComputeRequestWrapper computeRequestWrapper = new ComputeRequestWrapper(apiVersion);
-    // BinaryDecoder decoder = OptimizedBinaryDecoderFactory.defaultFactory()
-    // .createOptimizedBinaryDecoder(requestContent, 0, requestContent.length);
     computeRequestWrapper.deserialize(decoder);
 
     Iterable<ComputeRouterRequestKeyV1> keys = DESERIALIZER.deserializeObjects(decoder, decoder::isEnd);

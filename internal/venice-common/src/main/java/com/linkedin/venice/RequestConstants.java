@@ -6,6 +6,7 @@ package com.linkedin.venice;
 public class RequestConstants {
   public static final String FORMAT_KEY = "f";
   public static final String B64_FORMAT = "b64";
+  public static final String B64_FORMAT_KEY_VALUE = FORMAT_KEY + "=" + B64_FORMAT;
   public static final String STRING_FORMAT = "string";
   public static final String DEFAULT_FORMAT = STRING_FORMAT;
   public static final String DELAY_EXECUTION = "delay_execution";

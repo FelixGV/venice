@@ -22,8 +22,7 @@ public class RequestHelper {
   }
 
   public static String[] getRequestParts(URI uri) {
-    String path = uri.getRawQuery() == null ? uri.getRawPath() : uri.getRawPath() + "?" + uri.getRawQuery();
-    return path.split("/");
+    return uri.getRawPath().split("/");
   }
 
   public static int validateRequestAndGetApiVersion(String[] requestParts, URI fullUri, FullHttpRequest httpRequest) {

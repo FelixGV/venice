@@ -1,6 +1,5 @@
 package com.linkedin.venice.listener.request;
 
-import com.linkedin.avro.netty.ByteBufDecoder;
 import com.linkedin.venice.exceptions.VeniceException;
 import com.linkedin.venice.read.RequestType;
 import com.linkedin.venice.read.protocol.request.router.MultiGetRouterRequestKeyV1;
@@ -10,6 +9,8 @@ import com.linkedin.venice.serializer.RecordDeserializer;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.HttpRequest;
 import java.net.URI;
+import org.apache.avro.io.BinaryDecoder;
+import org.apache.avro.io.OptimizedBinaryDecoderFactory;
 
 
 /**
@@ -34,8 +35,17 @@ public class MultiGetRouterRequestWrapper extends MultiKeyRouterRequestWrapper<M
     }
     String resourceName = requestParts[2];
 
-    ByteBufDecoder decoder = new ByteBufDecoder();
-    decoder.setBuffer(httpRequest.content());
+    // N.B.: The Netty ByteBufDecoder doesn't work because it returns DirectByteBuffers, which are harder to use with
+    // the
+    // RocksDB APIs
+    // ByteBufDecoder decoder = new ByteBufDecoder();
+    // decoder.setBuffer(httpRequest.content());
+
+    byte[] content = new byte[httpRequest.content().readableBytes()];
+    httpRequest.content().readBytes(content);
+    BinaryDecoder decoder =
+        OptimizedBinaryDecoderFactory.defaultFactory().createOptimizedBinaryDecoder(content, 0, content.length);
+
     Iterable<MultiGetRouterRequestKeyV1> keys = DESERIALIZER.deserializeObjects(decoder, decoder::isEnd);
 
     return new MultiGetRouterRequestWrapper(resourceName, keys, httpRequest);

@@ -98,8 +98,10 @@ public class StorageReadRequestsHandlerTest {
     // [0]""/[1]"action"/[2]"store"/[3]"partition"/[4]"key"
     String uri = "/" + TYPE_STORAGE + "/" + topic + "/" + partition + "/" + keyString;
     HttpRequest httpRequest = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, uri);
-    GetRouterRequest testRequest =
-        GetRouterRequest.parse(httpRequest, RequestHelper.getRequestParts(httpRequest.uri()));
+    GetRouterRequest testRequest = GetRouterRequest.parse(
+        httpRequest,
+        RequestHelper.getRequestParts(httpRequest.uri()),
+        URI.create(httpRequest.uri()).getRawQuery());
 
     AbstractStorageEngine testStore = mock(AbstractStorageEngine.class);
     doReturn(valueBytes).when(testStore).get(partition, ByteBuffer.wrap(keyString.getBytes()));
@@ -360,8 +362,10 @@ public class StorageReadRequestsHandlerTest {
     // [0]""/[1]"action"/[2]"store"/[3]"partition"/[4]"key"
     String uri = "/" + TYPE_STORAGE + "/" + topic + "/" + partition + "/" + keyString;
     HttpRequest httpRequest = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, uri);
-    GetRouterRequest testRequest =
-        GetRouterRequest.parse(httpRequest, RequestHelper.getRequestParts(httpRequest.uri()));
+    GetRouterRequest testRequest = GetRouterRequest.parse(
+        httpRequest,
+        RequestHelper.getRequestParts(httpRequest.uri()),
+        URI.create(httpRequest.uri()).getRawQuery());
 
     AbstractStorageEngine testStore = mock(AbstractStorageEngine.class);
     doReturn(valueBytes).when(testStore).get(partition, ByteBuffer.wrap(keyString.getBytes()));

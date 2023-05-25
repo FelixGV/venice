@@ -51,5 +51,4 @@ public class NettyUtils {
         ? ByteBuffer.wrap(nettyByteBuf.array(), index, length)
         : nettyByteBuf.nioBuffer(index, length);
   }
-
 }

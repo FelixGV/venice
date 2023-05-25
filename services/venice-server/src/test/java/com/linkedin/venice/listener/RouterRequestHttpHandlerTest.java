@@ -17,6 +17,7 @@ import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpVersion;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Collections;
@@ -73,7 +74,8 @@ public class RouterRequestHttpHandlerTest {
     Assert.assertEquals(requestObject.getKeyBytes(), expectedKey, "Key from path: " + path + " was parsed incorrectly");
 
     // Test parse method
-    GetRouterRequest getRouterRequest = GetRouterRequest.parse(msg, RequestHelper.getRequestParts(msg.uri()));
+    GetRouterRequest getRouterRequest =
+        GetRouterRequest.parse(msg, RequestHelper.getRequestParts(msg.uri()), URI.create(msg.uri()).getRawQuery());
     Assert.assertEquals(
         getRouterRequest.getResourceName(),
         expectedStore,
@@ -114,7 +116,14 @@ public class RouterRequestHttpHandlerTest {
   }
 
   public void doKeyTest(String urlString, byte[] expectedKey) {
-    byte[] parsedKey = GetRouterRequest.getKeyBytesFromUrlKeyString(urlString);
+    int indexOfQuestionMark = urlString.indexOf("?");
+    String rawPath = "";
+    if (indexOfQuestionMark != -1) {
+      urlString = urlString.substring(0, indexOfQuestionMark);
+      rawPath = urlString.substring(indexOfQuestionMark);
+    }
+
+    byte[] parsedKey = GetRouterRequest.getKeyBytesFromUrlKeyString(urlString, rawPath);
     Assert.assertEquals(
         parsedKey,
         expectedKey,

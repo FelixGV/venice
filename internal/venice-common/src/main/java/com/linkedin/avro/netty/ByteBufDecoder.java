@@ -6,6 +6,7 @@ import io.netty.buffer.ByteBufAllocator;
 import java.io.EOFException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import org.apache.avro.InvalidNumberEncodingException;
 import org.apache.avro.io.Decoder;
 import org.apache.avro.util.Utf8;
 
@@ -48,7 +49,7 @@ public class ByteBufDecoder extends Decoder {
       shift += 7;
     } while (shift < 32);
 
-    throw new IOException("Invalid int encoding");
+    throw new InvalidNumberEncodingException("Invalid int encoding");
   }
 
   @Override

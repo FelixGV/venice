@@ -79,7 +79,7 @@ public class RouterRequestHttpHandler extends SimpleChannelInboundHandler<FullHt
             // Single get
             // GET /storage/<store_name>/partition/key
             // TODO: evaluate whether we can replace single-get by multi-get
-            GetRouterRequest getRouterRequest = GetRouterRequest.parse(req, requestParts);
+            GetRouterRequest getRouterRequest = GetRouterRequest.parse(req, requestParts, uri.getRawQuery());
             setupRequestTimeout(getRouterRequest);
             statsHandler.setRequestInfo(getRouterRequest);
             ctx.fireChannelRead(getRouterRequest);
