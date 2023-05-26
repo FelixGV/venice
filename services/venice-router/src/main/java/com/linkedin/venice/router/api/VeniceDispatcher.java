@@ -292,7 +292,7 @@ public final class VeniceDispatcher implements PartitionDispatchHandler4<Instanc
             chunkedResponse.write(content, contentCompression);
           } else {
             chunkedResponse
-                .write(responseDecompressor.processMultiGetResponseForStreaming(CompressionStrategy.NO_OP, content));
+                .write(responseDecompressor.processMultiGetResponseForStreaming(contentCompression, content));
           }
         } else {
           chunkedResponse.write(content);
