@@ -119,8 +119,8 @@ public class RouterRequestHttpHandlerTest {
     int indexOfQuestionMark = urlString.indexOf("?");
     String rawPath = "";
     if (indexOfQuestionMark != -1) {
-      urlString = urlString.substring(0, indexOfQuestionMark);
       rawPath = urlString.substring(indexOfQuestionMark);
+      urlString = urlString.substring(0, indexOfQuestionMark);
     }
 
     byte[] parsedKey = GetRouterRequest.getKeyBytesFromUrlKeyString(urlString, rawPath);

@@ -7,7 +7,9 @@ import com.linkedin.venice.read.RequestType;
 import com.linkedin.venice.utils.EncodingUtils;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpRequest;
+import io.netty.handler.codec.http.QueryStringDecoder;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 
 
 /**
@@ -56,10 +58,20 @@ public class GetRouterRequest extends RouterRequest {
   }
 
   public static byte[] getKeyBytesFromUrlKeyString(String keyString, String rawQuery) {
-    if (RequestConstants.B64_FORMAT_KEY_VALUE.equals(rawQuery)) {
-      return EncodingUtils.base64DecodeFromString(keyString);
-    } else {
+    if (rawQuery == null) {
       return keyString.getBytes(StandardCharsets.UTF_8);
+    }
+    QueryStringDecoder queryStringParser = new QueryStringDecoder(rawQuery, StandardCharsets.UTF_8);
+    String format = RequestConstants.DEFAULT_FORMAT;
+    List<String> formatKeyParam = queryStringParser.parameters().get(RequestConstants.FORMAT_KEY);
+    if (formatKeyParam != null) {
+      format = formatKeyParam.get(0);
+    }
+    switch (format) {
+      case RequestConstants.B64_FORMAT:
+        return EncodingUtils.base64DecodeFromString(keyString);
+      default:
+        return keyString.getBytes(StandardCharsets.UTF_8);
     }
   }
 

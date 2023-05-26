@@ -1,5 +1,7 @@
 package com.linkedin.venice.listener;
 
+import static com.linkedin.venice.meta.QueryAction.*;
+
 import com.linkedin.venice.exceptions.VeniceException;
 import com.linkedin.venice.listener.request.AdminRequest;
 import com.linkedin.venice.listener.request.ComputeRouterRequestWrapper;
@@ -21,10 +23,8 @@ import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.timeout.IdleState;
 import io.netty.handler.timeout.IdleStateEvent;
 import java.net.URI;
-import java.util.Arrays;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
 
 /**
@@ -159,20 +159,16 @@ public class RouterRequestHttpHandler extends SimpleChannelInboundHandler<FullHt
   static QueryAction getQueryActionFromRequest(HttpRequest req, String[] requestParts) {
     HttpMethod reqMethod = req.method();
     if ((!reqMethod.equals(HttpMethod.GET) && !reqMethod.equals(HttpMethod.POST)) || requestParts.length < 2) {
-      String actions =
-          Arrays.stream(QueryAction.values()).map(e -> e.toString().toLowerCase()).collect(Collectors.joining(", "));
       throw new VeniceException(
-          "Only able to parse GET or POST requests for actions: " + actions + ". " + "Cannot parse request for: "
-              + req.uri());
+          "Only able to parse GET or POST requests for actions: " + VALID_ACTIONS_STRING
+              + ". Cannot parse request for: " + req.uri());
     }
 
     try {
       return QueryAction.valueOf(requestParts[1].toUpperCase());
     } catch (IllegalArgumentException illegalArgumentException) {
-      String actions =
-          Arrays.stream(QueryAction.values()).map(e -> e.toString().toLowerCase()).collect(Collectors.joining(", "));
       throw new VeniceException(
-          "Only able to parse GET or POST requests for actions: " + actions + ". " + "Cannot support action: "
+          "Only able to parse GET or POST requests for actions: " + VALID_ACTIONS_STRING + ". Cannot support action: "
               + requestParts[1],
           illegalArgumentException);
     }
