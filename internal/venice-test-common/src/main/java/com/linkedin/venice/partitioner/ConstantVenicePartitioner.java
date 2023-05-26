@@ -1,6 +1,7 @@
 package com.linkedin.venice.partitioner;
 
 import com.linkedin.venice.exceptions.VeniceException;
+import com.linkedin.venice.utils.ByteUtils;
 import com.linkedin.venice.utils.VeniceProperties;
 import java.nio.ByteBuffer;
 import org.apache.avro.Schema;
@@ -29,6 +30,6 @@ public class ConstantVenicePartitioner extends VenicePartitioner {
 
   @Override
   public int getPartitionId(ByteBuffer keyByteBuffer, int numPartitions) {
-    return getPartitionId(keyByteBuffer.array(), numPartitions);
+    return getPartitionId(ByteUtils.extractByteArray(keyByteBuffer), numPartitions);
   }
 }
