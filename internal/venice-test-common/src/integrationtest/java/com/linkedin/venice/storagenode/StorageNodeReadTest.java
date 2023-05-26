@@ -3,7 +3,7 @@ package com.linkedin.venice.storagenode;
 import static com.linkedin.venice.ConfigKeys.SERVER_DISK_HEALTH_CHECK_INTERVAL_IN_SECONDS;
 import static com.linkedin.venice.ConfigKeys.SERVER_SHUTDOWN_DISK_UNHEALTHY_TIME_MS;
 import static com.linkedin.venice.router.api.VenicePathParser.TYPE_STORAGE;
-import static org.testng.Assert.*;
+import static org.testng.Assert.assertEquals;
 
 import com.linkedin.avroutil1.compatibility.AvroCompatibilityHelper;
 import com.linkedin.venice.HttpConstants;
@@ -34,6 +34,7 @@ import com.linkedin.venice.serializer.RecordDeserializer;
 import com.linkedin.venice.serializer.RecordSerializer;
 import com.linkedin.venice.serializer.SerializerDeserializerFactory;
 import com.linkedin.venice.utils.TestUtils;
+import com.linkedin.venice.utils.Time;
 import com.linkedin.venice.utils.Utils;
 import com.linkedin.venice.writer.VeniceWriter;
 import com.linkedin.venice.writer.VeniceWriterOptions;
@@ -137,7 +138,7 @@ public class StorageNodeReadTest {
     return partitioner.getPartitionId(key, partitionCount);
   }
 
-  @Test // (timeOut = 30 * Time.MS_PER_SECOND)
+  @Test(timeOut = 30 * Time.MS_PER_SECOND)
   public void testRead() throws Exception {
     final int pushVersion = Version.parseVersionFromKafkaTopicName(storeVersionName);
 
@@ -166,13 +167,13 @@ public class StorageNodeReadTest {
       HttpResponse response = future.get();
       try (InputStream bodyStream = response.getEntity().getContent()) {
         byte[] body = IOUtils.toByteArray(bodyStream);
-        Assert.assertEquals(
+        assertEquals(
             response.getStatusLine().getStatusCode(),
             HttpStatus.SC_OK,
             "Response did not return 200: " + new String(body));
         Object value = valueSerializer.deserialize(null, body);
-        Assert.assertEquals(value.toString(), valuePrefix + "0");
-        Assert.assertEquals(response.getLastHeader(HttpConstants.VENICE_REQUEST_RCU).getValue(), "1");
+        assertEquals(value.toString(), valuePrefix + "0");
+        assertEquals(response.getLastHeader(HttpConstants.VENICE_REQUEST_RCU).getValue(), "1");
       }
 
       // Multi-get
@@ -211,12 +212,12 @@ public class StorageNodeReadTest {
       assertEquals(multiGetResponse.getStatusLine().getStatusCode(), 200);
 
       // TODO: Potentially a brittle test if we change the heuristic for RCU computation?
-      Assert.assertEquals(
+      assertEquals(
           multiGetResponse.getLastHeader(HttpConstants.VENICE_REQUEST_RCU).getValue(),
           String.valueOf(keys.size()));
       try (InputStream bodyStream = multiGetResponse.getEntity().getContent()) {
         byte[] body = IOUtils.toByteArray(bodyStream);
-        Assert.assertEquals(
+        assertEquals(
             multiGetResponse.getStatusLine().getStatusCode(),
             HttpStatus.SC_OK,
             "Response did not return 200: " + new String(body));
@@ -229,9 +230,9 @@ public class StorageNodeReadTest {
           Object value = valueDeserializer.deserialize(K.value);
           results.put(K.keyIndex, value.toString());
         });
-        Assert.assertEquals(results.size(), 10);
+        assertEquals(results.size(), 10);
         for (int i = 0; i < 10; ++i) {
-          Assert.assertEquals(results.get(i), valuePrefix + i);
+          assertEquals(results.get(i), valuePrefix + i);
         }
       }
 
@@ -251,7 +252,7 @@ public class StorageNodeReadTest {
       response = future.get();
       try (InputStream bodyStream = response.getEntity().getContent()) {
         byte[] body = IOUtils.toByteArray(bodyStream);
-        Assert.assertEquals(
+        assertEquals(
             response.getStatusLine().getStatusCode(),
             HttpStatus.SC_OK,
             "Response did not return 200: " + new String(body));
@@ -288,9 +289,9 @@ public class StorageNodeReadTest {
       keySet.add("unknown_key");
       try {
         Map<String, CharSequence> result = storeClient.batchGet(keySet).get();
-        Assert.assertEquals(result.size(), EXISTING_KEY_COUNT_IN_BATCH_GET_REQUEST, "Unexpected result size ");
+        assertEquals(result.size(), EXISTING_KEY_COUNT_IN_BATCH_GET_REQUEST, "Unexpected result size ");
         for (int i = 0; i < EXISTING_KEY_COUNT_IN_BATCH_GET_REQUEST; ++i) {
-          Assert.assertEquals(
+          assertEquals(
               result.get(keyPrefix + i).toString(),
               valuePrefix + i,
               "Key " + i + " does not have expected value ");
@@ -315,12 +316,12 @@ public class StorageNodeReadTest {
         client.start();
 
         HttpResponse response = sendHeartbeatRequest(client, testServerAddr);
-        Assert.assertEquals(response.getStatusLine().getStatusCode(), 200);
+        assertEquals(response.getStatusLine().getStatusCode(), 200);
 
         // wait for the next health check cycle
         Thread.sleep(TimeUnit.SECONDS.toMillis(5));
         response = sendHeartbeatRequest(client, testServerAddr);
-        Assert.assertEquals(response.getStatusLine().getStatusCode(), 200);
+        assertEquals(response.getStatusLine().getStatusCode(), 200);
 
         // delete the db path
         FileUtils.deleteDirectory(serverWrapper.getDataDirectory());
@@ -328,7 +329,7 @@ public class StorageNodeReadTest {
         Thread.sleep(TimeUnit.SECONDS.toMillis(5));
         response = sendHeartbeatRequest(client, testServerAddr);
 
-        Assert.assertEquals(response.getStatusLine().getStatusCode(), 500);
+        assertEquals(response.getStatusLine().getStatusCode(), 500);
       }
     } finally {
       if (serverWrapper != null) {
@@ -376,7 +377,7 @@ public class StorageNodeReadTest {
       int currentVersion = ControllerClient.getStore(controllerUrl, veniceCluster.getClusterName(), storeName)
           .getStore()
           .getCurrentVersion();
-      Assert.assertEquals(currentVersion, pushVersion, "The new version is not activated yet!");
+      assertEquals(currentVersion, pushVersion, "The new version is not activated yet!");
       for (int i = 0; i < numOfRecords; ++i) {
         String key = keyPrefix + i;
         String value = null;
@@ -387,7 +388,7 @@ public class StorageNodeReadTest {
           Assert.fail("Caught exception while trying to get data from the store: " + e.getMessage());
         }
         Assert.assertNotNull(value, "Key '" + key + "' is not in the store yet.");
-        Assert.assertEquals(value, valuePrefix + i, "Key '" + key + "' does not have the right value.");
+        assertEquals(value, valuePrefix + i, "Key '" + key + "' does not have the right value.");
       }
     });
   }

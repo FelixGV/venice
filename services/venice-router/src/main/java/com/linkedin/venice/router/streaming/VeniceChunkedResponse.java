@@ -49,6 +49,7 @@ import java.nio.channels.ClosedChannelException;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Queue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -253,29 +254,13 @@ public class VeniceChunkedResponse {
   }
 
   public CompletableFuture<Long> write(ByteBuf buffer) {
-    return write(buffer, CompressionStrategy.NO_OP, null);
+    return write(buffer, CompressionStrategy.NO_OP);
   }
 
   /**
    * This function is used to send a data chunk to Venice Client.
-   * @param buffer
-   * @param compression
    */
-  public CompletableFuture<Long> write(ByteBuf buffer, CompressionStrategy compression) {
-    return write(buffer, compression, null);
-  }
-
-  /**
-   * This function is used to send a data chunk to Venice Client, and when it is completed, 'callback' will be invoked.
-   * @param byteBuf
-   * @param compression
-   * @param callback
-   * @return
-   */
-  public CompletableFuture<Long> write(
-      ByteBuf byteBuf,
-      CompressionStrategy compression,
-      StreamingCallback<Long> callback) {
+  public CompletableFuture<Long> write(ByteBuf byteBuf, CompressionStrategy compression) {
     boolean isFirstWrite = false;
     if (this.responseCompression == null) {
       synchronized (this) {
@@ -319,7 +304,7 @@ public class VeniceChunkedResponse {
       chunkedWriteHandler.resumeTransfer();
     }
 
-    Chunk chunk = new Chunk(byteBuf, false, callback);
+    Chunk chunk = new Chunk(byteBuf);
 
     if (!maybeAddChunk(chunk)) {
       // Chunk will be skipped
@@ -350,7 +335,7 @@ public class VeniceChunkedResponse {
       return false;
     }
     chunksToWrite.add(chunk);
-    if (chunk.isLast) {
+    if (chunk.isLast()) {
       responseCompleteCalled = true;
     }
     return true;
@@ -364,7 +349,7 @@ public class VeniceChunkedResponse {
    * Finish the response without any error
    */
   private void finish(StreamingCallback<Long> callback) {
-    Chunk lastChunk = new Chunk(EMPTY_BYTE_BUF, true, callback);
+    Chunk lastChunk = new LastChunk(EMPTY_BYTE_BUF, callback);
     if (maybeAddChunk(lastChunk)) {
       reportResponseSize();
       chunkedWriteHandler.resumeTransfer();
@@ -403,7 +388,7 @@ public class VeniceChunkedResponse {
       return;
     }
 
-    Chunk lastChunk = new Chunk(footerResponse, true, callback);
+    Chunk lastChunk = new LastChunk(footerResponse, callback);
     if (maybeAddChunk(lastChunk)) {
       reportResponseSize();
       chunkedWriteHandler.resumeTransfer();
@@ -573,22 +558,15 @@ public class VeniceChunkedResponse {
   /** Data chunk */
   private class Chunk {
     final CompletableFuture<Long> future = new CompletableFuture<>();
-    final StreamingCallback<Long> callback;
-
     /** data buffer */
     final ByteBuf buffer;
-    /** whether this is the last chunk */
-    final boolean isLast;
     /** bytes to be writen for this chunk */
     final long bytesToBeWritten;
     /** threshold to decide whether this chunk is done or not */
     final long writeCompleteThreshold;
 
-    public Chunk(ByteBuf buffer, boolean isLast, StreamingCallback<Long> streamingCallback) {
+    public Chunk(ByteBuf buffer) {
       this.buffer = buffer;
-      this.isLast = isLast;
-      this.callback = streamingCallback;
-
       this.bytesToBeWritten = buffer.readableBytes();
       this.writeCompleteThreshold = totalBytesReceived.addAndGet(bytesToBeWritten);
     }
@@ -606,9 +584,7 @@ public class VeniceChunkedResponse {
       } else {
         future.completeExceptionally(exception);
       }
-      if (callback != null) {
-        callback.onCompletion(bytesWritten, exception);
-      }
+      handleCallback(bytesWritten, exception);
       // The internal buffer will be freed when the chunk has been resolved.
       if (buffer.refCnt() > 0) {
         /**
@@ -617,6 +593,33 @@ public class VeniceChunkedResponse {
           */
         ReferenceCountUtil.release(buffer);
       }
+    }
+
+    protected void handleCallback(long bytesWritten, Exception exception) {
+      // no-op
+    }
+
+    public boolean isLast() {
+      return false;
+    }
+  }
+
+  private class LastChunk extends Chunk {
+    final StreamingCallback<Long> callback;
+
+    public LastChunk(ByteBuf buffer, StreamingCallback<Long> streamingCallback) {
+      super(buffer);
+      this.callback = Objects.requireNonNull(streamingCallback, "The streamingCallback cannot be null.");
+    }
+
+    @Override
+    protected void handleCallback(long bytesWritten, Exception exception) {
+      callback.onCompletion(bytesWritten, exception);
+    }
+
+    @Override
+    public boolean isLast() {
+      return true;
     }
   }
 
@@ -655,7 +658,7 @@ public class VeniceChunkedResponse {
       if (chunk != null) {
         progress.addAndGet(chunk.buffer.readableBytes());
         chunksAwaitingCallback.add(chunk);
-        if (chunk.isLast) {
+        if (chunk.isLast()) {
           content = new DefaultLastHttpContent(chunk.buffer);
           sentLastChunk = true;
         } else {

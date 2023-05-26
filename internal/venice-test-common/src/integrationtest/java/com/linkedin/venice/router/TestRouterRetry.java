@@ -133,7 +133,7 @@ public class TestRouterRetry {
             .setBatchGetLimit(maxKeyLimit));
   }
 
-  @Test // (timeOut = 60000)
+  @Test(timeOut = 60000)
   public void testRouterRetry() throws ExecutionException, InterruptedException {
     try (AvroGenericStoreClient<String, GenericRecord> storeClient = ClientFactory.getAndStartGenericAvroClient(
         ClientConfig.defaultGenericClientConfig(storeName)
