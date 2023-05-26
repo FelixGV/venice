@@ -117,13 +117,14 @@ public class RouterRequestHttpHandlerTest {
 
   public void doKeyTest(String urlString, byte[] expectedKey) {
     int indexOfQuestionMark = urlString.indexOf("?");
-    String rawPath = "";
+    String rawPath = null;
+    String keyString = urlString;
     if (indexOfQuestionMark != -1) {
       rawPath = urlString.substring(indexOfQuestionMark);
-      urlString = urlString.substring(0, indexOfQuestionMark);
+      keyString = urlString.substring(0, indexOfQuestionMark);
     }
 
-    byte[] parsedKey = GetRouterRequest.getKeyBytesFromUrlKeyString(urlString, rawPath);
+    byte[] parsedKey = GetRouterRequest.getKeyBytesFromUrlKeyString(keyString, urlString, rawPath);
     Assert.assertEquals(
         parsedKey,
         expectedKey,

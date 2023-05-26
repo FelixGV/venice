@@ -27,6 +27,6 @@ public class RequestHelperTest {
     String[] requestParts = RequestHelper.getRequestParts(uri);
 
     Assert.assertEquals(requestParts[1], action);
-    Assert.assertEquals(requestParts[2], storeName + "?" + query);
+    Assert.assertEquals(requestParts[2], storeName);
   }
 }

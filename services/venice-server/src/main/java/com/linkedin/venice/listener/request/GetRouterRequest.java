@@ -50,28 +50,30 @@ public class GetRouterRequest extends RouterRequest {
       // [0]""/[1]"action"/[2]"store"/[3]"partition"/[4]"key"
       String topicName = requestParts[2];
       int partition = Integer.parseInt(requestParts[3]);
-      byte[] keyBytes = getKeyBytesFromUrlKeyString(requestParts[4], rawQuery);
+      byte[] keyBytes = getKeyBytesFromUrlKeyString(requestParts[4], uri, rawQuery);
       return new GetRouterRequest(topicName, partition, keyBytes, request);
     } else {
       throw new VeniceException("Not a valid request for a STORAGE action: " + uri);
     }
   }
 
-  public static byte[] getKeyBytesFromUrlKeyString(String keyString, String rawQuery) {
+  public static byte[] getKeyBytesFromUrlKeyString(String keyString, String uri, String rawQuery) {
+    // Looking for common cases upfront, before doing a full-blown decoding
     if (rawQuery == null) {
       return keyString.getBytes(StandardCharsets.UTF_8);
-    }
-    QueryStringDecoder queryStringParser = new QueryStringDecoder(rawQuery, StandardCharsets.UTF_8);
-    String format = RequestConstants.DEFAULT_FORMAT;
-    List<String> formatKeyParam = queryStringParser.parameters().get(RequestConstants.FORMAT_KEY);
-    if (formatKeyParam != null) {
-      format = formatKeyParam.get(0);
-    }
-    switch (format) {
-      case RequestConstants.B64_FORMAT:
-        return EncodingUtils.base64DecodeFromString(keyString);
-      default:
-        return keyString.getBytes(StandardCharsets.UTF_8);
+    } else if (rawQuery.equals(RequestConstants.B64_FORMAT_KEY_VALUE)) {
+      return EncodingUtils.base64DecodeFromString(keyString);
+    } else {
+      // Someone trying to be smart and injecting a bunch of extra GET query params...
+      QueryStringDecoder queryStringParser = new QueryStringDecoder(uri, StandardCharsets.UTF_8);
+      List<String> formatKeyParam = queryStringParser.parameters().get(RequestConstants.FORMAT_KEY);
+      String format = formatKeyParam == null ? RequestConstants.DEFAULT_FORMAT : formatKeyParam.get(0);
+      switch (format) {
+        case RequestConstants.B64_FORMAT:
+          return EncodingUtils.base64DecodeFromString(keyString);
+        default:
+          return keyString.getBytes(StandardCharsets.UTF_8);
+      }
     }
   }
 
