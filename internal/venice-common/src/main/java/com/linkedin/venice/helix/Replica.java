@@ -55,7 +55,9 @@ public class Replica {
     joiner.add("Host:").add(instance.getUrl());
     joiner.add("Resource:").add(resource);
     joiner.add("Partition:").add(Integer.toString(partitionId));
-    joiner.add("Status:").add(status.toString());
+    if (status != null) {
+      joiner.add("Status:").add(status.toString());
+    }
     return joiner.toString();
   }
 }

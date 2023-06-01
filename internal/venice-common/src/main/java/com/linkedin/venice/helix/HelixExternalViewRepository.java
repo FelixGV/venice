@@ -6,12 +6,14 @@ import com.linkedin.venice.exceptions.VeniceException;
 import com.linkedin.venice.meta.Instance;
 import com.linkedin.venice.meta.Partition;
 import com.linkedin.venice.meta.PartitionAssignment;
+import com.linkedin.venice.pushmonitor.ExecutionStatus;
 import com.linkedin.venice.routerapi.ReplicaState;
 import com.linkedin.venice.utils.HelixUtils;
 import com.linkedin.venice.utils.locks.AutoCloseableLock;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -145,7 +147,7 @@ public class HelixExternalViewRepository extends HelixBaseRoutingRepository impl
       for (String partitionName: externalView.getPartitionSet()) {
         // Get instance to state map for this partition from local memory.
         Map<String, String> instanceStateMap = externalView.getStateMap(partitionName);
-        Map<String, List<Instance>> stateToInstanceMap = new HashMap<>();
+        EnumMap<HelixState, List<Instance>> stateToInstanceMap = new EnumMap<>(HelixState.class);
         for (Map.Entry<String, String> entry: instanceStateMap.entrySet()) {
           String instanceName = entry.getKey();
           String instanceState = entry.getValue();
@@ -158,16 +160,14 @@ public class HelixExternalViewRepository extends HelixBaseRoutingRepository impl
               LOGGER.warn("Instance: {} unrecognized state: {}.", instanceName, instanceState);
               continue;
             }
-            if (!stateToInstanceMap.containsKey(state.toString())) {
-              stateToInstanceMap.put(state.toString(), new ArrayList<>());
-            }
-            stateToInstanceMap.get(state.toString()).add(instance);
+            stateToInstanceMap.computeIfAbsent(state, k -> new ArrayList<>()).add(instance);
           } else {
             LOGGER.warn("Cannot find instance '{}' in /LIVEINSTANCES", instanceName);
           }
         }
         int partitionId = HelixUtils.getPartitionId(partitionName);
-        partitionAssignment.addPartition(new Partition(partitionId, stateToInstanceMap));
+        partitionAssignment
+            .addPartition(new Partition(partitionId, stateToInstanceMap, new EnumMap<>(ExecutionStatus.class)));
       }
       newResourceAssignment.setPartitionAssignment(resourceName, partitionAssignment);
     }

@@ -24,6 +24,7 @@ import it.unimi.dsi.fastutil.ints.IntSet;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -150,7 +151,7 @@ public class HelixCustomizedViewOfflinePushRepository extends HelixBaseRoutingRe
         for (String partitionName: customizedView.getPartitionSet()) {
           // Get instance to customized state map for this partition from local memory.
           Map<String, String> instanceStateMap = customizedView.getStateMap(partitionName);
-          Map<String, List<Instance>> stateToInstanceMap = new HashMap<>();
+          EnumMap<ExecutionStatus, List<Instance>> executionStatusToInstanceMap = new EnumMap<>(ExecutionStatus.class);
           // Populate customized state to instance set map
           for (Map.Entry<String, String> entry: instanceStateMap.entrySet()) {
             String instanceName = entry.getKey();
@@ -164,23 +165,23 @@ public class HelixCustomizedViewOfflinePushRepository extends HelixBaseRoutingRe
                 LOGGER.warn("Instance: {} unrecognized status: {}.", instanceName, instanceState);
                 continue;
               }
-              stateToInstanceMap.computeIfAbsent(status.toString(), s -> new ArrayList<>()).add(instance);
+              executionStatusToInstanceMap.computeIfAbsent(status, s -> new ArrayList<>()).add(instance);
             } else {
               instancesSeenInCustomizedViewButMissingFromLiveInstances.add(instanceName);
             }
           }
           // Update partitionAssignment of customized state
           int partitionId = HelixUtils.getPartitionId(partitionName);
-          partitionAssignment.addPartition(new Partition(partitionId, stateToInstanceMap));
+          partitionAssignment
+              .addPartition(new Partition(partitionId, new EnumMap<>(HelixState.class), executionStatusToInstanceMap));
 
           // Update partition status to trigger callback
           // Note we do not change the callback function which listens on PartitionStatus change, instead, we populate
           // partition status with partition assignment data of customized view
           PartitionStatus partitionStatus = new PartitionStatus(partitionId);
-          stateToInstanceMap.forEach(
-              (key, value) -> value.forEach(
-                  instance -> partitionStatus
-                      .updateReplicaStatus(instance.getNodeId(), ExecutionStatus.valueOf(key), false)));
+          executionStatusToInstanceMap.forEach(
+              (key, value) -> value
+                  .forEach(instance -> partitionStatus.updateReplicaStatus(instance.getNodeId(), key, false)));
           listenerManager.trigger(
               resourceName,
               listener -> listener

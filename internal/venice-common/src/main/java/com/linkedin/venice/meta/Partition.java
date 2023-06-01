@@ -53,8 +53,11 @@ public class Partition {
     this.id = id;
     this.helixStateToInstancesMap = helixStateToInstancesMap;
     this.executionStatusToInstancesMap = executionStatusToInstancesMap;
+    populateEmptyKeysOfEnumMaps();
   }
 
+  /** Legacy constructor, used only by tests... TODO: Move everything over to the new constructor */
+  @Deprecated
   public Partition(int id, Map<String, List<Instance>> stateToInstancesMap) {
     this.id = id;
 
@@ -82,6 +85,10 @@ public class Partition {
         // carry on
       }
     }
+    populateEmptyKeysOfEnumMaps();
+  }
+
+  private void populateEmptyKeysOfEnumMaps() {
     for (HelixState helixState: HelixState.values()) {
       this.helixStateToInstancesMap.putIfAbsent(helixState, Collections.emptyList());
     }
@@ -90,24 +97,14 @@ public class Partition {
     }
   }
 
-  private static List<Instance> generateReadyInstancesList(Map<HelixState, List<Instance>> helixStateToInstancesMap) {
-    return generateInstancesList(helixStateToInstancesMap, ONLINE, STANDBY, LEADER);
-  }
-
-  private static List<Instance> generateWorkingInstancesList(Map<HelixState, List<Instance>> helixStateToInstancesMap) {
-    return generateInstancesList(helixStateToInstancesMap, ONLINE, BOOTSTRAP, STANDBY, LEADER);
-  }
-
-  private static List<Instance> generateInstancesList(
-      Map<HelixState, List<Instance>> helixStateToInstancesMap,
-      HelixState... states) {
+  private List<Instance> generateInstancesList(HelixState... states) {
     int count = 0;
     for (HelixState state: states) {
-      count += helixStateToInstancesMap.get(state).size();
+      count += this.helixStateToInstancesMap.get(state).size();
     }
     List<Instance> instances = new ArrayList<>(count);
     for (HelixState state: states) {
-      instances.addAll(helixStateToInstancesMap.get(state));
+      instances.addAll(this.helixStateToInstancesMap.get(state));
     }
     return Collections.unmodifiableList(instances);
   }
@@ -136,14 +133,14 @@ public class Partition {
 
   public List<Instance> getWorkingInstances() {
     if (this.workingInstances == null) {
-      this.workingInstances = generateWorkingInstancesList(this.helixStateToInstancesMap);
+      this.workingInstances = generateInstancesList(ONLINE, BOOTSTRAP, STANDBY, LEADER);
     }
     return this.workingInstances;
   }
 
   private List<Instance> getReadyInstances() {
     if (this.readyInstances == null) {
-      this.readyInstances = generateReadyInstancesList(this.helixStateToInstancesMap);
+      this.readyInstances = generateInstancesList(ONLINE, STANDBY, LEADER);
     }
     return this.readyInstances;
   }
