@@ -25,6 +25,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -127,6 +128,7 @@ public class HelixCustomizedViewOfflinePushRepository extends HelixBaseRoutingRe
       Set<String> resourcesInCustomizedView =
           customizedViewCollection.stream().map(CustomizedView::getResourceName).collect(Collectors.toSet());
 
+      Set<String> instancesSeenInCustomizedViewButMissingFromLiveInstances = new HashSet<>();
       for (CustomizedView customizedView: customizedViewCollection) {
         String resourceName = customizedView.getResourceName();
         int partitionCount = resourceToPartitionCountMap.getOrDefault(resourceName, -1);
@@ -166,7 +168,7 @@ public class HelixCustomizedViewOfflinePushRepository extends HelixBaseRoutingRe
               }
               stateToInstanceMap.computeIfAbsent(status.toString(), s -> new ArrayList<>()).add(instance);
             } else {
-              LOGGER.warn("Cannot find instance '{}' in /LIVEINSTANCES", instanceName);
+              instancesSeenInCustomizedViewButMissingFromLiveInstances.add(instanceName);
             }
           }
           // Update partitionAssignment of customized state
@@ -186,6 +188,11 @@ public class HelixCustomizedViewOfflinePushRepository extends HelixBaseRoutingRe
                   .onPartitionStatusChange(resourceName, ReadOnlyPartitionStatus.fromPartitionStatus(partitionStatus)));
         }
         newResourceAssignment.setPartitionAssignment(resourceName, partitionAssignment);
+      }
+      if (!instancesSeenInCustomizedViewButMissingFromLiveInstances.isEmpty()) {
+        LOGGER.warn(
+            "The following instances were found in the CV, but missing from Live Instances: {}",
+            instancesSeenInCustomizedViewButMissingFromLiveInstances);
       }
       final ResourceAssignmentChanges updates;
       try (AutoCloseableLock ignored = AutoCloseableLock.of(resourceAssignmentRWLock.writeLock())) {
@@ -251,8 +258,8 @@ public class HelixCustomizedViewOfflinePushRepository extends HelixBaseRoutingRe
 
       resourceToPartitionCountMap.entrySet().removeIf(entry -> {
         String storeName = Version.parseStoreFromKafkaTopicName(entry.getKey());
-        int version = Version.parseVersionFromVersionTopicName(entry.getKey());
-        return store.getName().equals(storeName) && !versionsSet.contains(version);
+        return store.getName().equals(storeName)
+            && !versionsSet.contains(Version.parseVersionFromVersionTopicName(entry.getKey()));
       });
 
       String newResourceName = Version.composeKafkaTopic(store.getName(), currentVersion);

@@ -11,9 +11,11 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.linkedin.venice.utils.Pair;
 import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Objects;
 import org.apache.commons.lang.StringUtils;
 
 
@@ -36,8 +38,12 @@ public class ReplicaStatus {
 
   @JsonCreator
   public ReplicaStatus(@JsonProperty("instanceId") String instanceId) {
+    this(instanceId, true);
+  }
+
+  public ReplicaStatus(String instanceId, boolean enableStatusHistory) {
     this.instanceId = instanceId;
-    statusHistory = new LinkedList<>();
+    this.statusHistory = enableStatusHistory ? new LinkedList<>() : null;
   }
 
   public void updateStatus(ExecutionStatus newStatus) {
@@ -80,7 +86,7 @@ public class ReplicaStatus {
   }
 
   public List<StatusSnapshot> getStatusHistory() {
-    return statusHistory;
+    return statusHistory == null ? Collections.emptyList() : statusHistory;
   }
 
   @SuppressWarnings("unused") // Used by ZK serialize and deserialize.
@@ -89,6 +95,10 @@ public class ReplicaStatus {
   }
 
   private void addHistoricStatus(ExecutionStatus status) {
+    if (statusHistory == null) {
+      // Status history is disabled
+      return;
+    }
     // Do not update status in case that replica is already in PROGRESS and target status is also PROGRESS.
     // Because we don't want status history become too long due to lots of PROGRESS statuses.
     if (status.equals(PROGRESS) && !statusHistory.isEmpty()
@@ -114,7 +124,7 @@ public class ReplicaStatus {
   }
 
   private void removeOldStatuses() {
-    if (statusHistory.size() < MAX_HISTORY_LENGTH) {
+    if (statusHistory == null || statusHistory.size() < MAX_HISTORY_LENGTH) {
       return;
     }
 
@@ -171,7 +181,7 @@ public class ReplicaStatus {
     if (currentStatus != that.currentStatus) {
       return false;
     }
-    return statusHistory.equals(that.statusHistory);
+    return Objects.equals(statusHistory, that.statusHistory);
   }
 
   @Override
@@ -180,7 +190,7 @@ public class ReplicaStatus {
     result = 31 * result + currentStatus.hashCode();
     result = 31 * result + incrementalPushVersion.hashCode();
     result = 31 * result + (int) (currentProgress ^ (currentProgress >>> 32));
-    result = 31 * result + statusHistory.hashCode();
+    result = 31 * result + Objects.hashCode(statusHistory);
     return result;
   }
 
@@ -201,7 +211,7 @@ public class ReplicaStatus {
     StatusSnapshot startedStatus = null, completedStatus = null;
 
     // We assume that StatusSnapshot in statusHistory is sorted by its time.
-    Iterator<StatusSnapshot> iter = statusHistory.listIterator();
+    Iterator<StatusSnapshot> iter = getStatusHistory().listIterator();
     while (iter.hasNext() && (startedStatus == null || completedStatus == null)) {
       StatusSnapshot status = iter.next();
       if (status.getStatus() == STARTED && startedStatus == null) {
