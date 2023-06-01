@@ -278,7 +278,7 @@ public class TestHelixCustomizedViewOfflinePushRepository {
       Assert.assertNotNull(replicaState.getParticipantId(), "Participant id should not be null");
       Assert.assertEquals(
           replicaState.isReadyToServe(),
-          replicaState.getVenicePushStatus().equals(ExecutionStatus.COMPLETED.name()));
+          replicaState.getVenicePushStatus().equals(ExecutionStatus.COMPLETED));
     }
   }
 
@@ -324,14 +324,11 @@ public class TestHelixCustomizedViewOfflinePushRepository {
     Assert.assertEquals(2, customizedPartitionAssignment.getAssignedNumberOfPartitions());
     Assert.assertEquals(
         1,
-        customizedPartitionAssignment.getPartition(partitionId0)
-            .getInstancesInState(ExecutionStatus.COMPLETED.name())
-            .size());
+        customizedPartitionAssignment.getPartition(partitionId0).getInstancesInState(ExecutionStatus.COMPLETED).size());
     Assert.assertEquals(0, customizedPartitionAssignment.getPartition(partitionId0).getWorkingInstances().size());
 
-    Instance instance = customizedPartitionAssignment.getPartition(partitionId0)
-        .getInstancesInState(ExecutionStatus.COMPLETED.name())
-        .get(0);
+    Instance instance =
+        customizedPartitionAssignment.getPartition(partitionId0).getInstancesInState(ExecutionStatus.COMPLETED).get(0);
     Assert.assertEquals(Utils.getHostName(), instance.getHost());
     Assert.assertEquals(httpPort0, instance.getPort());
 
@@ -349,9 +346,7 @@ public class TestHelixCustomizedViewOfflinePushRepository {
     Assert.assertEquals(2, customizedPartitionAssignment.getAssignedNumberOfPartitions());
     Assert.assertEquals(
         0,
-        customizedPartitionAssignment.getPartition(partitionId0)
-            .getInstancesInState(ExecutionStatus.COMPLETED.name())
-            .size());
+        customizedPartitionAssignment.getPartition(partitionId0).getInstancesInState(ExecutionStatus.COMPLETED).size());
   }
 
   @Test

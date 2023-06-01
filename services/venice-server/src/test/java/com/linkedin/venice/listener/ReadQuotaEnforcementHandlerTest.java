@@ -95,7 +95,7 @@ public class ReadQuotaEnforcementHandlerTest {
     List<ReplicaState> replicaStates = new ArrayList<>();
     ReplicaState thisReplicaState = mock(ReplicaState.class);
     doReturn(thisInstance.getNodeId()).when(thisReplicaState).getParticipantId();
-    doReturn(ExecutionStatus.COMPLETED.name()).when(thisReplicaState).getVenicePushStatus();
+    doReturn(ExecutionStatus.COMPLETED).when(thisReplicaState).getVenicePushStatus();
     replicaStates.add(thisReplicaState);
     when(customizedViewRepository.getReplicaStates(topic, partition.getId())).thenReturn(replicaStates);
 
@@ -133,11 +133,11 @@ public class ReadQuotaEnforcementHandlerTest {
     List<ReplicaState> replicaStates = new ArrayList<>();
     ReplicaState thisReplicaState = mock(ReplicaState.class);
     doReturn(thisInstance.getNodeId()).when(thisReplicaState).getParticipantId();
-    doReturn(ExecutionStatus.COMPLETED.name()).when(thisReplicaState).getVenicePushStatus();
+    doReturn(ExecutionStatus.COMPLETED).when(thisReplicaState).getVenicePushStatus();
     replicaStates.add(thisReplicaState);
     ReplicaState otherReplicaState = mock(ReplicaState.class);
     doReturn(otherInstance.getNodeId()).when(otherReplicaState).getParticipantId();
-    doReturn(ExecutionStatus.COMPLETED.name()).when(otherReplicaState).getVenicePushStatus();
+    doReturn(ExecutionStatus.COMPLETED).when(otherReplicaState).getVenicePushStatus();
     replicaStates.add(otherReplicaState);
     when(customizedViewRepository.getReplicaStates(topic, partition.getId())).thenReturn(replicaStates);
 

@@ -294,7 +294,7 @@ public class ReadQuotaEnforcementHandler extends SimpleChannelInboundHandler<Rou
       List<String> readyToServeInstances = new ArrayList<>();
       for (ReplicaState replicaState: customizedViewRepository
           .getReplicaStates(partitionAssignment.getTopic(), p.getId())) {
-        if (replicaState.getVenicePushStatus().equals(ExecutionStatus.COMPLETED.name())) {
+        if (replicaState.getVenicePushStatus().equals(ExecutionStatus.COMPLETED)) {
           readyToServeInstances.add(replicaState.getParticipantId());
         }
       }

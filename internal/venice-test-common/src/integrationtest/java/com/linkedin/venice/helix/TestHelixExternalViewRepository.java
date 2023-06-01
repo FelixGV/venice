@@ -150,10 +150,6 @@ public class TestHelixExternalViewRepository {
     ReplicaState replicaState = replicaStates.iterator().next();
     Assert.assertEquals(replicaState.getPartition(), 0, "Unexpected partition number");
     Assert.assertNotNull(replicaState.getParticipantId(), "Participant id should not be null");
-    Assert.assertEquals(replicaState.getExternalViewStatus(), HelixState.ONLINE_STATE);
-    Assert.assertEquals(
-        replicaState.isReadyToServe(),
-        replicaState.getExternalViewStatus().equals(HelixState.ONLINE_STATE));
   }
 
   @Test

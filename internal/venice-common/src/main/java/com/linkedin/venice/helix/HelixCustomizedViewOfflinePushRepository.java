@@ -44,7 +44,6 @@ import org.apache.logging.log4j.Logger;
 public class HelixCustomizedViewOfflinePushRepository extends HelixBaseRoutingRepository {
   private static final Logger LOGGER = LogManager.getLogger(HelixCustomizedViewOfflinePushRepository.class);
   private final ReentrantReadWriteLock resourceAssignmentRWLock = new ReentrantReadWriteLock();
-  private static final String LEADER_FOLLOWER_VENICE_STATE_FILLER = "N/A";
 
   private final Map<String, Integer> resourceToPartitionCountMap = new VeniceConcurrentHashMap<>();
 
@@ -66,7 +65,7 @@ public class HelixCustomizedViewOfflinePushRepository extends HelixBaseRoutingRe
     if (partition == null) {
       return Collections.emptyList();
     }
-    return partition.getAllInstances()
+    return partition.getAllInstancesByExecutionStatus()
         .entrySet()
         .stream()
         .flatMap(
@@ -76,7 +75,6 @@ public class HelixCustomizedViewOfflinePushRepository extends HelixBaseRoutingRe
                     instance -> new ReplicaState(
                         partitionId,
                         instance.getNodeId(),
-                        LEADER_FOLLOWER_VENICE_STATE_FILLER,
                         e.getKey(),
                         e.getKey().equals(ExecutionStatus.COMPLETED.name()))))
         .collect(Collectors.toList());
@@ -87,7 +85,7 @@ public class HelixCustomizedViewOfflinePushRepository extends HelixBaseRoutingRe
     try (AutoCloseableLock ignored = AutoCloseableLock.of(resourceAssignmentRWLock.readLock())) {
       partition = resourceAssignment.getPartition(kafkaTopic, partitionId);
     }
-    return partition == null ? 0 : partition.getInstancesInState(COMPLETED.name()).size();
+    return partition == null ? 0 : partition.getInstancesInState(COMPLETED).size();
   }
 
   /* Returns map of partitionId and the number of completed replicas in that partition */
@@ -181,7 +179,8 @@ public class HelixCustomizedViewOfflinePushRepository extends HelixBaseRoutingRe
           PartitionStatus partitionStatus = new PartitionStatus(partitionId);
           stateToInstanceMap.forEach(
               (key, value) -> value.forEach(
-                  instance -> partitionStatus.updateReplicaStatus(instance.getNodeId(), ExecutionStatus.valueOf(key))));
+                  instance -> partitionStatus
+                      .updateReplicaStatus(instance.getNodeId(), ExecutionStatus.valueOf(key), false)));
           listenerManager.trigger(
               resourceName,
               listener -> listener
@@ -221,11 +220,6 @@ public class HelixCustomizedViewOfflinePushRepository extends HelixBaseRoutingRe
         listenerManager.trigger(kafkaTopic, listener -> listener.onRoutingDataDeleted(kafkaTopic));
       }
     }
-  }
-
-  @Override
-  public void refreshRoutingDataForResource(String kafkaTopic) {
-    throw new VeniceException("The function of refreshRoutingDataForResource is not implemented");
   }
 
   // test only

@@ -17,6 +17,7 @@ import com.linkedin.venice.meta.PartitionAssignment;
 import com.linkedin.venice.systemstore.schemas.StoreReplicaStatus;
 import com.linkedin.venice.utils.Pair;
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -63,7 +64,7 @@ public abstract class PushStatusDecider {
       int replicationFactor = pushStatus.getReplicationFactor();
       int errorReplicasCount = partition.getErrorInstances().size();
       int completedReplicasCount = partition.getReadyToServeInstances().size();
-      int assignedReplicasCount = partition.getAllInstances().size();
+      int assignedReplicasCount = partition.getNumOfTotalInstances();
       logger.debug(
           "Checking Push status for offline push for topic: {} Partition: {} has {} assigned replicas including {} error replicas, {} completed replicas.",
           pushStatus.getKafkaTopic(),
@@ -165,10 +166,8 @@ public abstract class PushStatusDecider {
       PartitionAssignment partitionAssignment,
       int partitionId) {
     return partitionAssignment.getPartition(partitionId)
-        .getAllInstances()
-        .values()
+        .getAllInstancesSet()
         .stream()
-        .flatMap(List::stream)
         .filter(
             instance -> PushStatusDecider
                 .getReplicaCurrentStatus(partitionStatus.getReplicaHistoricStatusList(instance.getNodeId()))
@@ -267,7 +266,7 @@ public abstract class PushStatusDecider {
       Map<Instance, String> instanceToStateMap,
       int numberOfToleratedErrors,
       DisableReplicaCallback callback) {
-    Map<ExecutionStatus, Integer> executionStatusMap = new HashMap<>();
+    Map<ExecutionStatus, Integer> executionStatusMap = new EnumMap<>(ExecutionStatus.class);
 
     // when resources are running under L/F model, leader is usually taking more critical work and
     // are more important than followers. Therefore, we strictly require leaders to be completed before
@@ -297,20 +296,22 @@ public abstract class PushStatusDecider {
       executionStatusMap.merge(currentStatus, 1, Integer::sum);
     }
 
-    if (executionStatusMap.containsKey(COMPLETED)
-        && executionStatusMap.get(COMPLETED) >= (replicationFactor - numberOfToleratedErrors) && isLeaderCompleted) {
+    Integer statusCount = executionStatusMap.get(COMPLETED);
+    if (statusCount != null && statusCount >= (replicationFactor - numberOfToleratedErrors) && isLeaderCompleted) {
       return COMPLETED;
     }
 
-    if (executionStatusMap.containsKey(ERROR) && (executionStatusMap.get(ERROR)
-        + previouslyDisabledErrorReplica > instanceToStateMap.size() - replicationFactor + numberOfToleratedErrors)) {
+    statusCount = executionStatusMap.get(ERROR);
+    if (statusCount != null && (statusCount + previouslyDisabledErrorReplica > instanceToStateMap.size()
+        - replicationFactor + numberOfToleratedErrors)) {
       return ERROR;
     }
 
     /**
      * Report EOP if at least one replica has consumed an EOP control message
      */
-    if (executionStatusMap.containsKey(END_OF_PUSH_RECEIVED) && executionStatusMap.get(END_OF_PUSH_RECEIVED) > 0) {
+    statusCount = executionStatusMap.get(END_OF_PUSH_RECEIVED);
+    if (statusCount != null && statusCount > 0) {
       return END_OF_PUSH_RECEIVED;
     }
 

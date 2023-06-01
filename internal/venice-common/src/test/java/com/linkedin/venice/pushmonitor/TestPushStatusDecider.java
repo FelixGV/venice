@@ -5,6 +5,7 @@ import com.linkedin.venice.meta.Instance;
 import com.linkedin.venice.meta.Partition;
 import com.linkedin.venice.meta.PartitionAssignment;
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -38,10 +39,10 @@ public class TestPushStatusDecider {
   }
 
   protected Partition changeReplicaState(Partition partition, String instanceId, HelixState newState) {
-    Map<String, List<Instance>> newStateToInstancesMap = new HashMap<>();
+    EnumMap<HelixState, List<Instance>> newStateToInstancesMap = new EnumMap<>(HelixState.class);
     Instance targetInstance = null;
-    for (String state: partition.getAllInstances().keySet()) {
-      List<Instance> oldInstances = partition.getAllInstances().get(state);
+    for (HelixState state: partition.getAllInstancesByHelixState().keySet()) {
+      List<Instance> oldInstances = partition.getAllInstancesByHelixState().get(state);
       List<Instance> newInstances = new ArrayList<>(oldInstances);
       Iterator<Instance> iterator = newInstances.iterator();
       while (iterator.hasNext()) {
@@ -61,9 +62,9 @@ public class TestPushStatusDecider {
     List<Instance> newInstances = newStateToInstancesMap.get(newState.name());
     if (newInstances == null) {
       newInstances = new ArrayList<>();
-      newStateToInstancesMap.put(newState.name(), newInstances);
+      newStateToInstancesMap.put(newState, newInstances);
     }
     newInstances.add(targetInstance);
-    return new Partition(partition.getId(), newStateToInstancesMap);
+    return new Partition(partition.getId(), newStateToInstancesMap, partition.getAllInstancesByExecutionStatus());
   }
 }

@@ -4,7 +4,6 @@ import static com.linkedin.venice.pushmonitor.ExecutionStatus.NOT_CREATED;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.linkedin.venice.exceptions.VeniceException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -31,30 +30,32 @@ public class PartitionStatus implements Comparable<PartitionStatus> {
   }
 
   public void updateReplicaStatus(String instanceId, ExecutionStatus newStatus) {
-    updateReplicaStatus(instanceId, newStatus, "");
+    updateReplicaStatus(instanceId, newStatus, "", true);
   }
 
-  public void updateReplicaStatus(String instanceId, ExecutionStatus newStatus, String incrementalPushVersion) {
-    ReplicaStatus replicaStatus =
-        replicaStatusMap.compute(instanceId, (k, v) -> v == null ? new ReplicaStatus(k, false) : v);
-    replicaStatus.setIncrementalPushVersion(incrementalPushVersion);
-    replicaStatus.updateStatus(newStatus);
+  public void updateReplicaStatus(String instanceId, ExecutionStatus newStatus, boolean enableStatusHistory) {
+    updateReplicaStatus(instanceId, newStatus, "", enableStatusHistory);
   }
 
-  public void updateProgress(String instanceId, long progress) {
-    ReplicaStatus replicaStatus = replicaStatusMap.get(instanceId);
-    if (replicaStatus == null) {
-      throw new VeniceException("Can not find replica status for: " + instanceId);
-    }
+  public void updateReplicaStatus(
+      String instanceId,
+      ExecutionStatus newStatus,
+      String incrementalPushVersion,
+      long progress) {
+    ReplicaStatus replicaStatus = updateReplicaStatus(instanceId, newStatus, incrementalPushVersion, true);
     replicaStatus.setCurrentProgress(progress);
   }
 
-  public void updateIncrementalPushVersion(String instanceId, String metadata) {
-    ReplicaStatus replicaStatus = replicaStatusMap.get(instanceId);
-    if (replicaStatus == null) {
-      throw new VeniceException("Can not find replica status for: " + instanceId);
-    }
-    replicaStatus.setIncrementalPushVersion(metadata);
+  private ReplicaStatus updateReplicaStatus(
+      String instanceId,
+      ExecutionStatus newStatus,
+      String incrementalPushVersion,
+      boolean enableStatusHistory) {
+    ReplicaStatus replicaStatus =
+        replicaStatusMap.compute(instanceId, (k, v) -> v == null ? new ReplicaStatus(k, enableStatusHistory) : v);
+    replicaStatus.setIncrementalPushVersion(incrementalPushVersion);
+    replicaStatus.updateStatus(newStatus);
+    return replicaStatus;
   }
 
   public Collection<ReplicaStatus> getReplicaStatuses() {

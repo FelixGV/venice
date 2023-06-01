@@ -24,6 +24,7 @@ import org.apache.commons.lang.StringUtils;
  */
 public class ReplicaStatus {
   public static final int MAX_HISTORY_LENGTH = 50;
+  public static final long NO_PROGRESS = -1;
   private final String instanceId;
   private ExecutionStatus currentStatus = STARTED;
   private long currentProgress = 0;
@@ -74,7 +75,9 @@ public class ReplicaStatus {
   }
 
   public void setCurrentProgress(long currentProgress) {
-    this.currentProgress = currentProgress;
+    if (currentProgress != NO_PROGRESS) {
+      this.currentProgress = currentProgress;
+    }
   }
 
   public String getIncrementalPushVersion() {

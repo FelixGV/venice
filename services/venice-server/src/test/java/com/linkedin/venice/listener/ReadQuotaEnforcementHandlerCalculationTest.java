@@ -104,16 +104,16 @@ public class ReadQuotaEnforcementHandlerCalculationTest {
         ReplicaState thisReplicaState = mock(ReplicaState.class);
         doReturn(i.getNodeId()).when(thisReplicaState).getParticipantId();
         if (thisNodeId.equals(i.getNodeId())) {
-          doReturn(ExecutionStatus.COMPLETED.name()).when(thisReplicaState).getVenicePushStatus();
+          doReturn(ExecutionStatus.COMPLETED).when(thisReplicaState).getVenicePushStatus();
           replicaStates.add(thisReplicaState);
           readyToServeReplicaCount -= 1;
           continue;
         }
         if (readyToServeReplicaCount > 0) {
-          doReturn(ExecutionStatus.COMPLETED.name()).when(thisReplicaState).getVenicePushStatus();
+          doReturn(ExecutionStatus.COMPLETED).when(thisReplicaState).getVenicePushStatus();
           readyToServeReplicaCount -= 1;
         } else {
-          doReturn(ExecutionStatus.ERROR.name()).when(thisReplicaState).getVenicePushStatus();
+          doReturn(ExecutionStatus.ERROR).when(thisReplicaState).getVenicePushStatus();
         }
         replicaStates.add(thisReplicaState);
       }

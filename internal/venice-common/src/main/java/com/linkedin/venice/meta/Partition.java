@@ -1,5 +1,10 @@
 package com.linkedin.venice.meta;
 
+import static com.linkedin.venice.helix.HelixState.BOOTSTRAP;
+import static com.linkedin.venice.helix.HelixState.LEADER;
+import static com.linkedin.venice.helix.HelixState.ONLINE;
+import static com.linkedin.venice.helix.HelixState.STANDBY;
+
 import com.linkedin.venice.helix.HelixExternalViewRepository;
 import com.linkedin.venice.helix.HelixState;
 import com.linkedin.venice.pushmonitor.ExecutionStatus;
@@ -7,8 +12,10 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -26,19 +33,30 @@ import org.apache.logging.log4j.Logger;
 public class Partition {
   private static final Logger LOGGER = LogManager.getLogger(Partition.class);
   /**
-   * ID of partition. One of the number between [0 ~ total number of partition)
+   * ID of partition. One of the number between [0, total number of partition[
    */
   private final int id;
 
-  private final Map<String, List<Instance>> stateToInstancesMap;
-  private final Map<HelixState, List<Instance>> helixStateToInstancesMap;
-  private final Map<ExecutionStatus, List<Instance>> executionStatusToInstancesMap;
-  private final List<Instance> readyInstances;
-  private final List<Instance> workingInstances;
+  private final EnumMap<HelixState, List<Instance>> helixStateToInstancesMap;
+  private final EnumMap<ExecutionStatus, List<Instance>> executionStatusToInstancesMap;
+
+  // Lazy state
+  private List<Instance> readyInstances = null;
+  private List<Instance> workingInstances = null;
+  private Set<Instance> allInstances = null;
+  private int hashCode = -1;
+
+  public Partition(
+      int id,
+      EnumMap<HelixState, List<Instance>> helixStateToInstancesMap,
+      EnumMap<ExecutionStatus, List<Instance>> executionStatusToInstancesMap) {
+    this.id = id;
+    this.helixStateToInstancesMap = helixStateToInstancesMap;
+    this.executionStatusToInstancesMap = executionStatusToInstancesMap;
+  }
 
   public Partition(int id, Map<String, List<Instance>> stateToInstancesMap) {
     this.id = id;
-    this.stateToInstancesMap = stateToInstancesMap;
 
     // Populate enum maps which are more efficient than the string-based map
     this.helixStateToInstancesMap = new EnumMap<>(HelixState.class);
@@ -70,25 +88,36 @@ public class Partition {
     for (ExecutionStatus executionStatus: ExecutionStatus.values()) {
       this.executionStatusToInstancesMap.putIfAbsent(executionStatus, Collections.emptyList());
     }
-
-    // Populate lists of multiple related states
-    List<Instance> instances = new ArrayList<>();
-    instances.addAll(this.helixStateToInstancesMap.get(HelixState.ONLINE));
-    instances.addAll(this.helixStateToInstancesMap.get(HelixState.STANDBY));
-    instances.addAll(this.helixStateToInstancesMap.get(HelixState.LEADER));
-    this.readyInstances = Collections.unmodifiableList(instances);
-
-    List<Instance> instances2 = new ArrayList<>();
-    instances2.addAll(this.helixStateToInstancesMap.get(HelixState.ONLINE));
-    instances2.addAll(this.helixStateToInstancesMap.get(HelixState.BOOTSTRAP));
-    instances2.addAll(this.helixStateToInstancesMap.get(HelixState.STANDBY));
-    instances2.addAll(this.helixStateToInstancesMap.get(HelixState.LEADER));
-    this.workingInstances = Collections.unmodifiableList(instances2);
   }
 
-  public List<Instance> getInstancesInState(String state) {
-    List<Instance> instances = stateToInstancesMap.get(state);
-    return instances == null ? Collections.emptyList() : Collections.unmodifiableList(instances);
+  private static List<Instance> generateReadyInstancesList(Map<HelixState, List<Instance>> helixStateToInstancesMap) {
+    return generateInstancesList(helixStateToInstancesMap, ONLINE, STANDBY, LEADER);
+  }
+
+  private static List<Instance> generateWorkingInstancesList(Map<HelixState, List<Instance>> helixStateToInstancesMap) {
+    return generateInstancesList(helixStateToInstancesMap, ONLINE, BOOTSTRAP, STANDBY, LEADER);
+  }
+
+  private static List<Instance> generateInstancesList(
+      Map<HelixState, List<Instance>> helixStateToInstancesMap,
+      HelixState... states) {
+    int count = 0;
+    for (HelixState state: states) {
+      count += helixStateToInstancesMap.get(state).size();
+    }
+    List<Instance> instances = new ArrayList<>(count);
+    for (HelixState state: states) {
+      instances.addAll(helixStateToInstancesMap.get(state));
+    }
+    return Collections.unmodifiableList(instances);
+  }
+
+  public List<Instance> getInstancesInState(ExecutionStatus state) {
+    return this.executionStatusToInstancesMap.get(state);
+  }
+
+  public List<Instance> getInstancesInState(HelixState state) {
+    return this.helixStateToInstancesMap.get(state);
   }
 
   /**
@@ -102,11 +131,21 @@ public class Partition {
   public List<Instance> getReadyToServeInstances() {
     List<Instance> completed = this.executionStatusToInstancesMap.get(ExecutionStatus.COMPLETED);
     List<Instance> online = this.helixStateToInstancesMap.get(HelixState.ONLINE);
-    return completed.size() > online.size() ? completed : this.readyInstances;
+    return completed.size() > online.size() ? completed : getReadyInstances();
   }
 
   public List<Instance> getWorkingInstances() {
+    if (this.workingInstances == null) {
+      this.workingInstances = generateWorkingInstancesList(this.helixStateToInstancesMap);
+    }
     return this.workingInstances;
+  }
+
+  private List<Instance> getReadyInstances() {
+    if (this.readyInstances == null) {
+      this.readyInstances = generateReadyInstancesList(this.helixStateToInstancesMap);
+    }
+    return this.readyInstances;
   }
 
   public List<Instance> getErrorInstances() {
@@ -131,14 +170,42 @@ public class Partition {
     return instances.get(0);
   }
 
-  public Map<String, List<Instance>> getAllInstances() {
-    return Collections.unmodifiableMap(stateToInstancesMap);
+  public Set<Instance> getAllInstancesSet() {
+    if (allInstances == null) {
+      int count = 0;
+      for (List<Instance> instances: this.helixStateToInstancesMap.values()) {
+        count += instances.size();
+      }
+      for (List<Instance> instances: this.executionStatusToInstancesMap.values()) {
+        count += instances.size();
+      }
+
+      Set<Instance> tmpAllInstances = new HashSet<>(count);
+      for (List<Instance> instances: this.helixStateToInstancesMap.values()) {
+        tmpAllInstances.addAll(instances);
+      }
+      for (List<Instance> instances: this.executionStatusToInstancesMap.values()) {
+        tmpAllInstances.addAll(instances);
+      }
+      this.allInstances = Collections.unmodifiableSet(tmpAllInstances);
+    }
+    return this.allInstances;
+  }
+
+  public Map<HelixState, List<Instance>> getAllInstancesByHelixState() {
+    return this.helixStateToInstancesMap;
+  }
+
+  public EnumMap<ExecutionStatus, List<Instance>> getAllInstancesByExecutionStatus() {
+    return this.executionStatusToInstancesMap;
   }
 
   public Map<Instance, String> getInstanceToStateMap() {
     Map<Instance, String> instanceToStateMap = new HashMap<>();
-    stateToInstancesMap.forEach(
-        (helixState, instanceList) -> instanceList.forEach(instance -> instanceToStateMap.put(instance, helixState)));
+    this.executionStatusToInstancesMap.forEach(
+        (state, instanceList) -> instanceList.forEach(instance -> instanceToStateMap.put(instance, state.toString())));
+    this.helixStateToInstancesMap.forEach(
+        (state, instanceList) -> instanceList.forEach(instance -> instanceToStateMap.put(instance, state.toString())));
 
     return instanceToStateMap;
   }
@@ -146,13 +213,24 @@ public class Partition {
   /**
    * Find the status of given instance in this partition.
    */
-  public String getInstanceStatusById(String instanceId) {
-    for (Map.Entry<String, List<Instance>> entry: stateToInstancesMap.entrySet()) {
-      String status = entry.getKey();
+  public HelixState getHelixStateByInstanceId(String instanceId) {
+    for (Map.Entry<HelixState, List<Instance>> entry: this.helixStateToInstancesMap.entrySet()) {
       List<Instance> instances = entry.getValue();
       for (Instance instance: instances) {
         if (instance.getNodeId().equals(instanceId)) {
-          return status;
+          return entry.getKey();
+        }
+      }
+    }
+    return null;
+  }
+
+  public ExecutionStatus getExecutionStatusByInstanceId(String instanceId) {
+    for (Map.Entry<ExecutionStatus, List<Instance>> entry: this.executionStatusToInstancesMap.entrySet()) {
+      List<Instance> instances = entry.getValue();
+      for (Instance instance: instances) {
+        if (instance.getNodeId().equals(instanceId)) {
+          return entry.getKey();
         }
       }
     }
@@ -160,23 +238,30 @@ public class Partition {
   }
 
   public int getNumOfTotalInstances() {
-    return stateToInstancesMap.values().stream().mapToInt(List::size).sum();
+    return getAllInstancesSet().size();
   }
 
   /**
    * Remove the given instance from this partition. As partition is an immutable object, so we return a new partition after removing.
    */
   public Partition withRemovedInstance(String instanceId) {
-    HashMap<String, List<Instance>> newStateToInstancesMap = new HashMap<>();
-    for (Map.Entry<String, List<Instance>> entry: stateToInstancesMap.entrySet()) {
-
+    EnumMap<HelixState, List<Instance>> newHelixStateToInstancesMap = new EnumMap<>(HelixState.class);
+    for (Map.Entry<HelixState, List<Instance>> entry: this.helixStateToInstancesMap.entrySet()) {
       List<Instance> newInstances = new ArrayList<>(entry.getValue());
       newInstances.removeIf((Instance instance) -> instance.getNodeId().equals(instanceId));
       if (!newInstances.isEmpty()) {
-        newStateToInstancesMap.put(entry.getKey(), newInstances);
+        newHelixStateToInstancesMap.put(entry.getKey(), Collections.unmodifiableList(newInstances));
       }
     }
-    return new Partition(id, newStateToInstancesMap);
+    EnumMap<ExecutionStatus, List<Instance>> newExecutionStatusToInstancesMap = new EnumMap<>(ExecutionStatus.class);
+    for (Map.Entry<ExecutionStatus, List<Instance>> entry: this.executionStatusToInstancesMap.entrySet()) {
+      List<Instance> newInstances = new ArrayList<>(entry.getValue());
+      newInstances.removeIf((Instance instance) -> instance.getNodeId().equals(instanceId));
+      if (!newInstances.isEmpty()) {
+        newExecutionStatusToInstancesMap.put(entry.getKey(), Collections.unmodifiableList(newInstances));
+      }
+    }
+    return new Partition(id, newHelixStateToInstancesMap, newExecutionStatusToInstancesMap);
   }
 
   public int getId() {
@@ -185,7 +270,9 @@ public class Partition {
 
   @Override
   public String toString() {
-    return this.getClass().getSimpleName() + " {id: " + id + ", stateToInstancesMap: " + stateToInstancesMap + "}";
+    return this.getClass().getSimpleName() + " {id: " + id + ", helixStateToInstancesMap: "
+        + this.helixStateToInstancesMap + ", executionStatusToInstancesMap: " + this.executionStatusToInstancesMap
+        + "}";
   }
 
   @Override
@@ -195,7 +282,9 @@ public class Partition {
     }
 
     if (obj instanceof Partition) {
-      return stateToInstancesMap.equals(((Partition) obj).stateToInstancesMap);
+      Partition otherPartition = (Partition) obj;
+      return this.helixStateToInstancesMap.equals(otherPartition.helixStateToInstancesMap)
+          && this.executionStatusToInstancesMap.equals(otherPartition.executionStatusToInstancesMap);
     }
 
     return false;
@@ -203,9 +292,13 @@ public class Partition {
 
   @Override
   public int hashCode() {
-    int result = 1;
-    result = 31 * id;
-    result = 31 * result + stateToInstancesMap.hashCode();
-    return result;
+    if (this.hashCode == -1) {
+      int result = 1;
+      result = 31 * id;
+      result = 31 * result + this.helixStateToInstancesMap.hashCode();
+      result = 31 * result + this.executionStatusToInstancesMap.hashCode();
+      this.hashCode = result;
+    }
+    return this.hashCode;
   }
 }

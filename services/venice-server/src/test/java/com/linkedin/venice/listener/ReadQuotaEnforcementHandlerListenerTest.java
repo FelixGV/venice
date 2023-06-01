@@ -204,7 +204,7 @@ public class ReadQuotaEnforcementHandlerListenerTest {
     List<ReplicaState> replicaStates = new ArrayList<>();
     ReplicaState thisReplicaState = mock(ReplicaState.class);
     doReturn(thisInstance.getNodeId()).when(thisReplicaState).getParticipantId();
-    doReturn(ExecutionStatus.COMPLETED.name()).when(thisReplicaState).getVenicePushStatus();
+    doReturn(ExecutionStatus.COMPLETED).when(thisReplicaState).getVenicePushStatus();
     replicaStates.add(thisReplicaState);
     when(customizedViewRepository.getReplicaStates(topic, partition.getId())).thenReturn(replicaStates);
 

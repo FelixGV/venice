@@ -7,6 +7,7 @@ import com.linkedin.venice.exceptions.ConfigurationException;
 import com.linkedin.venice.exceptions.ErrorType;
 import com.linkedin.venice.exceptions.VeniceException;
 import com.linkedin.venice.exceptions.VeniceHttpException;
+import com.linkedin.venice.helix.HelixState;
 import com.linkedin.venice.helix.Replica;
 import com.linkedin.venice.helix.ResourceAssignment;
 import com.linkedin.venice.meta.Instance;
@@ -786,7 +787,7 @@ public class Utils {
       for (String resourceName: resourceNames) {
         PartitionAssignment partitionAssignment = resourceAssignment.getPartitionAssignment(resourceName);
         for (Partition partition: partitionAssignment.getAllPartitions()) {
-          String status = partition.getInstanceStatusById(instanceId);
+          HelixState status = partition.getHelixStateByInstanceId(instanceId);
           if (status != null) {
             Replica replica = new Replica(Instance.fromNodeId(instanceId), partition.getId(), resourceName);
             replica.setStatus(status);
