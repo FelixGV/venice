@@ -77,7 +77,7 @@ public class HelixCustomizedViewOfflinePushRepository extends HelixBaseRoutingRe
                         partitionId,
                         instance.getNodeId(),
                         e.getKey(),
-                        e.getKey().equals(ExecutionStatus.COMPLETED.name()))))
+                        e.getKey().equals(ExecutionStatus.COMPLETED))))
         .collect(Collectors.toList());
   }
 

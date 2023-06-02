@@ -40,8 +40,11 @@ public class Replica {
     return status;
   }
 
+  /** Used by the JSON deserializer */
   public void setStatus(String status) {
-    this.status = HelixState.valueOf(status);
+    if (status != null) {
+      this.status = HelixState.valueOf(status);
+    }
   }
 
   public void setStatus(HelixState status) {

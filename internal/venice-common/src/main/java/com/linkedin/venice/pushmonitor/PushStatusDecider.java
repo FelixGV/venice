@@ -64,14 +64,16 @@ public abstract class PushStatusDecider {
       int replicationFactor = pushStatus.getReplicationFactor();
       int errorReplicasCount = partition.getErrorInstances().size();
       int completedReplicasCount = partition.getReadyToServeInstances().size();
-      int assignedReplicasCount = partition.getNumOfTotalInstances();
-      logger.debug(
-          "Checking Push status for offline push for topic: {} Partition: {} has {} assigned replicas including {} error replicas, {} completed replicas.",
-          pushStatus.getKafkaTopic(),
-          partition.getId(),
-          assignedReplicasCount,
-          errorReplicasCount,
-          completedReplicasCount);
+      if (logger.isDebugEnabled()) {
+        int assignedReplicasCount = partition.getNumOfTotalInstances();
+        logger.debug(
+            "Checking Push status for offline push for topic: {} Partition: {} has {} assigned replicas including {} error replicas, {} completed replicas.",
+            pushStatus.getKafkaTopic(),
+            partition.getId(),
+            assignedReplicasCount,
+            errorReplicasCount,
+            completedReplicasCount);
+      }
 
       // Is push failed due to there is enough number of error replicas.
       if (!hasEnoughReplicasForOnePartition(replicationFactor - errorReplicasCount, replicationFactor)) {

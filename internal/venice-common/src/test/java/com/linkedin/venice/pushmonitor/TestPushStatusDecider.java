@@ -41,8 +41,8 @@ public class TestPushStatusDecider {
   protected Partition changeReplicaState(Partition partition, String instanceId, HelixState newState) {
     EnumMap<HelixState, List<Instance>> newStateToInstancesMap = new EnumMap<>(HelixState.class);
     Instance targetInstance = null;
-    for (HelixState state: partition.getAllInstancesByHelixState().keySet()) {
-      List<Instance> oldInstances = partition.getAllInstancesByHelixState().get(state);
+    for (Map.Entry<HelixState, List<Instance>> entry: partition.getAllInstancesByHelixState().entrySet()) {
+      List<Instance> oldInstances = entry.getValue();
       List<Instance> newInstances = new ArrayList<>(oldInstances);
       Iterator<Instance> iterator = newInstances.iterator();
       while (iterator.hasNext()) {
@@ -53,13 +53,13 @@ public class TestPushStatusDecider {
         }
       }
       if (!newInstances.isEmpty()) {
-        newStateToInstancesMap.put(state, newInstances);
+        newStateToInstancesMap.put(entry.getKey(), newInstances);
       }
     }
     if (targetInstance == null) {
       throw new IllegalStateException("Can not find instance:" + instanceId);
     }
-    List<Instance> newInstances = newStateToInstancesMap.get(newState.name());
+    List<Instance> newInstances = newStateToInstancesMap.get(newState);
     if (newInstances == null) {
       newInstances = new ArrayList<>();
       newStateToInstancesMap.put(newState, newInstances);

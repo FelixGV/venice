@@ -276,9 +276,12 @@ public class TestHelixCustomizedViewOfflinePushRepository {
     for (ReplicaState replicaState: replicaStates) {
       Assert.assertEquals(replicaState.getPartition(), partitionId0, "Unexpected partition number");
       Assert.assertNotNull(replicaState.getParticipantId(), "Participant id should not be null");
+      boolean readyToServe = replicaState.isReadyToServe();
+      ExecutionStatus pushStatus = replicaState.getVenicePushStatus();
       Assert.assertEquals(
           replicaState.isReadyToServe(),
-          replicaState.getVenicePushStatus().equals(ExecutionStatus.COMPLETED));
+          pushStatus.equals(ExecutionStatus.COMPLETED),
+          "readyToServe == " + readyToServe + " but the push status is: " + pushStatus);
     }
   }
 
