@@ -19,12 +19,9 @@ public enum HelixState {
   }
 
   // In StateModelInfo and transition annotation, Only constants string is accepted, so transfer enum to String here.
-  public static final String ONLINE_STATE = "ONLINE";
   public static final String OFFLINE_STATE = "OFFLINE";
-  public static final String BOOTSTRAP_STATE = "BOOTSTRAP";
   public static final String DROPPED_STATE = "DROPPED";
   public static final String ERROR_STATE = "ERROR";
-  public static final String UNKNOWN_STATE = "UNKNOWN";
   public static final String LEADER_STATE = "LEADER";
   public static final String STANDBY_STATE = "STANDBY";
 }
