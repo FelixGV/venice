@@ -1,5 +1,6 @@
 package com.linkedin.venice.utils;
 
+import com.linkedin.venice.utils.collections.NullSkippingIteratorWrapper;
 import java.util.AbstractCollection;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -34,6 +35,10 @@ import java.util.function.UnaryOperator;
  * the read operations are used on the hot path.
  */
 public class SparseConcurrentList<E> extends CopyOnWriteArrayList<E> {
+  /**
+   * This supplier is useful when building nested lists, and using {@link #computeIfAbsent(int, IntFunction)} on the
+   * outer list, with the intent of bootstrapping an empty inner list if it's absent.
+   */
   public static final IntFunction SUPPLIER = i -> new SparseConcurrentList<>();
   private static final long serialVersionUID = 1L;
 
@@ -190,17 +195,16 @@ public class SparseConcurrentList<E> extends CopyOnWriteArrayList<E> {
 
     @Override
     public Iterator<E> iterator() {
-      return iteratorSupplier.get();
+      return new NullSkippingIteratorWrapper<>(iteratorSupplier.get());
     }
 
     @Override
     public int size() {
-      Iterator<E> iterator = iteratorSupplier.get();
+      Iterator<E> iterator = new NullSkippingIteratorWrapper(iteratorSupplier.get());
       int populatedSize = 0;
       while (iterator.hasNext()) {
-        if (iterator.next() != null) {
-          populatedSize++;
-        }
+        iterator.next();
+        populatedSize++;
       }
       return populatedSize;
     }
