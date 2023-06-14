@@ -29,16 +29,23 @@ public abstract class AbstractAvroChunkingAdapter<T> implements ChunkingAdapter<
 
   @Override
   public T constructValue(
-      int writerSchemaId,
       byte[] fullBytes,
       int bytesLength,
       T reusedValue,
       BinaryDecoder reusedDecoder,
       ReadResponse response,
-      RecordDeserializer<T> recordDeserializer,
+      int writerSchemaId,
+      int readerSchemaId,
+      StoreDeserializerCache<T> storeDeserializerCache,
       VeniceCompressor compressor) {
-    return getByteArrayDecoder(compressor.getCompressionStrategy(), response)
-        .decode(reusedDecoder, fullBytes, bytesLength, reusedValue, recordDeserializer, response, compressor);
+    return getByteArrayDecoder(compressor.getCompressionStrategy(), response).decode(
+        reusedDecoder,
+        fullBytes,
+        bytesLength,
+        reusedValue,
+        storeDeserializerCache.getDeserializer(writerSchemaId, readerSchemaId),
+        response,
+        compressor);
   }
 
   @Override
@@ -71,19 +78,20 @@ public abstract class AbstractAvroChunkingAdapter<T> implements ChunkingAdapter<
 
   @Override
   public T constructValue(
-      int schemaId,
       ChunkedValueInputStream chunkedValueInputStream,
       T reusedValue,
       BinaryDecoder reusedDecoder,
       ReadResponse response,
-      RecordDeserializer<T> recordDeserializer,
+      int writerSchemaId,
+      int readerSchemaId,
+      StoreDeserializerCache<T> storeDeserializerCache,
       VeniceCompressor compressor) {
     return getInputStreamDecoder(response).decode(
         reusedDecoder,
         chunkedValueInputStream,
         UNUSED_INPUT_BYTES_LENGTH,
         reusedValue,
-        recordDeserializer,
+        storeDeserializerCache.getDeserializer(writerSchemaId, readerSchemaId),
         response,
         compressor);
   }

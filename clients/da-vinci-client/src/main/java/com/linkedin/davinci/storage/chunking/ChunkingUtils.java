@@ -155,13 +155,14 @@ public class ChunkingUtils {
           GenericRecord deserializedKey = keyRecordDeserializer.deserialize(key);
 
           deserializedValueRecord = (GenericRecord) adapter.constructValue(
-              writerSchemaId,
               value,
               value.length,
               reusedValue,
               reusedDecoder,
               response,
-              storeDeserializerCache.getDeserializer(writerSchemaId, readerSchemaId),
+              writerSchemaId,
+              readerSchemaId,
+              storeDeserializerCache,
               compressor);
 
           computingCallback.onRecordReceived(deserializedKey, deserializedValueRecord);
@@ -264,13 +265,14 @@ public class ChunkingUtils {
         response.addDatabaseLookupLatency(LatencyUtils.getLatencyInMS(databaseLookupStartTimeInNS));
       }
       return adapter.constructValue(
-          writerSchemaId,
           value,
           valueLength,
           reusedValue,
           reusedDecoder,
           response,
-          storeDeserializerCache.getDeserializer(writerSchemaId, readerSchemaId),
+          writerSchemaId,
+          readerSchemaId,
+          storeDeserializerCache,
           compressor);
     } else if (writerSchemaId != AvroProtocolDefinition.CHUNKED_VALUE_MANIFEST.getCurrentProtocolVersion()) {
       throw new VeniceException("Found a record with invalid schema ID: " + writerSchemaId);
@@ -319,12 +321,13 @@ public class ChunkingUtils {
     }
 
     return adapter.constructValue(
-        chunkedValueManifest.schemaId,
         assembledValueContainer,
         reusedValue,
         reusedDecoder,
         response,
-        storeDeserializerCache.getDeserializer(writerSchemaId, readerSchemaId),
+        chunkedValueManifest.schemaId,
+        readerSchemaId,
+        storeDeserializerCache,
         compressor);
   }
 

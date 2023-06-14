@@ -14,7 +14,9 @@ import com.linkedin.venice.helix.HelixReadOnlySchemaRepository;
 import com.linkedin.venice.schema.SchemaEntry;
 import com.linkedin.venice.serialization.avro.AvroProtocolDefinition;
 import com.linkedin.venice.serializer.AvroStoreDeserializerCache;
+import com.linkedin.venice.serializer.RawBytesStoreDeserializerCache;
 import com.linkedin.venice.serializer.SerializerDeserializerFactory;
+import com.linkedin.venice.serializer.StoreDeserializerCache;
 import com.linkedin.venice.storage.protocol.ChunkedValueManifest;
 import com.linkedin.venice.utils.ByteUtils;
 import java.nio.ByteBuffer;
@@ -156,6 +158,7 @@ public class ChunkingTest {
   private void runTest(
       GenericRecord record,
       AbstractAvroChunkingAdapter chunkingAdapter,
+      boolean rawBytesStoreDeserializerCache,
       Function<Object, Void> assertions) {
     int partition = 9;
     String storeName = "test";
@@ -209,8 +212,9 @@ public class ChunkingTest {
     doReturn(chunk1Bytes).when(storageEngine).get(eq(partition), eq(firstKey));
     doReturn(chunk2Bytes).when(storageEngine).get(eq(partition), eq(secondKey));
 
-    AvroStoreDeserializerCache storeDeserializerCache =
-        new AvroStoreDeserializerCache(schemaRepository, storeName, true);
+    StoreDeserializerCache storeDeserializerCache = rawBytesStoreDeserializerCache
+        ? RawBytesStoreDeserializerCache.getInstance()
+        : new AvroStoreDeserializerCache(schemaRepository, storeName, true);
     int readerSchemaId = schemaEntry.getId();
     try (StorageEngineBackedCompressorFactory compressorFactory =
         new StorageEngineBackedCompressorFactory(mock(StorageMetadataService.class))) {
@@ -233,7 +237,7 @@ public class ChunkingTest {
 
   @Test(dataProvider = "recordProvider")
   public void testGenericRecordChunkingAdapter(GenericRecord record) {
-    runTest(record, GenericRecordChunkingAdapter.INSTANCE, (valueFromStorageEngine) -> {
+    runTest(record, GenericRecordChunkingAdapter.INSTANCE, false, (valueFromStorageEngine) -> {
       Assert.assertTrue(valueFromStorageEngine instanceof GenericRecord);
       Assert.assertEquals(valueFromStorageEngine, record);
       return null;
@@ -244,7 +248,7 @@ public class ChunkingTest {
   public void testRawBytesChunkingAdapter(GenericRecord record) {
     byte[] serializedRecord =
         SerializerDeserializerFactory.getAvroGenericSerializer(record.getSchema()).serialize(record);
-    runTest(record, RawBytesChunkingAdapter.INSTANCE, (valueFromStorageEngine) -> {
+    runTest(record, RawBytesChunkingAdapter.INSTANCE, true, (valueFromStorageEngine) -> {
       Assert.assertTrue(valueFromStorageEngine instanceof ByteBuffer);
       Assert.assertEquals(ByteUtils.extractByteArray((ByteBuffer) valueFromStorageEngine), serializedRecord);
       return null;
