@@ -64,7 +64,6 @@ public class HelixReadOnlySchemaRepository implements ReadOnlySchemaRepository, 
   private final ReadOnlyStoreRepository storeRepository;
 
   // Listener to handle adding key/value schema
-  private final IZkChildListener keySchemaChildListener = new KeySchemaChildListener();
   private final IZkChildListener valueSchemaChildListener = new ValueSchemaChildListener();
   private final IZkChildListener derivedSchemaChildListener = new DerivedSchemaChildListener();
   private final IZkChildListener replicationMetadataSchemaChildListener = new ReplicationMetadataSchemaChildListener();
@@ -420,12 +419,10 @@ public class HelixReadOnlySchemaRepository implements ReadOnlySchemaRepository, 
       logger.info("Try to fetch schema data for store: {}.", storeName);
       // If the local cache doesn't have the schema entry for this store,
       // it could be added recently, and we need to add/monitor it locally
-      SchemaData schemaData = new SchemaData(storeName);
 
       // Fetch key schema
       // Since key schema are not mutated (not even the child zk path) there is no need to set watches
-      accessor.subscribeKeySchemaCreationChange(storeName, keySchemaChildListener);
-      schemaData.setKeySchema(accessor.getKeySchema(storeName));
+      SchemaData schemaData = new SchemaData(storeName, accessor.getKeySchema(storeName));
 
       // Fetch value schema
       accessor.subscribeValueSchemaCreationChange(storeName, valueSchemaChildListener);
@@ -469,7 +466,6 @@ public class HelixReadOnlySchemaRepository implements ReadOnlySchemaRepository, 
         return;
       }
       logger.info("Remove schema for store locally: {}.", storeName);
-      accessor.unsubscribeKeySchemaCreationChange(storeName, keySchemaChildListener);
       accessor.unsubscribeValueSchemaCreationChange(storeName, valueSchemaChildListener);
       accessor.unsubscribeDerivedSchemaCreationChanges(storeName, derivedSchemaChildListener);
       accessor.unsubscribeReplicationMetadataSchemaCreationChanges(storeName, replicationMetadataSchemaChildListener);
@@ -519,13 +515,6 @@ public class HelixReadOnlySchemaRepository implements ReadOnlySchemaRepository, 
     }
     maybeRegisterAndPopulateUpdateSchema(store, schemaData);
     maybeRegisterAndPopulateRmdSchema(store, schemaData);
-  }
-
-  private class KeySchemaChildListener extends SchemaChildListener {
-    @Override
-    void handleSchemaChanges(String storeName, List<String> currentChildren) {
-      schemaMap.get(storeName).setKeySchema(accessor.getKeySchema(storeName));
-    }
   }
 
   private class ValueSchemaChildListener extends SchemaChildListener {

@@ -21,6 +21,7 @@ import com.linkedin.venice.meta.Store;
 import com.linkedin.venice.meta.Version;
 import com.linkedin.venice.partitioner.VenicePartitioner;
 import com.linkedin.venice.serializer.RecordDeserializer;
+import com.linkedin.venice.serializer.StoreDeserializerCache;
 import com.linkedin.venice.utils.ComplementSet;
 import com.linkedin.venice.utils.ExceptionUtils;
 import com.linkedin.venice.utils.PartitionUtils;
@@ -63,6 +64,7 @@ public class VersionBackend {
   private final Map<Integer, CompletableFuture<Void>> partitionFutures = new VeniceConcurrentHashMap<>();
   private final int stopConsumptionWaitRetriesNum;
   private final StoreBackendStats storeBackendStats;
+  private final StoreDeserializerCache storeDeserializerCache;
   private final Lazy<VeniceCompressor> compressor;
 
   /*
@@ -97,6 +99,7 @@ public class VersionBackend {
         .getInt(PUSH_STATUS_STORE_HEARTBEAT_INTERVAL_IN_SECONDS, DEFAULT_PUSH_STATUS_HEARTBEAT_INTERVAL_IN_SECONDS);
     this.stopConsumptionWaitRetriesNum =
         backend.getConfigLoader().getCombinedProperties().getInt(SERVER_STOP_CONSUMPTION_WAIT_RETRIES_NUM, 60);
+    this.storeDeserializerCache = backend.getStoreOrThrow(store.getName()).getStoreDeserializerCache();
     this.compressor = Lazy.of(
         () -> backend.getCompressorFactory().getCompressor(version.getCompressionStrategy(), version.kafkaTopicName()));
     backend.getVersionByTopicMap().put(version.kafkaTopicName(), this);
@@ -176,6 +179,7 @@ public class VersionBackend {
       int userPartition,
       byte[] keyBytes,
       AbstractAvroChunkingAdapter<V> chunkingAdaptor,
+      StoreDeserializerCache<V> storeDeserializerCache,
       BinaryDecoder binaryDecoder,
       ByteBuffer reusableRawValue,
       V reusableValue) {
@@ -194,6 +198,7 @@ public class VersionBackend {
         true,
         backend.getSchemaRepository(),
         null,
+        storeDeserializerCache,
         compressor.get());
   }
 
@@ -201,6 +206,7 @@ public class VersionBackend {
       int userPartition,
       byte[] keyBytes,
       AbstractAvroChunkingAdapter<GenericRecord> chunkingAdaptor,
+      StoreDeserializerCache<GenericRecord> storeDeserializerCache,
       BinaryDecoder binaryDecoder,
       ByteBuffer reusableRawValue,
       GenericRecord reusableValueRecord,
@@ -223,6 +229,7 @@ public class VersionBackend {
         true,
         backend.getSchemaRepository(),
         null,
+        storeDeserializerCache,
         compressor.get());
 
     return getResultOfComputeOperations(
@@ -269,20 +276,21 @@ public class VersionBackend {
         };
 
     chunkingAdaptor.getByPartialKey(
-        version.getStoreName(),
+        this.version.getStoreName(),
         getStorageEngineOrThrow(),
         partition,
-        version.getPartitionerConfig(),
+        this.version.getPartitionerConfig(),
         keyPrefix,
         reusableValueRecord,
         reusableBinaryDecoder,
         keyRecordDeserializer,
-        version.isChunkingEnabled(),
-        version.getCompressionStrategy(),
+        this.version.isChunkingEnabled(),
+        this.version.getCompressionStrategy(),
         true,
-        backend.getSchemaRepository(),
+        this.backend.getSchemaRepository(),
         null,
-        compressor.get(),
+        this.storeDeserializerCache,
+        this.compressor.get(),
         computingCallback);
   }
 
