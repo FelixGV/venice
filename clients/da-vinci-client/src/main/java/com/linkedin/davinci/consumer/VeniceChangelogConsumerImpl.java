@@ -39,10 +39,10 @@ import com.linkedin.venice.pubsub.api.PubSubTopicPartition;
 import com.linkedin.venice.schema.SchemaReader;
 import com.linkedin.venice.schema.rmd.RmdUtils;
 import com.linkedin.venice.serialization.avro.AvroProtocolDefinition;
+import com.linkedin.venice.serializer.AvroStoreDeserializerCache;
 import com.linkedin.venice.serializer.FastSerializerDeserializerFactory;
 import com.linkedin.venice.serializer.RecordDeserializer;
 import com.linkedin.venice.serializer.SerializerDeserializerFactory;
-import com.linkedin.venice.serializer.StoreDeserializerCache;
 import com.linkedin.venice.utils.DictionaryUtils;
 import com.linkedin.venice.utils.VeniceProperties;
 import com.linkedin.venice.utils.lazy.Lazy;
@@ -77,15 +77,13 @@ public class VeniceChangelogConsumerImpl<K, V> implements VeniceChangelogConsume
   protected final CompressorFactory compressorFactory = new CompressorFactory();
 
   protected final HashMap<Integer, VeniceCompressor> compressorMap = new HashMap<>();
-  private final StoreDeserializerCache<V> storeDeserializerCache;
-  private final StoreDeserializerCache<RecordChangeEvent> recordChangeEventDeserializerCache;
+  private final AvroStoreDeserializerCache<V> storeDeserializerCache;
+  private final AvroStoreDeserializerCache<RecordChangeEvent> recordChangeEventDeserializerCache;
 
   protected ThinClientMetaStoreBasedRepository storeRepository;
 
-  protected final ReadOnlySchemaRepository recordChangeEventSchemaRepository;
-
   protected final AbstractAvroChunkingAdapter<RecordChangeEvent> recordChangeEventChunkingAdapter =
-      new SpecificRecordChunkingAdapter<>(RecordChangeEvent.class);
+      new SpecificRecordChunkingAdapter<>();
 
   protected final AbstractAvroChunkingAdapter<V> userEventChunkingAdapter;
 
@@ -145,20 +143,21 @@ public class VeniceChangelogConsumerImpl<K, V> implements VeniceChangelogConsume
         changelogClientConfig.getInnerClientConfig(),
         VeniceProperties.empty(),
         null);
-    recordChangeEventSchemaRepository = new RecordChangeEventReadOnlySchemaRepository(this.storeRepository);
-    this.recordChangeEventDeserializerCache =
-        new StoreDeserializerCache<>(recordChangeEventSchemaRepository, storeName, true);
-    Class valueClass = changelogClientConfig.getInnerClientConfig().getSpecificValueClass();
-    if (valueClass != null) {
+    this.recordChangeEventDeserializerCache = new AvroStoreDeserializerCache<>(
+        new RecordChangeEventReadOnlySchemaRepository(this.storeRepository),
+        storeName,
+        true);
+    if (changelogClientConfig.getInnerClientConfig().isSpecificClient()) {
       // If a value class is supplied, we'll use a Specific record adapter
-      userEventChunkingAdapter = new SpecificRecordChunkingAdapter(valueClass);
-      this.storeDeserializerCache = new StoreDeserializerCache<>(
+      Class valueClass = changelogClientConfig.getInnerClientConfig().getSpecificValueClass();
+      this.userEventChunkingAdapter = new SpecificRecordChunkingAdapter();
+      this.storeDeserializerCache = new AvroStoreDeserializerCache<>(
           id -> storeRepository.getValueSchema(storeName, id).getSchema(),
           (writerSchema, readerSchema) -> FastSerializerDeserializerFactory
               .getFastAvroSpecificDeserializer(writerSchema, valueClass));
     } else {
-      userEventChunkingAdapter = GenericChunkingAdapter.INSTANCE;
-      this.storeDeserializerCache = new StoreDeserializerCache<>(storeRepository, storeName, true);
+      this.userEventChunkingAdapter = GenericChunkingAdapter.INSTANCE;
+      this.storeDeserializerCache = new AvroStoreDeserializerCache<>(storeRepository, storeName, true);
     }
     LOGGER.info(
         "Start a change log consumer client for store: {}, with partition count: {} and view class: {} ",
@@ -561,9 +560,8 @@ public class VeniceChangelogConsumerImpl<K, V> implements VeniceChangelogConsume
       long recordOffset,
       AbstractAvroChunkingAdapter<T> chunkingAdapter,
       Lazy<RecordDeserializer<T>> recordDeserializer,
-      StoreDeserializerCache<T> deserializerCache,
-      int readerSchemaId,
-      ReadOnlySchemaRepository schemaRepository) {
+      AvroStoreDeserializerCache<T> deserializerCache,
+      int readerSchemaId) {
     T assembledRecord = null;
     // Select compressor. We'll only construct compressors for version topics so this will return null for
     // events from change capture. This is fine as today they are not compressed.
@@ -593,17 +591,13 @@ public class VeniceChangelogConsumerImpl<K, V> implements VeniceChangelogConsume
       try {
         assembledRecord = chunkingAdapter.get(
             inMemoryStorageEngine,
-            readerSchemaId,
             pubSubTopicPartition.getPartitionNumber(),
             ByteBuffer.wrap(keyBytes),
             false,
             null,
             null,
             null,
-            compressor.getCompressionStrategy(),
-            true,
-            schemaRepository,
-            storeName,
+            readerSchemaId,
             deserializerCache,
             compressor);
       } catch (Exception ex) {
@@ -648,20 +642,18 @@ public class VeniceChangelogConsumerImpl<K, V> implements VeniceChangelogConsume
       AbstractAvroChunkingAdapter chunkingAdapter;
       int readerSchemaId;
       ReadOnlySchemaRepository schemaRepo;
-      StoreDeserializerCache deserializerCache;
+      AvroStoreDeserializerCache deserializerCache;
       if (pubSubTopicPartition.getPubSubTopic().isVersionTopic()) {
         Schema valueSchema = schemaReader.getValueSchema(put.schemaId);
         deserializerProvider =
             Lazy.of(() -> FastSerializerDeserializerFactory.getFastAvroGenericDeserializer(valueSchema, valueSchema));
         chunkingAdapter = userEventChunkingAdapter;
         readerSchemaId = AvroProtocolDefinition.RECORD_CHANGE_EVENT.getCurrentProtocolVersion();
-        schemaRepo = storeRepository;
         deserializerCache = this.storeDeserializerCache;
       } else {
         deserializerProvider = Lazy.of(() -> recordChangeDeserializer);
         chunkingAdapter = recordChangeEventChunkingAdapter;
         readerSchemaId = this.schemaReader.getLatestValueSchemaId();
-        schemaRepo = recordChangeEventSchemaRepository;
         deserializerCache = recordChangeEventDeserializerCache;
       }
       assembledObject = bufferAndAssembleRecordChangeEvent(
@@ -673,8 +665,7 @@ public class VeniceChangelogConsumerImpl<K, V> implements VeniceChangelogConsume
           chunkingAdapter,
           deserializerProvider,
           deserializerCache,
-          readerSchemaId,
-          schemaRepo);
+          readerSchemaId);
       if (assembledObject == null) {
         // bufferAndAssembleRecordChangeEvent may have only buffered records and not returned anything yet because
         // it's waiting for more input. In this case, just return an empty optional for now.

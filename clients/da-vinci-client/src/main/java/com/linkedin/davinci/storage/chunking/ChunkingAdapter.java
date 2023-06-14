@@ -47,14 +47,10 @@ public interface ChunkingAdapter<CHUNKS_CONTAINER, VALUE> {
   }
 
   default VALUE constructValue(
-      int writerSchemaId,
-      int readerSchemaId,
       byte[] valueOnlyBytes,
       int offset,
       int bytesLength,
-      boolean fastAvroEnabled,
-      ReadOnlySchemaRepository schemaRepo,
-      String storeName,
+      RecordDeserializer<VALUE> recordDeserializer,
       VeniceCompressor veniceCompressor) {
     throw new VeniceException("Not implemented.");
   }

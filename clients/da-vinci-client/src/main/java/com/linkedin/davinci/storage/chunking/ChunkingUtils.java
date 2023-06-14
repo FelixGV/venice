@@ -5,11 +5,9 @@ import com.linkedin.davinci.listener.response.ReadResponse;
 import com.linkedin.davinci.store.AbstractStorageEngine;
 import com.linkedin.davinci.store.record.ValueRecord;
 import com.linkedin.venice.client.store.streaming.StreamingCallback;
-import com.linkedin.venice.compression.CompressionStrategy;
 import com.linkedin.venice.compression.VeniceCompressor;
 import com.linkedin.venice.exceptions.VeniceException;
 import com.linkedin.venice.kafka.protocol.Put;
-import com.linkedin.venice.meta.ReadOnlySchemaRepository;
 import com.linkedin.venice.serialization.KeyWithChunkingSuffixSerializer;
 import com.linkedin.venice.serialization.avro.AvroProtocolDefinition;
 import com.linkedin.venice.serialization.avro.ChunkedValueManifestSerializer;
@@ -75,22 +73,7 @@ public class ChunkingUtils {
       int partition,
       ByteBuffer keyBuffer,
       ReadResponse response) {
-    return getFromStorage(
-        adapter,
-        store,
-        -1,
-        partition,
-        keyBuffer,
-        response,
-        null,
-        null,
-        null,
-        false,
-        null,
-        null,
-        null,
-        null,
-        false);
+    return getFromStorage(adapter, store, partition, keyBuffer, response, null, null, -1, null, null, false);
   }
 
   static <VALUE, ASSEMBLED_VALUE_CONTAINER> VALUE getReplicationMetadataFromStorage(
@@ -99,22 +82,7 @@ public class ChunkingUtils {
       int partition,
       ByteBuffer keyBuffer,
       ReadResponse response) {
-    return getFromStorage(
-        adapter,
-        store,
-        -1,
-        partition,
-        keyBuffer,
-        response,
-        null,
-        null,
-        null,
-        false,
-        null,
-        null,
-        null,
-        null,
-        true);
+    return getFromStorage(adapter, store, partition, keyBuffer, response, null, null, -1, null, null, true);
   }
 
   static <VALUE, CHUNKS_CONTAINER> VALUE getFromStorage(
@@ -126,10 +94,7 @@ public class ChunkingUtils {
       VALUE reusedValue,
       BinaryDecoder reusedDecoder,
       ReadResponse response,
-      CompressionStrategy compressionStrategy,
-      boolean fastAvroEnabled,
-      ReadOnlySchemaRepository schemaRepo,
-      String storeName,
+      int readerSchemaId,
       StoreDeserializerCache<VALUE> storeDeserializerCache,
       VeniceCompressor compressor) {
     long databaseLookupStartTimeInNS = (response != null) ? System.nanoTime() : 0;
@@ -143,15 +108,11 @@ public class ChunkingUtils {
         databaseLookupStartTimeInNS,
         adapter,
         store,
-        schemaRepo.getSupersetOrLatestValueSchema(storeName).getId(),
         partition,
         response,
         reusedValue,
         reusedDecoder,
-        compressionStrategy,
-        fastAvroEnabled,
-        schemaRepo,
-        storeName,
+        readerSchemaId,
         storeDeserializerCache,
         compressor,
         false);
@@ -166,10 +127,7 @@ public class ChunkingUtils {
       RecordDeserializer<GenericRecord> keyRecordDeserializer,
       BinaryDecoder reusedDecoder,
       ReadResponse response,
-      CompressionStrategy compressionStrategy,
-      boolean fastAvroEnabled,
-      ReadOnlySchemaRepository schemaRepo,
-      String storeName,
+      int readerSchemaId,
       StoreDeserializerCache<VALUE> storeDeserializerCache,
       VeniceCompressor compressor,
       StreamingCallback<GenericRecord, GenericRecord> computingCallback) {
@@ -196,7 +154,6 @@ public class ChunkingUtils {
 
           GenericRecord deserializedKey = keyRecordDeserializer.deserialize(key);
 
-          int readerSchemaId = schemaRepo.getSupersetOrLatestValueSchema(storeName).getId();
           deserializedValueRecord = (GenericRecord) adapter.constructValue(
               writerSchemaId,
               value,
@@ -235,21 +192,16 @@ public class ChunkingUtils {
    *
    * @see SingleGetChunkingAdapter#get(AbstractStorageEngine, int, byte[], boolean, ReadResponse)
    * @see BatchGetChunkingAdapter#get(AbstractStorageEngine, int, ByteBuffer, boolean, ReadResponse)
-   * @see GenericChunkingAdapter#get(AbstractStorageEngine, int, int, ByteBuffer, boolean, Object, BinaryDecoder, ReadResponse, CompressionStrategy, boolean, ReadOnlySchemaRepository, String, VeniceCompressor)
    */
   static <VALUE, CHUNKS_CONTAINER> VALUE getFromStorage(
       ChunkingAdapter<CHUNKS_CONTAINER, VALUE> adapter,
       AbstractStorageEngine store,
-      int readerSchemaID,
       int partition,
       ByteBuffer keyBuffer,
       ReadResponse response,
       VALUE reusedValue,
       BinaryDecoder reusedDecoder,
-      CompressionStrategy compressionStrategy,
-      boolean fastAvroEnabled,
-      ReadOnlySchemaRepository schemaRepo,
-      String storeName,
+      int readerSchemaID,
       StoreDeserializerCache<VALUE> storeDeserializerCache,
       VeniceCompressor compressor,
       boolean isRmdValue) {
@@ -263,15 +215,11 @@ public class ChunkingUtils {
         databaseLookupStartTimeInNS,
         adapter,
         store,
-        readerSchemaID,
         partition,
         response,
         reusedValue,
         reusedDecoder,
-        compressionStrategy,
-        fastAvroEnabled,
-        schemaRepo,
-        storeName,
+        readerSchemaID,
         storeDeserializerCache,
         compressor,
         isRmdValue);
@@ -288,7 +236,6 @@ public class ChunkingUtils {
    *
    * @see SingleGetChunkingAdapter#get(AbstractStorageEngine, int, byte[], boolean, ReadResponse)
    * @see BatchGetChunkingAdapter#get(AbstractStorageEngine, int, ByteBuffer, boolean, ReadResponse)
-   * @see GenericChunkingAdapter#get(AbstractStorageEngine, int, ByteBuffer, boolean, Object, BinaryDecoder, ReadResponse, CompressionStrategy, boolean, ReadOnlySchemaRepository, String, VeniceCompressor, boolean)
    */
   private static <VALUE, CHUNKS_CONTAINER> VALUE getFromStorage(
       byte[] value,
@@ -296,15 +243,11 @@ public class ChunkingUtils {
       long databaseLookupStartTimeInNS,
       ChunkingAdapter<CHUNKS_CONTAINER, VALUE> adapter,
       AbstractStorageEngine store,
-      int readerSchemaId,
       int partition,
       ReadResponse response,
       VALUE reusedValue,
       BinaryDecoder reusedDecoder,
-      CompressionStrategy compressionStrategy,
-      boolean fastAvroEnabled,
-      ReadOnlySchemaRepository schemaRepo,
-      String storeName,
+      int readerSchemaId,
       StoreDeserializerCache<VALUE> storeDeserializerCache,
       VeniceCompressor compressor,
       boolean isRmdValue) {

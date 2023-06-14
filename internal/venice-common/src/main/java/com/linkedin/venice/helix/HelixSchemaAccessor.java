@@ -207,7 +207,8 @@ public class HelixSchemaAccessor {
   }
 
   String getDerivedSchemaPath(String storeName, String valueSchemaId, String derivedSchemaId) {
-    return getDerivedSchemaParentPath(storeName).append(valueSchemaId)
+    return getDerivedSchemaParentPath(storeName).append("/")
+        .append(valueSchemaId)
         .append(MULTIPART_SCHEMA_VERSION_DELIMITER)
         .append(derivedSchemaId)
         .toString();

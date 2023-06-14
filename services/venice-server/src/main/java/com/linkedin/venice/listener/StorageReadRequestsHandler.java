@@ -50,10 +50,10 @@ import com.linkedin.venice.partitioner.VenicePartitioner;
 import com.linkedin.venice.read.RequestType;
 import com.linkedin.venice.read.protocol.request.router.MultiGetRouterRequestKeyV1;
 import com.linkedin.venice.read.protocol.response.MultiGetResponseRecordV1;
+import com.linkedin.venice.serializer.AvroStoreDeserializerCache;
 import com.linkedin.venice.serializer.FastSerializerDeserializerFactory;
 import com.linkedin.venice.serializer.RecordSerializer;
 import com.linkedin.venice.serializer.SerializerDeserializerFactory;
-import com.linkedin.venice.serializer.StoreDeserializerCache;
 import com.linkedin.venice.streaming.StreamingConstants;
 import com.linkedin.venice.streaming.StreamingUtils;
 import com.linkedin.venice.utils.ByteUtils;
@@ -399,8 +399,8 @@ public class StorageReadRequestsHandler extends ChannelInboundHandlerAdapter {
     if (storageEngine == null) {
       throw new VeniceNoStoreException(storeVersion);
     }
-    StoreDeserializerCache<GenericRecord> storeDeserializerCache =
-        new StoreDeserializerCache<>(schemaRepo, storeName, fastAvroEnabled);
+    AvroStoreDeserializerCache<GenericRecord> storeDeserializerCache =
+        new AvroStoreDeserializerCache<>(schemaRepo, storeName, fastAvroEnabled);
     return new PerStoreVersionState(partitionerConfig, partitioner, storageEngine, storeDeserializerCache);
   }
 
@@ -612,18 +612,17 @@ public class StorageReadRequestsHandler extends ChannelInboundHandlerAdapter {
 
     Map<String, Object> globalContext = new HashMap<>();
     VeniceCompressor compressor = compressorFactory.getCompressor(compressionStrategy, topic);
+    int readerSchemaId = schemaRepo.getSupersetOrLatestValueSchema(storeName).getId();
     for (ComputeRouterRequestKeyV1 key: keys) {
       clearFieldsInReusedRecord(reuseResultRecord, computeResultSchema);
       int subPartitionId = getSubPartitionId(key.partitionId, key.keyBytes, perStoreVersionState);
       ComputeResponseRecordV1 record = computeResult(
           storageEngine,
-          storeName,
           key.keyBytes,
           key.keyIndex,
           subPartitionId,
           computeRequestWrapper.getComputeRequestVersion(),
           computeRequestWrapper.getOperations(),
-          compressionStrategy,
           computeResultSchema,
           resultSerializer,
           reuseValueRecord,
@@ -634,6 +633,7 @@ public class StorageReadRequestsHandler extends ChannelInboundHandlerAdapter {
           responseWrapper,
           globalContext,
           reusedRawValue,
+          readerSchemaId,
           perStoreVersionState.storeDeserializerCache,
           compressor);
       if (record != null) {
@@ -665,13 +665,11 @@ public class StorageReadRequestsHandler extends ChannelInboundHandlerAdapter {
 
   private ComputeResponseRecordV1 computeResult(
       AbstractStorageEngine store,
-      String storeName,
       ByteBuffer key,
       final int keyIndex,
       int partition,
       int computeRequestVersion,
       List<ComputeOperation> operations,
-      CompressionStrategy compressionStrategy,
       Schema computeResultSchema,
       RecordSerializer<GenericRecord> resultSerializer,
       GenericRecord reuseValueRecord,
@@ -682,10 +680,10 @@ public class StorageReadRequestsHandler extends ChannelInboundHandlerAdapter {
       ComputeResponseWrapper response,
       Map<String, Object> globalContext,
       ByteBuffer reuseRawValue,
-      StoreDeserializerCache<GenericRecord> storeDeserializerCache,
+      int readerSchemaId,
+      AvroStoreDeserializerCache<GenericRecord> storeDeserializerCache,
       VeniceCompressor compressor) {
     reuseValueRecord = GenericRecordChunkingAdapter.INSTANCE.get(
-        storeName,
         store,
         partition,
         ByteUtils.extractByteArray(key),
@@ -693,10 +691,8 @@ public class StorageReadRequestsHandler extends ChannelInboundHandlerAdapter {
         reuseValueRecord,
         reusableObjects.binaryDecoder,
         isChunked,
-        compressionStrategy,
-        fastAvroEnabled,
-        this.schemaRepo,
         response,
+        readerSchemaId,
         storeDeserializerCache,
         compressor);
 
@@ -805,13 +801,13 @@ public class StorageReadRequestsHandler extends ChannelInboundHandlerAdapter {
     final PartitionerConfig partitionerConfig;
     final VenicePartitioner partitioner;
     final AbstractStorageEngine storageEngine;
-    final StoreDeserializerCache<GenericRecord> storeDeserializerCache;
+    final AvroStoreDeserializerCache<GenericRecord> storeDeserializerCache;
 
     public PerStoreVersionState(
         PartitionerConfig partitionerConfig,
         VenicePartitioner partitioner,
         AbstractStorageEngine storageEngine,
-        StoreDeserializerCache<GenericRecord> storeDeserializerCache) {
+        AvroStoreDeserializerCache<GenericRecord> storeDeserializerCache) {
       this.partitionerConfig = partitionerConfig;
       this.partitioner = partitioner;
       this.storageEngine = storageEngine;

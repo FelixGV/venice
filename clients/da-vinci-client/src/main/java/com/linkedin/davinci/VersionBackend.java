@@ -20,8 +20,8 @@ import com.linkedin.venice.meta.IngestionMode;
 import com.linkedin.venice.meta.Store;
 import com.linkedin.venice.meta.Version;
 import com.linkedin.venice.partitioner.VenicePartitioner;
+import com.linkedin.venice.serializer.AvroStoreDeserializerCache;
 import com.linkedin.venice.serializer.RecordDeserializer;
-import com.linkedin.venice.serializer.StoreDeserializerCache;
 import com.linkedin.venice.utils.ComplementSet;
 import com.linkedin.venice.utils.ExceptionUtils;
 import com.linkedin.venice.utils.PartitionUtils;
@@ -64,7 +64,7 @@ public class VersionBackend {
   private final Map<Integer, CompletableFuture<Void>> partitionFutures = new VeniceConcurrentHashMap<>();
   private final int stopConsumptionWaitRetriesNum;
   private final StoreBackendStats storeBackendStats;
-  private final StoreDeserializerCache storeDeserializerCache;
+  private final AvroStoreDeserializerCache storeDeserializerCache;
   private final Lazy<VeniceCompressor> compressor;
 
   /*
@@ -179,12 +179,12 @@ public class VersionBackend {
       int userPartition,
       byte[] keyBytes,
       AbstractAvroChunkingAdapter<V> chunkingAdaptor,
-      StoreDeserializerCache<V> storeDeserializerCache,
+      AvroStoreDeserializerCache<V> storeDeserializerCache,
+      int readerSchemaId,
       BinaryDecoder binaryDecoder,
       ByteBuffer reusableRawValue,
       V reusableValue) {
     return chunkingAdaptor.get(
-        version.getStoreName(),
         getStorageEngineOrThrow(),
         userPartition,
         partitioner,
@@ -194,10 +194,8 @@ public class VersionBackend {
         reusableValue,
         binaryDecoder,
         version.isChunkingEnabled(),
-        version.getCompressionStrategy(),
-        true,
-        backend.getSchemaRepository(),
         null,
+        readerSchemaId,
         storeDeserializerCache,
         compressor.get());
   }
@@ -206,7 +204,8 @@ public class VersionBackend {
       int userPartition,
       byte[] keyBytes,
       AbstractAvroChunkingAdapter<GenericRecord> chunkingAdaptor,
-      StoreDeserializerCache<GenericRecord> storeDeserializerCache,
+      AvroStoreDeserializerCache<GenericRecord> storeDeserializerCache,
+      int readerSchemaId,
       BinaryDecoder binaryDecoder,
       ByteBuffer reusableRawValue,
       GenericRecord reusableValueRecord,
@@ -215,7 +214,6 @@ public class VersionBackend {
       Schema computeResultSchema) {
 
     reusableValueRecord = chunkingAdaptor.get(
-        version.getStoreName(),
         getStorageEngineOrThrow(),
         userPartition,
         partitioner,
@@ -225,10 +223,8 @@ public class VersionBackend {
         reusableValueRecord,
         binaryDecoder,
         version.isChunkingEnabled(),
-        version.getCompressionStrategy(),
-        true,
-        backend.getSchemaRepository(),
         null,
+        readerSchemaId,
         storeDeserializerCache,
         compressor.get());
 
@@ -276,7 +272,6 @@ public class VersionBackend {
         };
 
     chunkingAdaptor.getByPartialKey(
-        this.version.getStoreName(),
         getStorageEngineOrThrow(),
         partition,
         this.version.getPartitionerConfig(),
@@ -285,10 +280,8 @@ public class VersionBackend {
         reusableBinaryDecoder,
         keyRecordDeserializer,
         this.version.isChunkingEnabled(),
-        this.version.getCompressionStrategy(),
-        true,
-        this.backend.getSchemaRepository(),
         null,
+        getSupersetOrLatestValueSchemaId(),
         this.storeDeserializerCache,
         this.compressor.get(),
         computingCallback);
@@ -360,6 +353,10 @@ public class VersionBackend {
   public boolean isPartitionReadyToServe(int partition) {
     CompletableFuture<Void> future = partitionFutures.get(partition);
     return future != null && future.isDone() && !future.isCompletedExceptionally();
+  }
+
+  public int getSupersetOrLatestValueSchemaId() {
+    return backend.getSchemaRepository().getSupersetOrLatestValueSchema(version.getStoreName()).getId();
   }
 
   synchronized boolean isReadyToServe(ComplementSet<Integer> partitions) {

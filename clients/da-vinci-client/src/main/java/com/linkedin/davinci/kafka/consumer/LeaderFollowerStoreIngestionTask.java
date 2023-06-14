@@ -49,7 +49,7 @@ import com.linkedin.venice.pubsub.api.PubSubTopicPartition;
 import com.linkedin.venice.schema.SchemaEntry;
 import com.linkedin.venice.schema.merge.CollectionTimestampMergeRecordHelper;
 import com.linkedin.venice.schema.merge.MergeRecordHelper;
-import com.linkedin.venice.serializer.StoreDeserializerCache;
+import com.linkedin.venice.serializer.AvroStoreDeserializerCache;
 import com.linkedin.venice.stats.StatsErrorCode;
 import com.linkedin.venice.utils.ByteUtils;
 import com.linkedin.venice.utils.LatencyUtils;
@@ -156,7 +156,7 @@ public class LeaderFollowerStoreIngestionTask extends StoreIngestionTask {
 
   protected final Map<String, VeniceViewWriter> viewWriters;
 
-  protected final StoreDeserializerCache storeDeserializerCache;
+  protected final AvroStoreDeserializerCache storeDeserializerCache;
 
   public LeaderFollowerStoreIngestionTask(
       StoreIngestionTaskFactory.Builder builder,
@@ -256,8 +256,10 @@ public class LeaderFollowerStoreIngestionTask extends StoreIngestionTask {
     } else {
       viewWriters = Collections.emptyMap();
     }
-    this.storeDeserializerCache =
-        new StoreDeserializerCache(builder.getSchemaRepo(), getStoreName(), serverConfig.isComputeFastAvroEnabled());
+    this.storeDeserializerCache = new AvroStoreDeserializerCache(
+        builder.getSchemaRepo(),
+        getStoreName(),
+        serverConfig.isComputeFastAvroEnabled());
   }
 
   @Override
@@ -2904,17 +2906,13 @@ public class LeaderFollowerStoreIngestionTask extends StoreIngestionTask {
         long lookupStartTimeInNS = System.nanoTime();
         currValue = GenericRecordChunkingAdapter.INSTANCE.get(
             storageEngine,
-            readerValueSchemaID,
             getSubPartitionId(keyBytes, topicPartition),
             ByteBuffer.wrap(keyBytes),
             isChunked,
             null,
             null,
             null,
-            compressionStrategy,
-            serverConfig.isComputeFastAvroEnabled(),
-            schemaRepository,
-            storeName,
+            readerValueSchemaID,
             storeDeserializerCache,
             compressor.get());
         hostLevelIngestionStats.recordWriteComputeLookUpLatency(LatencyUtils.getLatencyInMS(lookupStartTimeInNS));
@@ -2928,14 +2926,10 @@ public class LeaderFollowerStoreIngestionTask extends StoreIngestionTask {
       if (transientRecord.getValue() != null) {
         try {
           currValue = GenericRecordChunkingAdapter.INSTANCE.constructValue(
-              transientRecord.getValueSchemaId(),
-              readerValueSchemaID,
               transientRecord.getValue(),
               transientRecord.getValueOffset(),
               transientRecord.getValueLen(),
-              serverConfig.isComputeFastAvroEnabled(),
-              schemaRepository,
-              storeName,
+              storeDeserializerCache.getDeserializer(transientRecord.getValueSchemaId(), readerValueSchemaID),
               compressor.get());
         } catch (Exception e) {
           writeComputeFailureCode = StatsErrorCode.WRITE_COMPUTE_DESERIALIZATION_FAILURE.code;
