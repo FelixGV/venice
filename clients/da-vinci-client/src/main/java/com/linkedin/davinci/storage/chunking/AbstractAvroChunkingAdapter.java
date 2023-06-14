@@ -134,7 +134,7 @@ public abstract class AbstractAvroChunkingAdapter<T> implements ChunkingAdapter<
       boolean isChunked,
       ReadResponse response,
       int readerSchemaId,
-      AvroStoreDeserializerCache<T> storeDeserializerCache,
+      StoreDeserializerCache<T> storeDeserializerCache,
       VeniceCompressor compressor) {
     if (isChunked) {
       key = ChunkingUtils.KEY_WITH_CHUNKING_SUFFIX_SERIALIZER.serializeNonChunkedKey(key);

@@ -54,6 +54,7 @@ import com.linkedin.venice.serializer.AvroStoreDeserializerCache;
 import com.linkedin.venice.serializer.FastSerializerDeserializerFactory;
 import com.linkedin.venice.serializer.RecordSerializer;
 import com.linkedin.venice.serializer.SerializerDeserializerFactory;
+import com.linkedin.venice.serializer.StoreDeserializerCache;
 import com.linkedin.venice.streaming.StreamingConstants;
 import com.linkedin.venice.streaming.StreamingUtils;
 import com.linkedin.venice.utils.ByteUtils;
@@ -126,6 +127,7 @@ public class StorageReadRequestsHandler extends ChannelInboundHandlerAdapter {
   private final boolean keyValueProfilingEnabled;
   private final VeniceServerConfig serverConfig;
   private final Map<String, PerStoreVersionState> perStoreVersionStateMap = new VeniceConcurrentHashMap<>();
+  private final Map<String, StoreDeserializerCache> storeDeserializerCacheMap = new VeniceConcurrentHashMap<>();
   private final StorageEngineBackedCompressorFactory compressorFactory;
   private final Optional<ResourceReadUsageTracker> resourceReadUsageTracker;
 
@@ -401,8 +403,8 @@ public class StorageReadRequestsHandler extends ChannelInboundHandlerAdapter {
     if (storageEngine == null) {
       throw new VeniceNoStoreException(storeVersion);
     }
-    AvroStoreDeserializerCache<GenericRecord> storeDeserializerCache =
-        new AvroStoreDeserializerCache<>(schemaRepo, storeName, fastAvroEnabled);
+    StoreDeserializerCache<GenericRecord> storeDeserializerCache = storeDeserializerCacheMap
+        .computeIfAbsent(storeName, s -> new AvroStoreDeserializerCache<>(this.schemaRepo, s, this.fastAvroEnabled));
     return new PerStoreVersionState(partitionerConfig, partitioner, storageEngine, storeDeserializerCache);
   }
 
@@ -682,7 +684,7 @@ public class StorageReadRequestsHandler extends ChannelInboundHandlerAdapter {
       Map<String, Object> globalContext,
       ByteBuffer reuseRawValue,
       int readerSchemaId,
-      AvroStoreDeserializerCache<GenericRecord> storeDeserializerCache,
+      StoreDeserializerCache<GenericRecord> storeDeserializerCache,
       VeniceCompressor compressor) {
     reuseValueRecord = GenericRecordChunkingAdapter.INSTANCE.get(
         store,
@@ -802,13 +804,13 @@ public class StorageReadRequestsHandler extends ChannelInboundHandlerAdapter {
     final PartitionerConfig partitionerConfig;
     final VenicePartitioner partitioner;
     final AbstractStorageEngine storageEngine;
-    final AvroStoreDeserializerCache<GenericRecord> storeDeserializerCache;
+    final StoreDeserializerCache<GenericRecord> storeDeserializerCache;
 
     public PerStoreVersionState(
         PartitionerConfig partitionerConfig,
         VenicePartitioner partitioner,
         AbstractStorageEngine storageEngine,
-        AvroStoreDeserializerCache<GenericRecord> storeDeserializerCache) {
+        StoreDeserializerCache<GenericRecord> storeDeserializerCache) {
       this.partitionerConfig = partitionerConfig;
       this.partitioner = partitioner;
       this.storageEngine = storageEngine;
