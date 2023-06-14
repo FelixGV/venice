@@ -14,6 +14,7 @@ import com.linkedin.venice.serialization.KeyWithChunkingSuffixSerializer;
 import com.linkedin.venice.serialization.avro.AvroProtocolDefinition;
 import com.linkedin.venice.serialization.avro.ChunkedValueManifestSerializer;
 import com.linkedin.venice.serializer.RecordDeserializer;
+import com.linkedin.venice.serializer.StoreDeserializerCache;
 import com.linkedin.venice.storage.protocol.ChunkedKeySuffix;
 import com.linkedin.venice.storage.protocol.ChunkedValueManifest;
 import com.linkedin.venice.utils.LatencyUtils;
@@ -88,6 +89,7 @@ public class ChunkingUtils {
         null,
         null,
         null,
+        null,
         false);
   }
 
@@ -111,6 +113,7 @@ public class ChunkingUtils {
         null,
         null,
         null,
+        null,
         true);
   }
 
@@ -127,6 +130,7 @@ public class ChunkingUtils {
       boolean fastAvroEnabled,
       ReadOnlySchemaRepository schemaRepo,
       String storeName,
+      StoreDeserializerCache<VALUE> storeDeserializerCache,
       VeniceCompressor compressor) {
     long databaseLookupStartTimeInNS = (response != null) ? System.nanoTime() : 0;
     reusedRawValue = store.get(partition, keyBuffer, reusedRawValue);
@@ -148,6 +152,7 @@ public class ChunkingUtils {
         fastAvroEnabled,
         schemaRepo,
         storeName,
+        storeDeserializerCache,
         compressor,
         false);
   }
@@ -165,6 +170,7 @@ public class ChunkingUtils {
       boolean fastAvroEnabled,
       ReadOnlySchemaRepository schemaRepo,
       String storeName,
+      StoreDeserializerCache<VALUE> storeDeserializerCache,
       VeniceCompressor compressor,
       StreamingCallback<GenericRecord, GenericRecord> computingCallback) {
 
@@ -190,18 +196,15 @@ public class ChunkingUtils {
 
           GenericRecord deserializedKey = keyRecordDeserializer.deserialize(key);
 
+          int readerSchemaId = schemaRepo.getSupersetOrLatestValueSchema(storeName).getId();
           deserializedValueRecord = (GenericRecord) adapter.constructValue(
               writerSchemaId,
-              schemaRepo.getSupersetOrLatestValueSchema(storeName).getId(),
               value,
               value.length,
               reusedValue,
               reusedDecoder,
               response,
-              compressionStrategy,
-              fastAvroEnabled,
-              schemaRepo,
-              storeName,
+              storeDeserializerCache.getDeserializer(writerSchemaId, readerSchemaId),
               compressor);
 
           computingCallback.onRecordReceived(deserializedKey, deserializedValueRecord);
@@ -247,6 +250,7 @@ public class ChunkingUtils {
       boolean fastAvroEnabled,
       ReadOnlySchemaRepository schemaRepo,
       String storeName,
+      StoreDeserializerCache<VALUE> storeDeserializerCache,
       VeniceCompressor compressor,
       boolean isRmdValue) {
     long databaseLookupStartTimeInNS = (response != null) ? System.nanoTime() : 0;
@@ -268,6 +272,7 @@ public class ChunkingUtils {
         fastAvroEnabled,
         schemaRepo,
         storeName,
+        storeDeserializerCache,
         compressor,
         isRmdValue);
   }
@@ -300,6 +305,7 @@ public class ChunkingUtils {
       boolean fastAvroEnabled,
       ReadOnlySchemaRepository schemaRepo,
       String storeName,
+      StoreDeserializerCache<VALUE> storeDeserializerCache,
       VeniceCompressor compressor,
       boolean isRmdValue) {
 
@@ -316,16 +322,12 @@ public class ChunkingUtils {
       }
       return adapter.constructValue(
           writerSchemaId,
-          readerSchemaId,
           value,
           valueLength,
           reusedValue,
           reusedDecoder,
           response,
-          compressionStrategy,
-          fastAvroEnabled,
-          schemaRepo,
-          storeName,
+          storeDeserializerCache.getDeserializer(writerSchemaId, readerSchemaId),
           compressor);
     } else if (writerSchemaId != AvroProtocolDefinition.CHUNKED_VALUE_MANIFEST.getCurrentProtocolVersion()) {
       throw new VeniceException("Found a record with invalid schema ID: " + writerSchemaId);
@@ -379,10 +381,7 @@ public class ChunkingUtils {
         reusedValue,
         reusedDecoder,
         response,
-        compressionStrategy,
-        fastAvroEnabled,
-        schemaRepo,
-        storeName,
+        storeDeserializerCache.getDeserializer(writerSchemaId, readerSchemaId),
         compressor);
   }
 

@@ -14,6 +14,7 @@ import com.linkedin.venice.helix.HelixReadOnlySchemaRepository;
 import com.linkedin.venice.schema.SchemaEntry;
 import com.linkedin.venice.serialization.avro.AvroProtocolDefinition;
 import com.linkedin.venice.serializer.SerializerDeserializerFactory;
+import com.linkedin.venice.serializer.StoreDeserializerCache;
 import com.linkedin.venice.storage.protocol.ChunkedValueManifest;
 import com.linkedin.venice.utils.ByteUtils;
 import java.nio.ByteBuffer;
@@ -208,6 +209,7 @@ public class ChunkingTest {
     doReturn(chunk1Bytes).when(storageEngine).get(eq(partition), eq(firstKey));
     doReturn(chunk2Bytes).when(storageEngine).get(eq(partition), eq(secondKey));
 
+    StoreDeserializerCache storeDeserializerCache = new StoreDeserializerCache(schemaRepository, storeName, true);
     try (StorageEngineBackedCompressorFactory compressorFactory =
         new StorageEngineBackedCompressorFactory(mock(StorageMetadataService.class))) {
       VeniceCompressor compressor =
@@ -225,6 +227,7 @@ public class ChunkingTest {
               true,
               schemaRepository,
               storeName,
+              storeDeserializerCache,
               compressor));
     }
   }

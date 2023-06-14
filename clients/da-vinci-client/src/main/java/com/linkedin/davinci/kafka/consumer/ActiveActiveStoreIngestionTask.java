@@ -569,6 +569,7 @@ public class ActiveActiveStoreIngestionTask extends LeaderFollowerStoreIngestion
           serverConfig.isComputeFastAvroEnabled(),
           schemaRepository,
           storeName,
+          storeDeserializerCache,
           compressor.get());
       hostLevelIngestionStats.recordIngestionValueBytesLookUpLatency(
           LatencyUtils.getLatencyInMS(lookupStartTimeInNS),

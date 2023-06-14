@@ -11,6 +11,7 @@ import com.linkedin.venice.meta.PartitionerConfig;
 import com.linkedin.venice.meta.ReadOnlySchemaRepository;
 import com.linkedin.venice.partitioner.VenicePartitioner;
 import com.linkedin.venice.serializer.RecordDeserializer;
+import com.linkedin.venice.serializer.StoreDeserializerCache;
 import com.linkedin.venice.storage.protocol.ChunkedValueManifest;
 import com.linkedin.venice.utils.LatencyUtils;
 import java.io.IOException;
@@ -49,25 +50,15 @@ public abstract class AbstractAvroChunkingAdapter<T> implements ChunkingAdapter<
   @Override
   public T constructValue(
       int writerSchemaId,
-      int readerSchemaId,
       byte[] fullBytes,
       int bytesLength,
       T reusedValue,
       BinaryDecoder reusedDecoder,
       ReadResponse response,
-      CompressionStrategy compressionStrategy,
-      boolean fastAvroEnabled,
-      ReadOnlySchemaRepository schemaRepo,
-      String storeName,
+      RecordDeserializer<T> recordDeserializer,
       VeniceCompressor compressor) {
-    return getByteArrayDecoder(compressionStrategy, response).decode(
-        reusedDecoder,
-        fullBytes,
-        bytesLength,
-        reusedValue,
-        getDeserializer(storeName, writerSchemaId, readerSchemaId, schemaRepo, fastAvroEnabled),
-        response,
-        compressor);
+    return getByteArrayDecoder(compressor.getCompressionStrategy(), response)
+        .decode(reusedDecoder, fullBytes, bytesLength, reusedValue, recordDeserializer, response, compressor);
   }
 
   @Override
@@ -116,17 +107,14 @@ public abstract class AbstractAvroChunkingAdapter<T> implements ChunkingAdapter<
       T reusedValue,
       BinaryDecoder reusedDecoder,
       ReadResponse response,
-      CompressionStrategy compressionStrategy,
-      boolean fastAvroEnabled,
-      ReadOnlySchemaRepository schemaRepo,
-      String storeName,
+      RecordDeserializer<T> recordDeserializer,
       VeniceCompressor compressor) {
     return getInputStreamDecoder(response).decode(
         reusedDecoder,
         chunkedValueInputStream,
         UNUSED_INPUT_BYTES_LENGTH,
         reusedValue,
-        getDeserializer(storeName, schemaId, schemaRepo, fastAvroEnabled),
+        recordDeserializer,
         response,
         compressor);
   }
@@ -143,6 +131,7 @@ public abstract class AbstractAvroChunkingAdapter<T> implements ChunkingAdapter<
       boolean fastAvroEnabled,
       ReadOnlySchemaRepository schemaRepo,
       String storeName,
+      StoreDeserializerCache<T> storeDeserializerCache,
       VeniceCompressor compressor) {
     return get(
         store,
@@ -157,6 +146,7 @@ public abstract class AbstractAvroChunkingAdapter<T> implements ChunkingAdapter<
         fastAvroEnabled,
         schemaRepo,
         storeName,
+        storeDeserializerCache,
         compressor);
   }
 
@@ -173,6 +163,7 @@ public abstract class AbstractAvroChunkingAdapter<T> implements ChunkingAdapter<
       boolean fastAvroEnabled,
       ReadOnlySchemaRepository schemaRepo,
       String storeName,
+      StoreDeserializerCache<T> storeDeserializerCache,
       VeniceCompressor compressor) {
     if (isChunked) {
       key = ChunkingUtils.KEY_WITH_CHUNKING_SUFFIX_SERIALIZER.serializeNonChunkedKey(key);
@@ -190,6 +181,7 @@ public abstract class AbstractAvroChunkingAdapter<T> implements ChunkingAdapter<
         fastAvroEnabled,
         schemaRepo,
         storeName,
+        storeDeserializerCache,
         compressor,
         false);
   }
@@ -207,6 +199,7 @@ public abstract class AbstractAvroChunkingAdapter<T> implements ChunkingAdapter<
       boolean fastAvroEnabled,
       ReadOnlySchemaRepository schemaRepo,
       ReadResponse response,
+      StoreDeserializerCache<T> storeDeserializerCache,
       VeniceCompressor compressor) {
     if (isChunked) {
       key = ChunkingUtils.KEY_WITH_CHUNKING_SUFFIX_SERIALIZER.serializeNonChunkedKey(key);
@@ -224,6 +217,7 @@ public abstract class AbstractAvroChunkingAdapter<T> implements ChunkingAdapter<
         fastAvroEnabled,
         schemaRepo,
         storeName,
+        storeDeserializerCache,
         compressor);
   }
 
@@ -242,6 +236,7 @@ public abstract class AbstractAvroChunkingAdapter<T> implements ChunkingAdapter<
       boolean fastAvroEnabled,
       ReadOnlySchemaRepository schemaRepo,
       ReadResponse response,
+      StoreDeserializerCache<T> storeDeserializerCache,
       VeniceCompressor compressor) {
     int subPartition = userPartition;
     int amplificationFactor = partitionerConfig == null ? 1 : partitionerConfig.getAmplificationFactor();
@@ -262,6 +257,7 @@ public abstract class AbstractAvroChunkingAdapter<T> implements ChunkingAdapter<
         fastAvroEnabled,
         schemaRepo,
         response,
+        storeDeserializerCache,
         compressor);
   }
 
@@ -279,6 +275,7 @@ public abstract class AbstractAvroChunkingAdapter<T> implements ChunkingAdapter<
       boolean fastAvroEnabled,
       ReadOnlySchemaRepository schemaRepo,
       ReadResponse response,
+      StoreDeserializerCache<T> storeDeserializerCache,
       VeniceCompressor compressor,
       StreamingCallback<GenericRecord, GenericRecord> computingCallback) {
 
@@ -304,6 +301,7 @@ public abstract class AbstractAvroChunkingAdapter<T> implements ChunkingAdapter<
           fastAvroEnabled,
           schemaRepo,
           storeName,
+          storeDeserializerCache,
           compressor,
           computingCallback);
     }

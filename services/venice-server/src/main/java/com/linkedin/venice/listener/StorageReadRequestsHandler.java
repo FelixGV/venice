@@ -53,6 +53,7 @@ import com.linkedin.venice.read.protocol.response.MultiGetResponseRecordV1;
 import com.linkedin.venice.serializer.FastSerializerDeserializerFactory;
 import com.linkedin.venice.serializer.RecordSerializer;
 import com.linkedin.venice.serializer.SerializerDeserializerFactory;
+import com.linkedin.venice.serializer.StoreDeserializerCache;
 import com.linkedin.venice.streaming.StreamingConstants;
 import com.linkedin.venice.streaming.StreamingUtils;
 import com.linkedin.venice.utils.ByteUtils;
@@ -122,8 +123,7 @@ public class StorageReadRequestsHandler extends ChannelInboundHandlerAdapter {
   private final int parallelBatchGetChunkSize;
   private final boolean keyValueProfilingEnabled;
   private final VeniceServerConfig serverConfig;
-  private final Map<String, VenicePartitioner> resourceToPartitionerMap = new VeniceConcurrentHashMap<>();
-  private final Map<String, PartitionerConfig> resourceToPartitionConfigMap = new VeniceConcurrentHashMap<>();
+  private final Map<String, PerStoreVersionState> perStoreVersionStateMap = new VeniceConcurrentHashMap<>();
   private final StorageEngineBackedCompressorFactory compressorFactory;
   private final Optional<ResourceReadUsageTracker> resourceReadUsageTracker;
 
@@ -335,79 +335,82 @@ public class StorageReadRequestsHandler extends ChannelInboundHandlerAdapter {
     }
   }
 
-  private VenicePartitioner getPartitioner(String resourceName, PartitionerConfig partitionerConfig) {
-    return resourceToPartitionerMap.computeIfAbsent(resourceName, k -> {
+  private int getSubPartitionId(int userPartition, byte[] keyBytes, PerStoreVersionState perStoreVersionState) {
+    int ampFactor = perStoreVersionState.partitionerConfig.getAmplificationFactor();
+    if (ampFactor == 1) {
+      return userPartition;
+    }
+    int subPartitionOffset = perStoreVersionState.partitioner.getPartitionId(keyBytes, ampFactor);
+    return userPartition * ampFactor + subPartitionOffset;
+  }
+
+  private int getSubPartitionId(
+      int userPartition,
+      ByteBuffer keyByteBuffer,
+      PerStoreVersionState perStoreVersionState) {
+    int ampFactor = perStoreVersionState.partitionerConfig.getAmplificationFactor();
+    if (ampFactor == 1) {
+      return userPartition;
+    }
+    int subPartitionOffset = perStoreVersionState.partitioner.getPartitionId(keyByteBuffer, ampFactor);
+    return userPartition * ampFactor + subPartitionOffset;
+  }
+
+  private PerStoreVersionState getPerStoreVersionState(String storeVersion) {
+    return perStoreVersionStateMap.computeIfAbsent(storeVersion, this::generatePerStoreVersionState);
+  }
+
+  private PerStoreVersionState generatePerStoreVersionState(String storeVersion) {
+    String storeName = Version.parseStoreFromKafkaTopicName(storeVersion);
+    PartitionerConfig partitionerConfig;
+    try {
+      int versionNumber = Version.parseVersionFromKafkaTopicName(storeVersion);
+      Store store = metadataRepository.getStoreOrThrow(storeName);
+      Optional<Version> version = store.getVersion(versionNumber);
+      if (version.isPresent()) {
+        partitionerConfig = version.get().getPartitionerConfig();
+        if (partitionerConfig == null) {
+          /**
+           * If we did find the version in the metadata, and its partitioner config is null (common case) then we want
+           * to distinguish this by caching the default partitioner, otherwise we will end up re-executing this
+           * closure repeatedly and needlessly.
+           */
+          partitionerConfig = new PartitionerConfigImpl();
+        }
+      } else {
+        throw new VeniceException("Can not acquire partitionerConfig (version " + versionNumber + " not found).");
+      }
+    } catch (VeniceException e) {
+      throw e;
+    } catch (Exception e) {
+      throw new VeniceException("Can not acquire partitionerConfig.", e);
+    }
+    VenicePartitioner partitioner = null;
+    if (partitionerConfig.getAmplificationFactor() > 1) {
       Properties partitionerParams = new Properties();
       if (partitionerConfig.getPartitionerParams() != null) {
         partitionerParams.putAll(partitionerConfig.getPartitionerParams());
       }
       // specify amplificationFactor as 1 to avoid using UserPartitionAwarePartitioner
-      return PartitionUtils
+      partitioner = PartitionUtils
           .getVenicePartitioner(partitionerConfig.getPartitionerClass(), 1, new VeniceProperties(partitionerParams));
-    });
-  }
-
-  private int getSubPartitionId(
-      int userPartition,
-      String resourceName,
-      PartitionerConfig partitionerConfig,
-      byte[] keyBytes) {
-    if (partitionerConfig == null || partitionerConfig.getAmplificationFactor() == 1) {
-      return userPartition;
     }
-    VenicePartitioner venicePartitioner = getPartitioner(resourceName, partitionerConfig);
-    int subPartitionOffset = venicePartitioner.getPartitionId(keyBytes, partitionerConfig.getAmplificationFactor());
-    return userPartition * partitionerConfig.getAmplificationFactor() + subPartitionOffset;
-  }
-
-  private int getSubPartitionId(
-      int userPartition,
-      String resourceName,
-      PartitionerConfig partitionerConfig,
-      ByteBuffer keyByteBuffer) {
-    if (partitionerConfig == null || partitionerConfig.getAmplificationFactor() == 1) {
-      return userPartition;
+    AbstractStorageEngine storageEngine = storageEngineRepository.getLocalStorageEngine(storeVersion);
+    if (storageEngine == null) {
+      throw new VeniceNoStoreException(storeVersion);
     }
-    VenicePartitioner venicePartitioner = getPartitioner(resourceName, partitionerConfig);
-    int subPartitionOffset =
-        venicePartitioner.getPartitionId(keyByteBuffer, partitionerConfig.getAmplificationFactor());
-    return userPartition * partitionerConfig.getAmplificationFactor() + subPartitionOffset;
-  }
-
-  private PartitionerConfig getPartitionerConfig(String resourceName) {
-    return resourceToPartitionConfigMap.computeIfAbsent(resourceName, name -> {
-      try {
-        PartitionerConfig partitionerConfig = null;
-        String storeName = Version.parseStoreFromKafkaTopicName(resourceName);
-        int versionNumber = Version.parseVersionFromKafkaTopicName(resourceName);
-        Store store = metadataRepository.getStoreOrThrow(storeName);
-        Optional<Version> version = store.getVersion(versionNumber);
-        if (version.isPresent()) {
-          partitionerConfig = version.get().getPartitionerConfig();
-          if (partitionerConfig == null) {
-            /**
-             * If we did find the version in the metadata, and its partitioner config is null (common case) then we want
-             * to distinguish this by caching the default partitioner, otherwise we will end up re-executing this
-             * closure repeatedly and needlessly.
-             */
-            return new PartitionerConfigImpl();
-          }
-        }
-        return partitionerConfig;
-      } catch (Exception e) {
-        LOGGER.error("Can not acquire partitionerConfig. ", e);
-        return null;
-      }
-    });
+    StoreDeserializerCache<GenericRecord> storeDeserializerCache =
+        new StoreDeserializerCache<>(schemaRepo, storeName, fastAvroEnabled);
+    return new PerStoreVersionState(partitionerConfig, partitioner, storageEngine, storeDeserializerCache);
   }
 
   private ReadResponse handleSingleGetRequest(GetRouterRequest request) {
     String topic = request.getResourceName();
-    PartitionerConfig partitionerConfig = getPartitionerConfig(topic);
-    int subPartition = getSubPartitionId(request.getPartition(), topic, partitionerConfig, request.getKeyBytes());
+    PerStoreVersionState perStoreVersionState = getPerStoreVersionState(topic);
+    int subPartition = getSubPartitionId(request.getPartition(), request.getKeyBytes(), perStoreVersionState);
     byte[] key = request.getKeyBytes();
 
-    AbstractStorageEngine storageEngine = getStorageEngine(topic);
+    AbstractStorageEngine storageEngine = perStoreVersionState.storageEngine;
     boolean isChunked = storageEngine.isChunked();
     StorageResponseObject response = new StorageResponseObject();
     response.setCompressionStrategy(storageEngine.getCompressionStrategy());
@@ -429,7 +432,8 @@ public class StorageReadRequestsHandler extends ChannelInboundHandlerAdapter {
       int parallelChunkSize) {
     String topic = request.getResourceName();
     Iterable<MultiGetRouterRequestKeyV1> keys = request.getKeys();
-    AbstractStorageEngine storageEngine = getStorageEngine(topic);
+    PerStoreVersionState perStoreVersionState = getPerStoreVersionState(topic);
+    AbstractStorageEngine storageEngine = perStoreVersionState.storageEngine;
 
     MultiGetResponseWrapper responseWrapper = new MultiGetResponseWrapper(request.getKeyCount());
     responseWrapper.setCompressionStrategy(storageEngine.getCompressionStrategy());
@@ -446,7 +450,6 @@ public class StorageReadRequestsHandler extends ChannelInboundHandlerAdapter {
 
     ReentrantLock requestLock = new ReentrantLock();
     CompletableFuture[] chunkFutures = new CompletableFuture[splitSize];
-    PartitionerConfig partitionerConfig = getPartitionerConfig(request.getResourceName());
 
     IntList responseKeySizeList = keyValueProfilingEnabled ? new IntArrayList(totalKeyNum) : null;
     IntList responseValueSizeList = keyValueProfilingEnabled ? new IntArrayList(totalKeyNum) : null;
@@ -464,7 +467,7 @@ public class StorageReadRequestsHandler extends ChannelInboundHandlerAdapter {
           if (responseKeySizeList != null) {
             responseKeySizeList.set(subChunkCur, key.keyBytes.remaining());
           }
-          int subPartitionId = getSubPartitionId(key.partitionId, topic, partitionerConfig, key.keyBytes);
+          int subPartitionId = getSubPartitionId(key.partitionId, key.keyBytes, perStoreVersionState);
           MultiGetResponseRecordV1 record =
               BatchGetChunkingAdapter.get(storageEngine, subPartitionId, key.keyBytes, isChunked, responseWrapper);
           if (record == null) {
@@ -514,15 +517,15 @@ public class StorageReadRequestsHandler extends ChannelInboundHandlerAdapter {
   private ReadResponse handleMultiGetRequest(MultiGetRouterRequestWrapper request) {
     String topic = request.getResourceName();
     Iterable<MultiGetRouterRequestKeyV1> keys = request.getKeys();
-    PartitionerConfig partitionerConfig = getPartitionerConfig(request.getResourceName());
-    AbstractStorageEngine storageEngine = getStorageEngine(topic);
+    PerStoreVersionState perStoreVersionState = getPerStoreVersionState(request.getResourceName());
+    AbstractStorageEngine storageEngine = perStoreVersionState.storageEngine;
 
     MultiGetResponseWrapper responseWrapper = new MultiGetResponseWrapper(request.getKeyCount());
     responseWrapper.setCompressionStrategy(storageEngine.getCompressionStrategy());
     responseWrapper.setDatabaseLookupLatency(0);
     boolean isChunked = storageEngine.isChunked();
     for (MultiGetRouterRequestKeyV1 key: keys) {
-      int subPartitionId = getSubPartitionId(key.partitionId, topic, partitionerConfig, key.keyBytes);
+      int subPartitionId = getSubPartitionId(key.partitionId, key.keyBytes, perStoreVersionState);
       MultiGetResponseRecordV1 record =
           BatchGetChunkingAdapter.get(storageEngine, subPartitionId, key.keyBytes, isChunked, responseWrapper);
       if (record == null) {
@@ -552,8 +555,8 @@ public class StorageReadRequestsHandler extends ChannelInboundHandlerAdapter {
     String topic = request.getResourceName();
     String storeName = request.getStoreName();
     Iterable<ComputeRouterRequestKeyV1> keys = request.getKeys();
-    AbstractStorageEngine storageEngine = getStorageEngine(topic);
-    PartitionerConfig partitionerConfig = getPartitionerConfig(request.getResourceName());
+    PerStoreVersionState perStoreVersionState = getPerStoreVersionState(topic);
+    AbstractStorageEngine storageEngine = perStoreVersionState.storageEngine;
 
     Schema valueSchema;
     if (request.getValueSchemaId() != -1) {
@@ -611,7 +614,7 @@ public class StorageReadRequestsHandler extends ChannelInboundHandlerAdapter {
     VeniceCompressor compressor = compressorFactory.getCompressor(compressionStrategy, topic);
     for (ComputeRouterRequestKeyV1 key: keys) {
       clearFieldsInReusedRecord(reuseResultRecord, computeResultSchema);
-      int subPartitionId = getSubPartitionId(key.partitionId, topic, partitionerConfig, key.keyBytes);
+      int subPartitionId = getSubPartitionId(key.partitionId, key.keyBytes, perStoreVersionState);
       ComputeResponseRecordV1 record = computeResult(
           storageEngine,
           storeName,
@@ -631,6 +634,7 @@ public class StorageReadRequestsHandler extends ChannelInboundHandlerAdapter {
           responseWrapper,
           globalContext,
           reusedRawValue,
+          perStoreVersionState.storeDeserializerCache,
           compressor);
       if (record != null) {
         // TODO: streaming support in storage node
@@ -678,6 +682,7 @@ public class StorageReadRequestsHandler extends ChannelInboundHandlerAdapter {
       ComputeResponseWrapper response,
       Map<String, Object> globalContext,
       ByteBuffer reuseRawValue,
+      StoreDeserializerCache<GenericRecord> storeDeserializerCache,
       VeniceCompressor compressor) {
     reuseValueRecord = GenericRecordChunkingAdapter.INSTANCE.get(
         storeName,
@@ -692,6 +697,7 @@ public class StorageReadRequestsHandler extends ChannelInboundHandlerAdapter {
         fastAvroEnabled,
         this.schemaRepo,
         response,
+        storeDeserializerCache,
         compressor);
 
     if (reuseValueRecord == null) {
@@ -795,11 +801,21 @@ public class StorageReadRequestsHandler extends ChannelInboundHandlerAdapter {
     }
   }
 
-  private AbstractStorageEngine getStorageEngine(String storeVersionName) {
-    AbstractStorageEngine engine = storageEngineRepository.getLocalStorageEngine(storeVersionName);
-    if (engine == null) {
-      throw new VeniceNoStoreException(storeVersionName);
+  static class PerStoreVersionState {
+    final PartitionerConfig partitionerConfig;
+    final VenicePartitioner partitioner;
+    final AbstractStorageEngine storageEngine;
+    final StoreDeserializerCache<GenericRecord> storeDeserializerCache;
+
+    public PerStoreVersionState(
+        PartitionerConfig partitionerConfig,
+        VenicePartitioner partitioner,
+        AbstractStorageEngine storageEngine,
+        StoreDeserializerCache<GenericRecord> storeDeserializerCache) {
+      this.partitionerConfig = partitionerConfig;
+      this.partitioner = partitioner;
+      this.storageEngine = storageEngine;
+      this.storeDeserializerCache = storeDeserializerCache;
     }
-    return engine;
   }
 }
