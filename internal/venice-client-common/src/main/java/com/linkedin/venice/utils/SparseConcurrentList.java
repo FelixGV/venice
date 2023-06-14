@@ -198,8 +198,9 @@ public class SparseConcurrentList<E> extends CopyOnWriteArrayList<E> {
       Iterator<E> iterator = iteratorSupplier.get();
       int populatedSize = 0;
       while (iterator.hasNext()) {
-        iterator.next();
-        populatedSize++;
+        if (iterator.next() != null) {
+          populatedSize++;
+        }
       }
       return populatedSize;
     }

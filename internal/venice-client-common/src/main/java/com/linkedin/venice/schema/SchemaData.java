@@ -19,7 +19,7 @@ import java.util.Map;
  */
 public final class SchemaData {
   private final String storeName;
-  private final SchemaEntry keySchema;
+  private SchemaEntry keySchema;
   private final SparseConcurrentList<SchemaEntry> valueSchemaMap;
   private final Map<SchemaEntry, Integer> valueSchemaRMap;
   private final Map<GeneratedSchemaID, DerivedSchemaEntry> updateSchemaMap;
@@ -54,8 +54,15 @@ public final class SchemaData {
     return storeName;
   }
 
+  /**
+   * @return the key {@link SchemaEntry}, which may temporarily be null soon after store initialization...
+   */
   public SchemaEntry getKeySchema() {
     return keySchema;
+  }
+
+  public void setKeySchema(SchemaEntry keySchema) {
+    this.keySchema = keySchema;
   }
 
   public SchemaEntry getValueSchema(int id) {

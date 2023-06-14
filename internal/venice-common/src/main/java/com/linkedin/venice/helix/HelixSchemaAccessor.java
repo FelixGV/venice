@@ -143,6 +143,11 @@ public class HelixSchemaAccessor {
     logger.info("Removed derived schema for store: {} derived schema id pair: {}.", storeName, derivedSchemaIdPair);
   }
 
+  public void subscribeKeySchemaCreationChange(String storeName, IZkChildListener childListener) {
+    schemaAccessor.subscribeChildChanges(getKeySchemaParentPath(storeName).toString(), childListener);
+    logger.info("Subscribe key schema child changes for store: {}.", storeName);
+  }
+
   public void unsubscribeKeySchemaCreationChange(String storeName, IZkChildListener childListener) {
     schemaAccessor.unsubscribeChildChanges(getKeySchemaParentPath(storeName).toString(), childListener);
     logger.info("Unsubscribe key schema child changes for store: {}.", storeName);
