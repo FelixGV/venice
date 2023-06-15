@@ -539,9 +539,6 @@ public abstract class NativeMetadataRepository
     SchemaData schemaData = schemaMap.get(storeName);
     if (schemaData == null) {
       schemaData = getAndCacheSchemaDataFromSystemStore(storeName);
-      if (schemaData == null) {
-        throw new VeniceNoStoreException(storeName);
-      }
     }
     return schemaData;
   }
