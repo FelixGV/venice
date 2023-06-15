@@ -51,6 +51,7 @@ import org.apache.logging.log4j.Logger;
 import org.testng.Assert;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
+import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
 
 
@@ -61,6 +62,8 @@ public class TestVsonStoreBatch {
 
   private VeniceClusterWrapper veniceCluster;
   private ControllerClient controllerClient;
+
+  private AtomicInteger testBatchStoreRunCount;
 
   @BeforeClass
   public void setUp() {
@@ -74,6 +77,11 @@ public class TestVsonStoreBatch {
   public void cleanUp() {
     IOUtils.closeQuietly(controllerClient);
     IOUtils.closeQuietly(veniceCluster);
+  }
+
+  @BeforeTest
+  public void beforeTest() {
+    testBatchStoreRunCount = new AtomicInteger(0);
   }
 
   @Test(timeOut = TEST_TIMEOUT)
@@ -232,7 +240,6 @@ public class TestVsonStoreBatch {
   public void testKafkaInputBatchJobWithVsonStoreMultiLevelRecordsSchemaWithSelectedField() throws Exception {
     AtomicInteger validatorRunCount = new AtomicInteger(0);
     TestBatch.VPJValidator validator = (avroClient, vsonClient, metricsRepository) -> {
-      LOGGER.info("Start of validator run #" + validatorRunCount.get());
       for (int i = 0; i < 100; i++) {
         GenericRecord valueInnerRecord = (GenericRecord) ((List) avroClient.get(i).get()).get(0);
         Assert.assertEquals(valueInnerRecord.get("member_id"), i);
@@ -242,9 +249,7 @@ public class TestVsonStoreBatch {
         Assert.assertEquals(vsonValueInnerMap.get("member_id"), i);
         Assert.assertEquals(vsonValueInnerMap.get("score"), (float) i);
       }
-      LOGGER.info("End of validator run #" + validatorRunCount.get());
     };
-    LOGGER.info("Start of testBatchStore run #" + validatorRunCount.incrementAndGet());
     String storeName = testBatchStore(inputDir -> {
       Pair<VsonSchema, VsonSchema> schemas = writeMultiLevelVsonFile2(inputDir);
       Schema keySchema = VsonAvroSchemaAdapter.parse(schemas.getFirst().toString());
@@ -256,7 +261,6 @@ public class TestVsonStoreBatch {
     }, validator, new UpdateStoreQueryParams(), Optional.empty(), false);
 
     // Re-push with Kafka Input
-    LOGGER.info("Start of testBatchStore run #" + validatorRunCount.incrementAndGet());
     testBatchStore(
         inputDir -> new KeyAndValueSchemas(Schema.create(Schema.Type.NULL), Schema.create(Schema.Type.NULL)),
         properties -> {
@@ -307,6 +311,7 @@ public class TestVsonStoreBatch {
       UpdateStoreQueryParams storeParms,
       Optional<String> storeNameOptional,
       boolean deleteStoreAfterValidation) throws Exception {
+    LOGGER.info("Start of testBatchStore run #" + testBatchStoreRunCount.incrementAndGet());
     File inputDir = getTempDataDirectory();
     KeyAndValueSchemas schemas = inputFileWriter.write(inputDir);
     String storeName = storeNameOptional.isPresent() ? storeNameOptional.get() : Utils.getUniqueString("store");
@@ -331,7 +336,9 @@ public class TestVsonStoreBatch {
             storeParms).close();
       }
 
+      LOGGER.info("Start of push job #" + testBatchStoreRunCount.get());
       TestWriteUtils.runPushJob("Test Batch push job", props);
+      LOGGER.info("End of push job #" + testBatchStoreRunCount.get());
       MetricsRepository metricsRepository = new MetricsRepository();
       avroClient = ClientFactory.getAndStartGenericAvroClient(
           ClientConfig.defaultGenericClientConfig(storeName)
@@ -341,13 +348,17 @@ public class TestVsonStoreBatch {
       vsonClient = ClientFactory.getAndStartGenericAvroClient(
           ClientConfig.defaultVsonGenericClientConfig(storeName).setVeniceURL(veniceCluster.getRandomRouterURL()));
       veniceCluster.refreshAllRouterMetaData();
+      LOGGER.info("Start of validator run #" + testBatchStoreRunCount.get());
       dataValidator.validate(avroClient, vsonClient, metricsRepository);
+      LOGGER.info("End of validator run #" + testBatchStoreRunCount.get());
     } finally {
       IOUtils.closeQuietly(avroClient);
       IOUtils.closeQuietly(vsonClient);
       if (deleteStoreAfterValidation) {
+        LOGGER.info("Start of store deletion for run #" + testBatchStoreRunCount.get());
         controllerClient.enableStoreReadWrites(storeName, false);
         controllerClient.deleteStore(storeName);
+        LOGGER.info("End of store deletion for run #" + testBatchStoreRunCount.get());
       }
     }
     return storeName;
