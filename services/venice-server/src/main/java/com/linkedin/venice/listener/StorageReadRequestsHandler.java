@@ -128,7 +128,8 @@ public class StorageReadRequestsHandler extends ChannelInboundHandlerAdapter {
   private final boolean keyValueProfilingEnabled;
   private final VeniceServerConfig serverConfig;
   private final Map<String, PerStoreVersionState> perStoreVersionStateMap = new VeniceConcurrentHashMap<>();
-  private final Map<String, StoreDeserializerCache> storeDeserializerCacheMap = new VeniceConcurrentHashMap<>();
+  private final Map<String, StoreDeserializerCache<GenericRecord>> storeDeserializerCacheMap =
+      new VeniceConcurrentHashMap<>();
   private final StorageEngineBackedCompressorFactory compressorFactory;
   private final Optional<ResourceReadUsageTracker> resourceReadUsageTracker;
 
@@ -452,7 +453,7 @@ public class StorageReadRequestsHandler extends ChannelInboundHandlerAdapter {
     if (!(keys instanceof ArrayList)) {
       throw new VeniceException("'keys' in MultiGetResponseWrapper should be an ArrayList");
     }
-    final ArrayList<MultiGetRouterRequestKeyV1> keyList = (ArrayList) keys;
+    final ArrayList<MultiGetRouterRequestKeyV1> keyList = (ArrayList<MultiGetRouterRequestKeyV1>) keys;
     int totalKeyNum = keyList.size();
     int splitSize = (int) Math.ceil((double) totalKeyNum / parallelChunkSize);
 
@@ -565,10 +566,10 @@ public class StorageReadRequestsHandler extends ChannelInboundHandlerAdapter {
     PerStoreVersionState perStoreVersionState = getPerStoreVersionState(topic);
     AbstractStorageEngine storageEngine = perStoreVersionState.storageEngine;
 
-    SchemaEntry schemaEntryForValueDeserialization = request.getValueSchemaId() != -1
-        ? this.schemaRepo.getValueSchema(storeName, request.getValueSchemaId())
-        : this.schemaRepo.getSupersetOrLatestValueSchema(storeName);
-    Schema valueSchema = schemaEntryForValueDeserialization.getSchema();
+    SchemaEntry superSetOrLatestValueSchema = this.schemaRepo.getSupersetOrLatestValueSchema(storeName);
+    Schema valueSchema = request.getValueSchemaId() != -1
+        ? this.schemaRepo.getValueSchema(storeName, request.getValueSchemaId()).getSchema()
+        : superSetOrLatestValueSchema.getSchema();
     ComputeRequestWrapper computeRequestWrapper = request.getComputeRequest();
 
     // try to get the result schema from the cache
@@ -601,8 +602,9 @@ public class StorageReadRequestsHandler extends ChannelInboundHandlerAdapter {
     RecordSerializer<GenericRecord> resultSerializer = genericSerializerGetter.apply(computeResultSchema);
 
     Map<String, Object> globalContext = new HashMap<>();
+    List<ComputeOperation> computeOperations = computeRequestWrapper.getOperations();
+    int readerSchemaId = superSetOrLatestValueSchema.getId();
     VeniceCompressor compressor = compressorFactory.getCompressor(compressionStrategy, topic);
-    int readerSchemaId = schemaEntryForValueDeserialization.getId();
     for (ComputeRouterRequestKeyV1 key: keys) {
       clearFieldsInReusedRecord(reuseResultRecord, computeResultSchema);
       int subPartitionId = getSubPartitionId(key.partitionId, key.keyBytes, perStoreVersionState);
@@ -612,7 +614,7 @@ public class StorageReadRequestsHandler extends ChannelInboundHandlerAdapter {
           key.keyIndex,
           subPartitionId,
           computeRequestWrapper.getComputeRequestVersion(),
-          computeRequestWrapper.getOperations(),
+          computeOperations,
           computeResultSchema,
           resultSerializer,
           reuseValueRecord,
@@ -754,8 +756,7 @@ public class StorageReadRequestsHandler extends ChannelInboundHandlerAdapter {
         Integer partitionId = adminRequest.getPartition();
         ComplementSet<Integer> partitions =
             (partitionId == null) ? ComplementSet.universalSet() : ComplementSet.of(partitionId);
-        AdminResponse response = metadataRetriever.getConsumptionSnapshots(topicName, partitions);
-        return response;
+        return metadataRetriever.getConsumptionSnapshots(topicName, partitions);
       case DUMP_SERVER_CONFIGS:
         AdminResponse configResponse = new AdminResponse();
         if (this.serverConfig == null) {

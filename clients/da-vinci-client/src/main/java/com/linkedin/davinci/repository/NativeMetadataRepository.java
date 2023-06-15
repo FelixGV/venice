@@ -197,7 +197,7 @@ public abstract class NativeMetadataRepository
       // isDeleting check to detect deleted store is only supported by meta system store based implementation.
       if (newStore != null && !storeConfig.isDeleting()) {
         putStore(newStore);
-        putStoreSchema(storeName);
+        getAndCacheSchemaDataFromSystemStore(storeName);
       } else {
         removeStore(storeName);
       }
@@ -522,11 +522,13 @@ public abstract class NativeMetadataRepository
     }
   }
 
-  protected void putStoreSchema(String storeName) {
+  protected SchemaData getAndCacheSchemaDataFromSystemStore(String storeName) {
     if (!hasStore(storeName)) {
       throw new VeniceNoStoreException(storeName);
     }
-    schemaMap.put(storeName, getSchemaDataFromSystemStore(storeName));
+    SchemaData schemaData = getSchemaDataFromSystemStore(storeName);
+    schemaMap.put(storeName, schemaData);
+    return schemaData;
   }
 
   /**
@@ -536,18 +538,10 @@ public abstract class NativeMetadataRepository
   private SchemaData getSchemaDataFromReadThroughCache(String storeName) throws VeniceNoStoreException {
     SchemaData schemaData = schemaMap.get(storeName);
     if (schemaData == null) {
-      if (!hasStore(storeName)) {
-        /**
-         * The goal of this function is to minimize the overhead of a cache hit, so we do this extra validation
-         * only in the case of a cache miss.
-         */
-        throw new VeniceNoStoreException(storeName);
-      }
-      schemaData = getSchemaDataFromSystemStore(storeName);
+      schemaData = getAndCacheSchemaDataFromSystemStore(storeName);
       if (schemaData == null) {
         throw new VeniceNoStoreException(storeName);
       }
-      schemaMap.put(storeName, schemaData);
     }
     return schemaData;
   }
