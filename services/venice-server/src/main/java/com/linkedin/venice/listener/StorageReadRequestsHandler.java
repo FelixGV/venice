@@ -111,8 +111,6 @@ public class StorageReadRequestsHandler extends ChannelInboundHandlerAdapter {
    */
   private static final byte[] BINARY_DECODER_PARAM = new byte[16];
 
-  private static final Schema.Parser AVRO_PARSER = new Schema.Parser();
-
   private final DiskHealthCheckService diskHealthCheckService;
   private final ThreadPoolExecutor executor;
   private final ThreadPoolExecutor computeExecutor;
@@ -573,7 +571,7 @@ public class StorageReadRequestsHandler extends ChannelInboundHandlerAdapter {
     Utf8 computeResultSchemaStr = (Utf8) computeRequestWrapper.getResultSchemaStr();
     Schema computeResultSchema = computeResultSchemaCache.get(computeResultSchemaStr);
     if (computeResultSchema == null) {
-      computeResultSchema = AVRO_PARSER.parse(computeResultSchemaStr.toString());
+      computeResultSchema = new Schema.Parser().parse(computeResultSchemaStr.toString());
       // sanity check on the result schema
       ComputeUtils.checkResultSchema(
           computeResultSchema,
