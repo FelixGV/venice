@@ -1,6 +1,6 @@
-package com.linkedin.venice.serializer;
+package com.linkedin.venice.serialization;
 
-import com.linkedin.venice.serialization.IdentityRecordDeserializer;
+import com.linkedin.venice.serializer.RecordDeserializer;
 import java.nio.ByteBuffer;
 
 

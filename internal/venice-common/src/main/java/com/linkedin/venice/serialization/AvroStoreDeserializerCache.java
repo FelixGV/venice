@@ -1,6 +1,9 @@
-package com.linkedin.venice.serializer;
+package com.linkedin.venice.serialization;
 
 import com.linkedin.venice.meta.ReadOnlySchemaRepository;
+import com.linkedin.venice.serializer.FastSerializerDeserializerFactory;
+import com.linkedin.venice.serializer.RecordDeserializer;
+import com.linkedin.venice.serializer.SerializerDeserializerFactory;
 import com.linkedin.venice.utils.BiIntFunction;
 import com.linkedin.venice.utils.SparseConcurrentList;
 import java.util.function.BiFunction;
