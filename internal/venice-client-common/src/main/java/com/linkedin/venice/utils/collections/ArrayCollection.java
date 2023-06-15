@@ -1,6 +1,5 @@
-package com.linkedin.venice.utils;
+package com.linkedin.venice.utils.collections;
 
-import com.linkedin.venice.utils.collections.ArrayBackedNullSkippingIterator;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.function.IntSupplier;
