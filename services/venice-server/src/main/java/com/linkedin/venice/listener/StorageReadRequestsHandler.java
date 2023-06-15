@@ -50,6 +50,7 @@ import com.linkedin.venice.partitioner.VenicePartitioner;
 import com.linkedin.venice.read.RequestType;
 import com.linkedin.venice.read.protocol.request.router.MultiGetRouterRequestKeyV1;
 import com.linkedin.venice.read.protocol.response.MultiGetResponseRecordV1;
+import com.linkedin.venice.schema.SchemaEntry;
 import com.linkedin.venice.serializer.AvroStoreDeserializerCache;
 import com.linkedin.venice.serializer.FastSerializerDeserializerFactory;
 import com.linkedin.venice.serializer.RecordSerializer;
@@ -83,6 +84,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Function;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecord;
@@ -120,6 +122,7 @@ public class StorageReadRequestsHandler extends ChannelInboundHandlerAdapter {
   private final MetadataRetriever metadataRetriever;
   private final Map<Utf8, Schema> computeResultSchemaCache;
   private final boolean fastAvroEnabled;
+  private final Function<Schema, RecordSerializer<GenericRecord>> genericSerializerGetter;
   private final boolean parallelBatchGetEnabled;
   private final int parallelBatchGetChunkSize;
   private final boolean keyValueProfilingEnabled;
@@ -177,6 +180,9 @@ public class StorageReadRequestsHandler extends ChannelInboundHandlerAdapter {
     this.metadataRetriever = metadataRetriever;
     this.diskHealthCheckService = healthCheckService;
     this.fastAvroEnabled = fastAvroEnabled;
+    this.genericSerializerGetter = fastAvroEnabled
+        ? FastSerializerDeserializerFactory::getFastAvroGenericSerializer
+        : SerializerDeserializerFactory::getAvroGenericSerializer;
     this.computeResultSchemaCache = new VeniceConcurrentHashMap<>();
     this.parallelBatchGetEnabled = parallelBatchGetEnabled;
     this.parallelBatchGetChunkSize = parallelBatchGetChunkSize;
@@ -559,12 +565,10 @@ public class StorageReadRequestsHandler extends ChannelInboundHandlerAdapter {
     PerStoreVersionState perStoreVersionState = getPerStoreVersionState(topic);
     AbstractStorageEngine storageEngine = perStoreVersionState.storageEngine;
 
-    Schema valueSchema;
-    if (request.getValueSchemaId() != -1) {
-      valueSchema = this.schemaRepo.getValueSchema(storeName, request.getValueSchemaId()).getSchema();
-    } else {
-      valueSchema = this.schemaRepo.getSupersetOrLatestValueSchema(storeName).getSchema();
-    }
+    SchemaEntry schemaEntryForValueDeserialization = request.getValueSchemaId() != -1
+        ? this.schemaRepo.getValueSchema(storeName, request.getValueSchemaId())
+        : this.schemaRepo.getSupersetOrLatestValueSchema(storeName);
+    Schema valueSchema = schemaEntryForValueDeserialization.getSchema();
     ComputeRequestWrapper computeRequestWrapper = request.getComputeRequest();
 
     // try to get the result schema from the cache
@@ -585,35 +589,20 @@ public class StorageReadRequestsHandler extends ChannelInboundHandlerAdapter {
     CompressionStrategy compressionStrategy = storageEngine.getCompressionStrategy();
     boolean isChunked = storageEngine.isChunked();
 
-    // The following metrics will get incremented for each record processed in computeResult()
-    responseWrapper.setReadComputeDeserializationLatency(0.0);
-    responseWrapper.setDatabaseLookupLatency(0.0);
-    responseWrapper.setReadComputeSerializationLatency(0.0);
-    responseWrapper.setReadComputeLatency(0.0);
-
-    responseWrapper.setCompressionStrategy(CompressionStrategy.NO_OP);
-
     StorageExecReusableObjects reusableObjects = threadLocalReusableObjects.get();
 
-    GenericRecord reuseValueRecord =
-        reusableObjects.reuseValueRecordMap.computeIfAbsent(valueSchema, k -> new GenericData.Record(valueSchema));
-    Schema finalComputeResultSchema1 = computeResultSchema;
-    GenericRecord reuseResultRecord = reusableObjects.reuseResultRecordMap
-        .computeIfAbsent(computeResultSchema, k -> new GenericData.Record(finalComputeResultSchema1));
-
     // Reuse the same value record and result record instances for all values
-    ByteBuffer reusedRawValue = reusableObjects.reusedByteBuffer;
-    RecordSerializer<GenericRecord> resultSerializer;
+    GenericRecord reuseValueRecord =
+        reusableObjects.reuseValueRecordMap.computeIfAbsent(valueSchema, GenericData.Record::new);
+    GenericRecord reuseResultRecord =
+        reusableObjects.reuseResultRecordMap.computeIfAbsent(computeResultSchema, GenericData.Record::new);
 
-    if (fastAvroEnabled) {
-      resultSerializer = FastSerializerDeserializerFactory.getFastAvroGenericSerializer(computeResultSchema);
-    } else {
-      resultSerializer = SerializerDeserializerFactory.getAvroGenericSerializer(computeResultSchema);
-    }
+    ByteBuffer reusedRawValue = reusableObjects.reusedByteBuffer;
+    RecordSerializer<GenericRecord> resultSerializer = genericSerializerGetter.apply(computeResultSchema);
 
     Map<String, Object> globalContext = new HashMap<>();
     VeniceCompressor compressor = compressorFactory.getCompressor(compressionStrategy, topic);
-    int readerSchemaId = schemaRepo.getSupersetOrLatestValueSchema(storeName).getId();
+    int readerSchemaId = schemaEntryForValueDeserialization.getId();
     for (ComputeRouterRequestKeyV1 key: keys) {
       clearFieldsInReusedRecord(reuseResultRecord, computeResultSchema);
       int subPartitionId = getSubPartitionId(key.partitionId, key.keyBytes, perStoreVersionState);

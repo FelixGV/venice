@@ -95,8 +95,7 @@ public class RouterRequestHttpHandler extends SimpleChannelInboundHandler<FullHt
           break;
         case COMPUTE: // compute request
           if (req.method().equals(HttpMethod.POST)) {
-            ComputeRouterRequestWrapper computeRouterReq =
-                ComputeRouterRequestWrapper.parseComputeRequest(req, useFastAvro);
+            ComputeRouterRequestWrapper computeRouterReq = ComputeRouterRequestWrapper.parseComputeRequest(req);
             setupRequestTimeout(computeRouterReq);
             statsHandler.setRequestInfo(computeRouterReq);
             ctx.fireChannelRead(computeRouterReq);
