@@ -40,11 +40,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.commons.io.IOUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.testng.Assert;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
@@ -52,6 +55,8 @@ import org.testng.annotations.Test;
 
 
 public class TestVsonStoreBatch {
+  private static final Logger LOGGER = LogManager.getLogger(TestWriteUtils.class);
+
   private static final int TEST_TIMEOUT = 60 * Time.MS_PER_SECOND;
 
   private VeniceClusterWrapper veniceCluster;
@@ -225,7 +230,9 @@ public class TestVsonStoreBatch {
 
   @Test(timeOut = TEST_TIMEOUT)
   public void testKafkaInputBatchJobWithVsonStoreMultiLevelRecordsSchemaWithSelectedField() throws Exception {
+    AtomicInteger validatorRunCount = new AtomicInteger(0);
     TestBatch.VPJValidator validator = (avroClient, vsonClient, metricsRepository) -> {
+      LOGGER.info("Start of validator run #" + validatorRunCount.get());
       for (int i = 0; i < 100; i++) {
         GenericRecord valueInnerRecord = (GenericRecord) ((List) avroClient.get(i).get()).get(0);
         Assert.assertEquals(valueInnerRecord.get("member_id"), i);
@@ -235,7 +242,9 @@ public class TestVsonStoreBatch {
         Assert.assertEquals(vsonValueInnerMap.get("member_id"), i);
         Assert.assertEquals(vsonValueInnerMap.get("score"), (float) i);
       }
+      LOGGER.info("End of validator run #" + validatorRunCount.get());
     };
+    LOGGER.info("Start of testBatchStore run #" + validatorRunCount.incrementAndGet());
     String storeName = testBatchStore(inputDir -> {
       Pair<VsonSchema, VsonSchema> schemas = writeMultiLevelVsonFile2(inputDir);
       Schema keySchema = VsonAvroSchemaAdapter.parse(schemas.getFirst().toString());
@@ -245,7 +254,9 @@ public class TestVsonStoreBatch {
       props.setProperty(KEY_FIELD_PROP, "");
       props.setProperty(VALUE_FIELD_PROP, "recs");
     }, validator, new UpdateStoreQueryParams(), Optional.empty(), false);
+
     // Re-push with Kafka Input
+    LOGGER.info("Start of testBatchStore run #" + validatorRunCount.incrementAndGet());
     testBatchStore(
         inputDir -> new KeyAndValueSchemas(Schema.create(Schema.Type.NULL), Schema.create(Schema.Type.NULL)),
         properties -> {
