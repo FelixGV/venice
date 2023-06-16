@@ -1,6 +1,8 @@
 package com.linkedin.venice.meta;
 
 import com.linkedin.venice.exceptions.VeniceException;
+import com.linkedin.venice.utils.SystemTime;
+import com.linkedin.venice.utils.Time;
 import com.linkedin.venice.utils.collections.ArrayCollection;
 import java.util.Arrays;
 import java.util.Collection;
@@ -11,12 +13,22 @@ import java.util.Collection;
  * partitions.
  */
 public class PartitionAssignment {
+  private static final long NOT_DELETED = -1;
+  private static final long LAG_TIME_FOR_DELETION = 5 * Time.MS_PER_MINUTE;
+
   private final String topic;
   private final Partition[] partitionsArrayIndexedById;
   private final ArrayCollection<Partition> partitionCollection;
+  private final Time time;
   private int populatedSize = 0;
 
+  private long deletionTimestamp = NOT_DELETED;
+
   public PartitionAssignment(String topic, int numberOfPartition) {
+    this(topic, numberOfPartition, SystemTime.INSTANCE);
+  }
+
+  public PartitionAssignment(String topic, int numberOfPartition, Time time) {
     this.topic = topic;
     if (numberOfPartition <= 0) {
       throw new VeniceException(
@@ -25,6 +37,7 @@ public class PartitionAssignment {
     }
     this.partitionsArrayIndexedById = new Partition[numberOfPartition];
     this.partitionCollection = new ArrayCollection<>(this.partitionsArrayIndexedById, () -> this.populatedSize);
+    this.time = time;
   }
 
   public Partition getPartition(int partitionId) {
@@ -61,6 +74,34 @@ public class PartitionAssignment {
 
   public String getTopic() {
     return topic;
+  }
+
+  /**
+   * Will set the deletionTimestamp to the current time only if it has not been set yet.
+   */
+  public void initializeDeletionTimestamp() {
+    if (this.deletionTimestamp == NOT_DELETED) {
+      this.deletionTimestamp = time.getMilliseconds();
+    }
+  }
+
+  public long getDeletionTimestamp() {
+    return this.deletionTimestamp;
+  }
+
+  public boolean isMarkedForDeletion() {
+    return this.deletionTimestamp > NOT_DELETED;
+  }
+
+  public long secondsSinceDeletion() {
+    if (isMarkedForDeletion()) {
+      return (time.getMilliseconds() - this.deletionTimestamp) / Time.MS_PER_SECOND;
+    }
+    return 0;
+  }
+
+  public boolean eligibleForDeletion() {
+    return isMarkedForDeletion() && getDeletionTimestamp() < time.getMilliseconds() - LAG_TIME_FOR_DELETION;
   }
 
   @Override

@@ -4,6 +4,7 @@ import com.linkedin.venice.exceptions.VeniceNoHelixResourceException;
 import com.linkedin.venice.meta.Partition;
 import com.linkedin.venice.meta.PartitionAssignment;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -18,7 +19,6 @@ import org.apache.logging.log4j.Logger;
  */
 public class ResourceAssignment {
   private static final Logger LOGGER = LogManager.getLogger(ResourceAssignment.class);
-
   private volatile Map<String, PartitionAssignment> resourceToAssignmentsMap = new HashMap<>();
 
   public PartitionAssignment getPartitionAssignment(String resource) {
@@ -64,10 +64,31 @@ public class ResourceAssignment {
   }
 
   Set<String> compareAndGetDeletedResources(ResourceAssignment newAssignment) {
-    return resourceToAssignmentsMap.keySet()
-        .stream()
-        .filter(originalResources -> !newAssignment.containsResource(originalResources))
-        .collect(Collectors.toSet());
+    Set<String> deletedResources = new HashSet<>();
+    String resourceName;
+    PartitionAssignment oldPartitionAssignment;
+    for (Map.Entry<String, PartitionAssignment> entry: resourceToAssignmentsMap.entrySet()) {
+      resourceName = entry.getKey();
+      oldPartitionAssignment = entry.getValue();
+      if (newAssignment.containsResource(resourceName)) {
+        if (oldPartitionAssignment.isMarkedForDeletion()) {
+          long timeSinceDeletion = oldPartitionAssignment.secondsSinceDeletion();
+          LOGGER.info(
+              "Resource '{}' was marked for deletion {} seconds ago but came back!",
+              resourceName,
+              timeSinceDeletion);
+        }
+      } else {
+        oldPartitionAssignment.initializeDeletionTimestamp();
+        if (oldPartitionAssignment.eligibleForDeletion()) {
+          deletedResources.add(resourceName);
+        } else {
+          // Recent deletion, so we'll hang on to it in the new assignment
+          newAssignment.setPartitionAssignment(resourceName, oldPartitionAssignment);
+        }
+      }
+    }
+    return deletedResources;
   }
 
   Set<String> compareAndGetUpdatedResources(ResourceAssignment newAssignment) {

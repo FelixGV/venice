@@ -51,7 +51,7 @@ import org.apache.logging.log4j.Logger;
 import org.testng.Assert;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
-import org.testng.annotations.BeforeTest;
+import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 
@@ -79,7 +79,7 @@ public class TestVsonStoreBatch {
     IOUtils.closeQuietly(veniceCluster);
   }
 
-  @BeforeTest
+  @BeforeMethod
   public void beforeTest() {
     testBatchStoreRunCount = new AtomicInteger(0);
   }
@@ -258,7 +258,6 @@ public class TestVsonStoreBatch {
       props.setProperty(KEY_FIELD_PROP, "");
       props.setProperty(VALUE_FIELD_PROP, "recs");
     }, validator, new UpdateStoreQueryParams(), Optional.empty(), false);
-
     // Re-push with Kafka Input
     testBatchStore(
         inputDir -> new KeyAndValueSchemas(Schema.create(Schema.Type.NULL), Schema.create(Schema.Type.NULL)),

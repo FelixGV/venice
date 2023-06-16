@@ -103,7 +103,7 @@ public class CachedReadOnlyStoreRepository implements ReadOnlyStoreRepository {
 
   @Override
   public void refresh() {
-    LOGGER.info("Refresh started for cluster {}'s ", clusterName, getClass().getSimpleName());
+    LOGGER.info("Refresh started for cluster {}'s {}", clusterName, getClass().getSimpleName());
     try (AutoCloseableLock ignore = clusterLockManager.createClusterWriteLock()) {
       List<Store> newStores = getStoresFromZk();
       LOGGER.info(
