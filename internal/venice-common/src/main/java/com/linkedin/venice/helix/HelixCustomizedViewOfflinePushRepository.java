@@ -111,9 +111,14 @@ public class HelixCustomizedViewOfflinePushRepository extends HelixBaseRoutingRe
   protected void onCustomizedViewDataChange(RoutingTableSnapshot routingTableSnapshot) {
     Collection<CustomizedView> customizedViewCollection = routingTableSnapshot.getCustomizeViews();
     if (customizedViewCollection == null) {
-      LOGGER.warn("There is no existing customized view");
+      LOGGER.warn("The customized view is null! Will ignore the onCustomizedViewDataChange callback.");
       return;
     }
+    if (customizedViewCollection.isEmpty()) {
+      LOGGER.warn("The customized view is empty! Will ignore the onCustomizedViewDataChange callback.");
+      return;
+    }
+
     /**
      * onDataChange logic for offline push status
      */
