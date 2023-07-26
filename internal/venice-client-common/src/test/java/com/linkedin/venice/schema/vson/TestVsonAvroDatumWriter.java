@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import org.apache.avro.AvroRuntimeException;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.io.Encoder;
@@ -64,8 +65,13 @@ public class TestVsonAvroDatumWriter {
       Assert.assertEquals(((GenericData.Record) avroObject).get("member_id"), 1);
       Assert.assertEquals(((GenericData.Record) avroObject).get("score"), 2f);
 
-      // test querying an invalid field. By default, Avro is gonna return null.
-      Assert.assertNull(((GenericData.Record) avroObject).get("unknown field"));
+      try {
+        // test querying an invalid field. By default, Avro is gonna return null.
+        Assert.assertNull(((GenericData.Record) avroObject).get("unknown field"));
+      } catch (AvroRuntimeException e) {
+        // But in Avro 1.10+, it throws instead...
+        Assert.assertEquals(e.getMessage(), "Not a valid schema field: unknown field");
+      }
     });
 
     // record with null field
