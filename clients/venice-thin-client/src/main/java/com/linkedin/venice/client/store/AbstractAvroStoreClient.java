@@ -635,6 +635,7 @@ public abstract class AbstractAvroStoreClient<K, V> extends InternalAvroStoreCli
       return;
     }
 
+    computeRequest.initializeOperationResultFields(resultSchema);
     ClientComputeRecordStreamDecoder.Callback<K, GenericRecord> decoderCallback =
         new ClientComputeRecordStreamDecoder.Callback<K, GenericRecord>(
             DelegatingTrackingCallback.wrap((StreamingCallback) callback)) {

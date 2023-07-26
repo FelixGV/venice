@@ -170,6 +170,6 @@ public class ComputeRequestWrapper {
   }
 
   public List<Schema.Field> getOperationResultFields() {
-    return operationResultFields;
+    return this.operationResultFields;
   }
 }
