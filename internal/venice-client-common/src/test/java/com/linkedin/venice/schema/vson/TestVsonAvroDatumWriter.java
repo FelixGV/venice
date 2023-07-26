@@ -2,6 +2,7 @@ package com.linkedin.venice.schema.vson;
 
 import com.linkedin.avroutil1.compatibility.AvroCompatibilityHelper;
 import com.linkedin.venice.serializer.AvroGenericDeserializer;
+import com.linkedin.venice.utils.TestUtils;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -11,7 +12,6 @@ import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
-import org.apache.avro.AvroRuntimeException;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.io.Encoder;
@@ -64,14 +64,7 @@ public class TestVsonAvroDatumWriter {
     testWriter(vsonSchemaStr, () -> record, (avroObject) -> {
       Assert.assertEquals(((GenericData.Record) avroObject).get("member_id"), 1);
       Assert.assertEquals(((GenericData.Record) avroObject).get("score"), 2f);
-
-      try {
-        // test querying an invalid field. By default, Avro is gonna return null.
-        Assert.assertNull(((GenericData.Record) avroObject).get("unknown field"));
-      } catch (AvroRuntimeException e) {
-        // But in Avro 1.10+, it throws instead...
-        Assert.assertEquals(e.getMessage(), "Not a valid schema field: unknown field");
-      }
+      TestUtils.checkMissingFieldInAvroRecord((GenericData.Record) avroObject, "unknown field");
     });
 
     // record with null field

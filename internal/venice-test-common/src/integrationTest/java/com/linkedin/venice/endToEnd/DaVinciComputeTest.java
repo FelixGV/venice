@@ -880,7 +880,7 @@ public class DaVinciComputeTest {
       String key = KEY_PREFIX + i;
       GenericRecord record = resultMap.get(key);
       Assert.assertEquals(record.get("int_field"), i);
-      Assert.assertNull(record.get("float_field"));
+      TestUtils.checkMissingFieldInAvroRecord(record, "float_field");
     }
   }
 
