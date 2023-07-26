@@ -646,6 +646,7 @@ public abstract class AbstractAvroStoreClient<K, V> extends InternalAvroStoreCli
               value = ComputeUtils.computeResult(
                   computeRequest.getComputeRequestVersion(),
                   computeRequest.getOperations(),
+                  computeRequest.getOperationResultFields(),
                   sharedContext,
                   value,
                   resultSchema);

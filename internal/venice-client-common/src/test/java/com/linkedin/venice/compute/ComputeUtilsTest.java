@@ -9,7 +9,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import org.apache.avro.Schema;
 import org.apache.avro.SchemaBuilder;
 import org.apache.avro.generic.GenericData;
@@ -24,7 +23,8 @@ public class ComputeUtilsTest {
     GenericRecord record = createGetNullableFieldValueAsListRecord();
     List<Integer> expectedList = Arrays.asList(1, 2, 3);
     record.put("listField", expectedList);
-    List<Integer> resultList = ComputeUtils.getNullableFieldValueAsList(record, "listField");
+    Schema.Field field = record.getSchema().getField("listField");
+    List<Integer> resultList = ComputeUtils.getNullableFieldValueAsList(record, field);
     Assert.assertEquals(resultList, expectedList);
   }
 
@@ -32,7 +32,8 @@ public class ComputeUtilsTest {
   public void testGetNullableFieldValueAsList_NullValue() {
     GenericRecord record = createGetNullableFieldValueAsListRecord();
     record.put("listField", null);
-    List<Integer> resultList = ComputeUtils.getNullableFieldValueAsList(record, "listField");
+    Schema.Field field = record.getSchema().getField("listField");
+    List<Integer> resultList = ComputeUtils.getNullableFieldValueAsList(record, field);
     Assert.assertEquals(resultList, Collections.emptyList());
   }
 
@@ -40,9 +41,8 @@ public class ComputeUtilsTest {
   public void testGetNullableFieldValueAsList_FieldNotList() {
     GenericRecord record = createGetNullableFieldValueAsListRecord();
     record.put("nonListField", 123);
-    assertThrows(
-        IllegalArgumentException.class,
-        () -> ComputeUtils.getNullableFieldValueAsList(record, "nonListField"));
+    Schema.Field field = record.getSchema().getField("nonListField");
+    assertThrows(IllegalArgumentException.class, () -> ComputeUtils.getNullableFieldValueAsList(record, field));
   }
 
   @Test
@@ -135,8 +135,9 @@ public class ComputeUtilsTest {
         SchemaBuilder.record("SampleSchema").fields().name("field").type().nullable().intType().noDefault().endRecord();
     GenericRecord valueRecord = new GenericData.Record(schema);
 
-    Optional<String> errorMsg = ComputeUtils.validateNullableFieldAndGetErrorMsg(operator, valueRecord, "field");
-    Assert.assertFalse(errorMsg.isPresent());
+    Schema.Field field = valueRecord.getSchema().getField("field");
+    String errorMsg = ComputeUtils.validateNullableFieldAndGetErrorMsg(operator, valueRecord, field, "field");
+    Assert.assertNull(errorMsg);
   }
 
   @Test
@@ -147,10 +148,11 @@ public class ComputeUtilsTest {
         SchemaBuilder.record("SampleSchema").fields().name("field").type().nullable().intType().noDefault().endRecord();
     GenericRecord valueRecord = new GenericData.Record(schema);
 
-    Optional<String> errorMsg = ComputeUtils.validateNullableFieldAndGetErrorMsg(operator, valueRecord, "field");
-    Assert.assertTrue(errorMsg.isPresent());
+    Schema.Field field = valueRecord.getSchema().getField("field");
+    String errorMsg = ComputeUtils.validateNullableFieldAndGetErrorMsg(operator, valueRecord, field, "field");
+    Assert.assertNotNull(errorMsg);
     Assert.assertEquals(
-        errorMsg.get(),
+        errorMsg,
         "Failed to execute compute request as the field field is not allowed to be null for " + operator
             + " in value record.");
   }
@@ -163,8 +165,9 @@ public class ComputeUtilsTest {
     GenericRecord valueRecord = new GenericData.Record(schema);
     valueRecord.put("field", 123);
 
-    Optional<String> errorMsg = ComputeUtils.validateNullableFieldAndGetErrorMsg(operator, valueRecord, "field");
-    Assert.assertFalse(errorMsg.isPresent());
+    Schema.Field field = valueRecord.getSchema().getField("field");
+    String errorMsg = ComputeUtils.validateNullableFieldAndGetErrorMsg(operator, valueRecord, field, "field");
+    Assert.assertNull(errorMsg);
   }
 
   @Test
@@ -175,8 +178,9 @@ public class ComputeUtilsTest {
     GenericRecord valueRecord = new GenericData.Record(schema);
     valueRecord.put("field", 123);
 
-    Optional<String> errorMsg = ComputeUtils.validateNullableFieldAndGetErrorMsg(operator, valueRecord, "field");
-    Assert.assertFalse(errorMsg.isPresent());
+    Schema.Field field = valueRecord.getSchema().getField("field");
+    String errorMsg = ComputeUtils.validateNullableFieldAndGetErrorMsg(operator, valueRecord, field, "field");
+    Assert.assertNull(errorMsg);
   }
 
   private static class TestReadComputeOperator implements ReadComputeOperator {
@@ -204,7 +208,9 @@ public class ComputeUtilsTest {
     public void compute(
         int computeVersion,
         ComputeOperation operation,
-        GenericRecord inputRecord,
+        Schema.Field operatorInputField,
+        Schema.Field resultField,
+        GenericRecord inputValueRecord,
         GenericRecord outputRecord,
         Map<String, String> errorMap,
         Map<String, Object> sharedContext) {
@@ -216,7 +222,7 @@ public class ComputeUtilsTest {
     }
 
     @Override
-    public void putDefaultResult(GenericRecord outputRecord, String resultFieldName) {
+    public void putDefaultResult(GenericRecord outputRecord, Schema.Field field) {
     }
 
     @Override
