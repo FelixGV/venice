@@ -9,7 +9,7 @@ import com.linkedin.venice.serializer.AvroSerializer;
 import com.linkedin.venice.serializer.FastSerializerDeserializerFactory;
 import com.linkedin.venice.serializer.RecordDeserializer;
 import com.linkedin.venice.serializer.RecordSerializer;
-import com.linkedin.venice.serializer.avro.MapOrderingPreservingSerDeFactory;
+import com.linkedin.venice.serializer.SerializerDeserializerFactory;
 import com.linkedin.venice.utils.SparseConcurrentList;
 import com.linkedin.venice.utils.collections.BiIntKeyCache;
 import java.nio.ByteBuffer;
@@ -125,14 +125,7 @@ public class StoreWriteComputeProcessor {
       return FastSerializerDeserializerFactory.getFastAvroGenericDeserializer(writerSchema, readerSchema);
     }
 
-    /**
-     * It is not necessary to preserve the map-order since this class is only used by {@link LeaderFollowerStoreIngestionTask}.
-     * We are not supposed to run DCR validation workflow against non-AA store.
-     */
-    // Map in write compute needs to have consistent ordering. On the sender side, users may not care about ordering
-    // in their maps. However, on the receiver side, we still want to make sure that the same serialized map bytes
-    // always get deserialized into maps with the same entry ordering.
-    return MapOrderingPreservingSerDeFactory.getDeserializer(writerSchema, readerSchema);
+    return SerializerDeserializerFactory.getAvroGenericDeserializer(writerSchema, readerSchema);
   }
 
   private RecordSerializer<GenericRecord> getValueSerializer(int valueSchemaId) {
@@ -141,10 +134,6 @@ public class StoreWriteComputeProcessor {
 
   RecordSerializer<GenericRecord> generateValueSerializer(int valueSchemaId) {
     Schema valueSchema = getValueSchema(valueSchemaId);
-    /**
-     * It is not necessary to preserve the map-order since this class is only used by {@link LeaderFollowerStoreIngestionTask}.
-     * We are not supposed to run DCR validation workflow against non-AA store.
-     */
     if (fastAvroEnabled) {
       return FastSerializerDeserializerFactory.getFastAvroGenericSerializer(valueSchema);
     }

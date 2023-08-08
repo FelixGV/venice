@@ -246,8 +246,8 @@ public class TestMergeUpdateWithValueLevelTimestamp extends TestMergeConflictRes
     Assert.assertEquals(updatedValueRecord.get("intArray"), Arrays.asList(6, 7, 8));
     Map<Utf8, Utf8> updatedMapField = (Map<Utf8, Utf8>) updatedValueRecord.get("stringMap");
     Assert.assertEquals(updatedMapField.size(), 2);
-    Assert.assertEquals(updatedMapField.get(toUtf8("4")), toUtf8("four"));
-    Assert.assertEquals(updatedMapField.get(toUtf8("5")), toUtf8("five"));
+    Assert.assertEquals(updatedMapField.get("4"), toUtf8("four"));
+    Assert.assertEquals(updatedMapField.get("5"), toUtf8("five"));
   }
 
   @Test

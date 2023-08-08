@@ -1,6 +1,6 @@
 package com.linkedin.venice.utils;
 
-import static org.apache.avro.Schema.Type.RECORD;
+import static org.apache.avro.Schema.Type.*;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -380,5 +380,30 @@ public class AvroSchemaUtils {
             "Top-level field " + field.name() + " is missing default. Value schema: " + valueRecordSchema);
       }
     }
+  }
+
+  public static boolean schemaContainsTopLevelCollection(Schema schema) {
+    if (schema.getType() == RECORD) {
+      for (Schema.Field field: schema.getFields()) {
+        if (fieldConformsToType(field, MAP) || fieldConformsToType(field, ARRAY)) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  public static boolean fieldConformsToType(Schema.Field field, Schema.Type type) {
+    if (field.schema().getType() == type) {
+      return true;
+    }
+    if (field.schema().getType() == UNION) {
+      for (Schema unionBranchSchema: field.schema().getTypes()) {
+        if (unionBranchSchema.getType() == type) {
+          return true;
+        }
+      }
+    }
+    return false;
   }
 }

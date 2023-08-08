@@ -4,10 +4,12 @@ import com.linkedin.venice.meta.ReadOnlySchemaRepository;
 import com.linkedin.venice.serializer.FastSerializerDeserializerFactory;
 import com.linkedin.venice.serializer.RecordDeserializer;
 import com.linkedin.venice.serializer.SerializerDeserializerFactory;
+import com.linkedin.venice.serializer.avro.MapOrderingPreservingSerDeFactory;
 import com.linkedin.venice.utils.collections.BiIntKeyCache;
 import java.util.function.BiFunction;
 import java.util.function.IntFunction;
 import org.apache.avro.Schema;
+import org.apache.avro.generic.GenericRecord;
 
 
 /**
@@ -42,6 +44,12 @@ public class AvroStoreDeserializerCache<T> implements StoreDeserializerCache<T> 
         id -> schemaRepository.getValueSchema(storeName, id).getSchema(),
         (writerSchema, readerSchema) -> FastSerializerDeserializerFactory
             .getFastAvroSpecificDeserializer(writerSchema, specificRecordClass));
+  }
+
+  public static AvroStoreDeserializerCache<GenericRecord> getMapOrderPreservingCache(IntFunction<Schema> schemaGetter) {
+    return new AvroStoreDeserializerCache<>(
+        schemaGetter,
+        (writerSchema, readerSchema) -> MapOrderingPreservingSerDeFactory.getDeserializer(writerSchema, readerSchema));
   }
 
   public RecordDeserializer<T> getDeserializer(int writerSchemaId, int readerSchemaId) {

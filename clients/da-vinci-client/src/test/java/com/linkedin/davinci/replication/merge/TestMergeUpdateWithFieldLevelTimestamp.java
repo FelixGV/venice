@@ -327,7 +327,7 @@ public class TestMergeUpdateWithFieldLevelTimestamp extends TestMergeConflictRes
         "After applying collection (list) merge, the list field should contain all integers.");
     Map<Utf8, Utf8> updatedMapField = (Map<Utf8, Utf8>) updatedValueRecord.get("stringMap");
     Assert.assertEquals(updatedMapField.size(), 2);
-    Assert.assertEquals(updatedMapField.get(toUtf8("1")), toUtf8("one"));
-    Assert.assertEquals(updatedMapField.get(toUtf8("2")), toUtf8("two"));
+    Assert.assertEquals(updatedMapField.get("1"), toUtf8("one"));
+    Assert.assertEquals(updatedMapField.get("2"), toUtf8("two"));
   }
 }

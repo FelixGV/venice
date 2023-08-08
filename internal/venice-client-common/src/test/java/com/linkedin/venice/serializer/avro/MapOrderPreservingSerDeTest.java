@@ -1,6 +1,7 @@
 package com.linkedin.venice.serializer.avro;
 
 import com.linkedin.avroutil1.compatibility.AvroCompatibilityHelper;
+import com.linkedin.venice.serializer.RecordDeserializer;
 import com.linkedin.venice.utils.IndexedHashMap;
 import com.linkedin.venice.utils.Pair;
 import java.util.ArrayList;
@@ -34,7 +35,7 @@ public class MapOrderPreservingSerDeTest {
     Schema valueSchema = AvroCompatibilityHelper.parse(VALUE_SCHEMA_STR);
     MapOrderPreservingSerializer<GenericRecord> serializer =
         MapOrderingPreservingSerDeFactory.getSerializer(valueSchema);
-    MapOrderPreservingDeserializer deserializer =
+    RecordDeserializer<GenericRecord> deserializer =
         MapOrderingPreservingSerDeFactory.getDeserializer(valueSchema, valueSchema);
 
     List<Pair<String, Integer>> mapEntries = Arrays.asList(
@@ -57,7 +58,8 @@ public class MapOrderPreservingSerDeTest {
     Schema valueSchema = AvroCompatibilityHelper.parse(VALUE_SCHEMA_STR);
     MapOrderPreservingSerializer<GenericRecord> serializer =
         MapOrderingPreservingSerDeFactory.getSerializer(valueSchema);
-    MapOrderPreservingDeserializer deserializer = new MapOrderPreservingDeserializer(valueSchema, valueSchema);
+    RecordDeserializer<GenericRecord> deserializer =
+        MapOrderingPreservingSerDeFactory.getDeserializer(valueSchema, valueSchema);
 
     validateConsistentSerdeResults(
         Collections.emptyList(),
@@ -76,7 +78,7 @@ public class MapOrderPreservingSerDeTest {
       List<String> listEntries,
       List<Pair<String, Integer>> mapEntries,
       MapOrderPreservingSerializer<GenericRecord> serializer,
-      MapOrderPreservingDeserializer deserializer,
+      RecordDeserializer<GenericRecord> deserializer,
       Schema valueSchema,
       final int totalShuffleCount) {
     for (int i = 0; i < totalShuffleCount; i++) {
