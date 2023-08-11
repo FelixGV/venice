@@ -1,6 +1,6 @@
 package com.linkedin.davinci.replication.merge;
 
-import static com.linkedin.venice.schema.rmd.RmdConstants.TIMESTAMP_FIELD_NAME;
+import static com.linkedin.venice.schema.rmd.RmdConstants.TIMESTAMP_FIELD_POS;
 
 import com.linkedin.avroutil1.compatibility.AvroCompatibilityHelperCommon;
 import com.linkedin.avroutil1.compatibility.AvroVersion;
@@ -61,7 +61,7 @@ public class MergeGenericRecord extends AbstractMerge<GenericRecord> {
       long newValueSourceOffset,
       int newValueSourceBrokerID) {
     validatePutInputParams(oldValueAndRmd, newValue);
-    final Object tsObject = oldValueAndRmd.getRmd().get(TIMESTAMP_FIELD_NAME);
+    final Object tsObject = oldValueAndRmd.getRmd().get(TIMESTAMP_FIELD_POS);
     RmdTimestampType rmdTimestampType = RmdUtils.getRmdTimestampType(tsObject);
 
     switch (rmdTimestampType) {
@@ -126,7 +126,7 @@ public class MergeGenericRecord extends AbstractMerge<GenericRecord> {
           oldValue,
           timestampRecordForOldValue,
           fieldName,
-          newValue.get(fieldName),
+          newValue.get(newRecordField.pos()),
           putOperationTimestamp,
           putOperationColoID);
       noFieldUpdated &= (fieldUpdateResult == UpdateResultStatus.NOT_UPDATED_AT_ALL);
@@ -151,7 +151,7 @@ public class MergeGenericRecord extends AbstractMerge<GenericRecord> {
     }
 
     final GenericRecord oldReplicationMetadata = oldValueAndRmd.getRmd();
-    final Object tsObject = oldReplicationMetadata.get(TIMESTAMP_FIELD_NAME);
+    final Object tsObject = oldReplicationMetadata.get(TIMESTAMP_FIELD_POS);
     RmdTimestampType rmdTimestampType = RmdUtils.getRmdTimestampType(tsObject);
 
     switch (rmdTimestampType) {

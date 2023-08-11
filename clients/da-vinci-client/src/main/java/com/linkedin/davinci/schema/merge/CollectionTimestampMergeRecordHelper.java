@@ -6,6 +6,7 @@ import static com.linkedin.davinci.schema.SchemaUtils.isMapField;
 import com.linkedin.davinci.utils.IndexedHashMap;
 import com.linkedin.venice.schema.rmd.v1.CollectionRmdTimestamp;
 import java.util.List;
+import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericRecord;
 
 
@@ -108,20 +109,20 @@ public class CollectionTimestampMergeRecordHelper extends PerFieldTimestampMerge
 
   @Override
   protected UpdateResultStatus deleteRecordField(
-      GenericRecord currValueRecord,
-      GenericRecord currTimestampRecord,
-      final String fieldName,
+      GenericRecord currentRecord,
+      GenericRecord currentTimestampRecord,
+      Schema.Field currentRecordField,
       final long deleteTimestamp,
       final int coloID) {
-    boolean isMapField = isMapField(currValueRecord, fieldName);
-    boolean isArrayField = isArrayField(currValueRecord, fieldName);
+    boolean isMapField = isMapField(currentRecord, currentRecordField.name());
+    boolean isArrayField = isArrayField(currentRecord, currentRecordField.name());
     if (isMapField || isArrayField) {
-      Object timestamp = currTimestampRecord.get(fieldName);
+      Object timestamp = currentTimestampRecord.get(currentRecordField.name());
       if (timestamp instanceof Long) {
         throw new IllegalStateException(
             String.format(
                 "Expect collection timestamp record for field %s. But got timestamp: %d",
-                fieldName,
+                currentRecordField.name(),
                 timestamp));
       }
       if (isMapField) {
@@ -129,19 +130,24 @@ public class CollectionTimestampMergeRecordHelper extends PerFieldTimestampMerge
             deleteTimestamp,
             coloID,
             new CollectionRmdTimestamp((GenericRecord) timestamp),
-            currValueRecord,
-            fieldName);
+            currentRecord,
+            currentRecordField.name());
 
       } else {
         return collectionFieldOperationHandler.handleDeleteList(
             deleteTimestamp,
             coloID,
             new CollectionRmdTimestamp((GenericRecord) timestamp),
-            currValueRecord,
-            fieldName);
+            currentRecord,
+            currentRecordField.name());
       }
     } else {
-      return super.deleteRecordField(currValueRecord, currTimestampRecord, fieldName, deleteTimestamp, coloID);
+      return super.deleteRecordField(
+          currentRecord,
+          currentTimestampRecord,
+          currentRecordField,
+          deleteTimestamp,
+          coloID);
     }
   }
 }

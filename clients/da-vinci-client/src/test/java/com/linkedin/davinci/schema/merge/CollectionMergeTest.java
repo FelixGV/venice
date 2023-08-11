@@ -307,7 +307,7 @@ public class CollectionMergeTest {
       timestampsRecord.put(field.name(), fieldRecord);
     }
     rmdRecord.put(RmdConstants.TIMESTAMP_FIELD_NAME, timestampsRecord);
-    rmdRecord.put(RmdConstants.REPLICATION_CHECKPOINT_VECTOR_FIELD, new ArrayList<>());
+    rmdRecord.put(RmdConstants.REPLICATION_CHECKPOINT_VECTOR_FIELD_NAME, new ArrayList<>());
     return rmdRecord;
   }
 }

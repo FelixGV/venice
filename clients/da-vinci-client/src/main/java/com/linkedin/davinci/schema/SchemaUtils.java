@@ -1,6 +1,7 @@
 package com.linkedin.davinci.schema;
 
-import static com.linkedin.venice.schema.rmd.v1.CollectionRmdTimestamp.DELETED_ELEM_FIELD_NAME;
+import static com.linkedin.venice.schema.rmd.RmdConstants.TIMESTAMP_FIELD_POS;
+import static com.linkedin.venice.schema.rmd.v1.CollectionRmdTimestamp.DELETED_ELEM_FIELD_POS;
 import static org.apache.avro.Schema.Type.ARRAY;
 import static org.apache.avro.Schema.Type.LONG;
 import static org.apache.avro.Schema.Type.MAP;
@@ -10,7 +11,6 @@ import static org.apache.avro.Schema.Type.STRING;
 import com.linkedin.avroutil1.compatibility.AvroCompatibilityHelper;
 import com.linkedin.venice.schema.AvroSchemaParseUtils;
 import com.linkedin.venice.schema.SchemaEntry;
-import com.linkedin.venice.schema.rmd.RmdConstants;
 import com.linkedin.venice.schema.rmd.RmdSchemaEntry;
 import com.linkedin.venice.schema.writecompute.DerivedSchemaEntry;
 import org.apache.avro.Schema;
@@ -88,14 +88,14 @@ public class SchemaUtils {
   public static Schema annotateRmdSchema(Schema schema) {
     // Create duplicate schema here in order not to create any side effect during annotation.
     Schema replicatedSchema = AvroSchemaParseUtils.parseSchemaFromJSONStrictValidation(schema.toString());
-    for (Schema fieldLevelTsSchema: replicatedSchema.getField(RmdConstants.TIMESTAMP_FIELD_NAME).schema().getTypes()) {
+    for (Schema fieldLevelTsSchema: replicatedSchema.getFields().get(TIMESTAMP_FIELD_POS).schema().getTypes()) {
       if (fieldLevelTsSchema.getType().equals(LONG)) {
         continue;
       }
       for (Schema.Field field: fieldLevelTsSchema.getFields()) {
         // For current RMD schema structure, there will be no union, adding this just for defensive coding.
         if (!field.schema().isUnion() && field.schema().getType().equals(RECORD)) {
-          Schema.Field deletedElementField = field.schema().getField(DELETED_ELEM_FIELD_NAME);
+          Schema.Field deletedElementField = field.schema().getFields().get(DELETED_ELEM_FIELD_POS);
           if (deletedElementField != null && isStringArray(deletedElementField.schema())) {
             annotateStringArraySchema(deletedElementField.schema());
           }

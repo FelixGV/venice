@@ -3,6 +3,7 @@ package com.linkedin.davinci.schema.writecompute;
 import static com.linkedin.davinci.schema.SchemaUtils.isArrayField;
 import static com.linkedin.davinci.schema.SchemaUtils.isMapField;
 import static com.linkedin.venice.schema.rmd.RmdConstants.TIMESTAMP_FIELD_NAME;
+import static com.linkedin.venice.schema.rmd.RmdConstants.TIMESTAMP_FIELD_POS;
 
 import com.linkedin.davinci.schema.merge.AvroCollectionElementComparator;
 import com.linkedin.davinci.schema.merge.CollectionFieldOperationHandler;
@@ -57,7 +58,7 @@ public class WriteComputeHandlerV2 extends WriteComputeHandlerV1 {
       currRecordAndRmd.setValue(AvroSchemaUtils.createGenericRecord(currValueSchema));
     }
 
-    Object timestampObject = currRecordAndRmd.getRmd().get(TIMESTAMP_FIELD_NAME);
+    Object timestampObject = currRecordAndRmd.getRmd().get(TIMESTAMP_FIELD_POS);
     if (!(timestampObject instanceof GenericRecord)) {
       throw new IllegalStateException(
           String.format(

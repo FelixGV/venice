@@ -70,9 +70,8 @@ abstract class PerFieldTimestampMergeRecordHelper implements MergeRecordHelper {
     boolean allFieldsDeleted = true;
     boolean allFieldsDeleteIgnored = true;
     for (Schema.Field currField: currRecord.getSchema().getFields()) {
-      final String fieldName = currField.name();
       final UpdateResultStatus fieldUpdateResult =
-          deleteRecordField(currRecord, currTimestampRecord, fieldName, deleteTimestamp, coloID);
+          deleteRecordField(currRecord, currTimestampRecord, currField, deleteTimestamp, coloID);
       allFieldsDeleted &= (fieldUpdateResult == UpdateResultStatus.COMPLETELY_UPDATED);
       allFieldsDeleteIgnored &= (fieldUpdateResult == UpdateResultStatus.NOT_UPDATED_AT_ALL);
     }
@@ -87,23 +86,20 @@ abstract class PerFieldTimestampMergeRecordHelper implements MergeRecordHelper {
   }
 
   protected UpdateResultStatus deleteRecordField(
-      GenericRecord currRecord,
-      GenericRecord currTimestampRecord,
-      String fieldName,
+      GenericRecord currentRecord,
+      GenericRecord currentTimestampRecord,
+      Schema.Field currentRecordField,
       long deleteTimestamp,
       int coloID) {
-    final long currFieldTimestamp = validateAndGetPrimitiveTimestamp(currTimestampRecord, fieldName); // Must have
-                                                                                                      // per-field
-                                                                                                      // timestamp with
-                                                                                                      // Long type
+    // Must have per-field timestamp with Long type
+    final long currFieldTimestamp = validateAndGetPrimitiveTimestamp(currentTimestampRecord, currentRecordField.name());
     if (currFieldTimestamp <= deleteTimestamp) {
       // Delete current field.
-      Schema.Field currField = currRecord.getSchema().getField(fieldName);
-      Object curFieldDefaultValue =
-          GenericData.get().deepCopy(currField.schema(), AvroCompatibilityHelper.getGenericDefaultValue(currField));
-      currRecord.put(fieldName, curFieldDefaultValue);
+      Object curFieldDefaultValue = GenericData.get()
+          .deepCopy(currentRecordField.schema(), AvroCompatibilityHelper.getGenericDefaultValue(currentRecordField));
+      currentRecord.put(currentRecordField.pos(), curFieldDefaultValue);
       if (currFieldTimestamp < deleteTimestamp) {
-        currTimestampRecord.put(fieldName, deleteTimestamp);
+        currentTimestampRecord.put(currentRecordField.name(), deleteTimestamp);
       }
       return UpdateResultStatus.COMPLETELY_UPDATED;
     } else {
