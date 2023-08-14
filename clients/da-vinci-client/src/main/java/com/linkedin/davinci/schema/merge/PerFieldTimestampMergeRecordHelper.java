@@ -15,22 +15,21 @@ abstract class PerFieldTimestampMergeRecordHelper implements MergeRecordHelper {
   public UpdateResultStatus putOnField(
       GenericRecord oldRecord,
       GenericRecord oldTimestampRecord,
-      String fieldName,
+      Schema.Field oldRecordField,
       Object newFieldValue,
       final long newPutTimestamp,
       final int putOperationColoID) {
-    final long oldTimestamp = validateAndGetPrimitiveTimestamp(oldTimestampRecord, fieldName);
+    final long oldTimestamp = validateAndGetPrimitiveTimestamp(oldTimestampRecord, oldRecordField.name());
     if (oldTimestamp > newPutTimestamp) {
       // Current field does not change.
       return UpdateResultStatus.NOT_UPDATED_AT_ALL;
 
     } else if (oldTimestamp == newPutTimestamp) {
-      Object oldFieldValue = oldRecord.get(fieldName);
-      newFieldValue =
-          compareAndReturn(oldFieldValue, newFieldValue, oldRecord.getSchema().getField(fieldName).schema());
+      Object oldFieldValue = oldRecord.get(oldRecordField.pos());
+      newFieldValue = compareAndReturn(oldFieldValue, newFieldValue, oldRecordField.schema());
       final boolean newFieldCompletelyReplaceOldField = newFieldValue != oldFieldValue;
       if (newFieldCompletelyReplaceOldField) {
-        oldRecord.put(fieldName, newFieldValue);
+        oldRecord.put(oldRecordField.pos(), newFieldValue);
       }
       return newFieldCompletelyReplaceOldField
           ? UpdateResultStatus.COMPLETELY_UPDATED
@@ -38,8 +37,8 @@ abstract class PerFieldTimestampMergeRecordHelper implements MergeRecordHelper {
 
     } else {
       // New field value wins.
-      oldRecord.put(fieldName, newFieldValue);
-      oldTimestampRecord.put(fieldName, newPutTimestamp);
+      oldRecord.put(oldRecordField.pos(), newFieldValue);
+      oldTimestampRecord.put(oldRecordField.name(), newPutTimestamp);
       return UpdateResultStatus.COMPLETELY_UPDATED;
     }
   }

@@ -120,12 +120,13 @@ public class MergeGenericRecord extends AbstractMerge<GenericRecord> {
     List<Schema.Field> fieldsInNewRecord = newValue.getSchema().getFields();
     boolean noFieldUpdated = true;
     // Iterate fields in the new record because old record fields set must be a superset of the new record fields set.
+    Schema.Field oldValueField;
     for (Schema.Field newRecordField: fieldsInNewRecord) {
-      final String fieldName = newRecordField.name();
+      oldValueField = oldValue.getSchema().getField(newRecordField.name());
       UpdateResultStatus fieldUpdateResult = mergeRecordHelper.putOnField(
           oldValue,
           timestampRecordForOldValue,
-          fieldName,
+          oldValueField,
           newValue.get(newRecordField.pos()),
           putOperationTimestamp,
           putOperationColoID);

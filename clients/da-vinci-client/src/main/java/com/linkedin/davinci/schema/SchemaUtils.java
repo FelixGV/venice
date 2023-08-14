@@ -14,7 +14,6 @@ import com.linkedin.venice.schema.SchemaEntry;
 import com.linkedin.venice.schema.rmd.RmdSchemaEntry;
 import com.linkedin.venice.schema.writecompute.DerivedSchemaEntry;
 import org.apache.avro.Schema;
-import org.apache.avro.generic.GenericRecord;
 
 
 public class SchemaUtils {
@@ -165,13 +164,11 @@ public class SchemaUtils {
     }
   }
 
-  public static boolean isMapField(GenericRecord currRecord, String fieldName) {
-    Schema fieldSchema = currRecord.getSchema().getField(fieldName).schema();
+  public static boolean isMapField(Schema fieldSchema) {
     return isSimpleMapSchema(fieldSchema) || isNullableMapSchema(fieldSchema);
   }
 
-  public static boolean isArrayField(GenericRecord currRecord, String fieldName) {
-    Schema fieldSchema = currRecord.getSchema().getField(fieldName).schema();
+  public static boolean isArrayField(Schema fieldSchema) {
     return isSimpleArraySchema(fieldSchema) || isNullableArraySchema(fieldSchema);
   }
 
@@ -184,10 +181,12 @@ public class SchemaUtils {
   }
 
   private static boolean isNullableMapSchema(Schema schema) {
+    // TODO: Check whether this should be expanded to check union branch index 0 as well
     return schema.isNullable() && isSimpleMapSchema(schema.getTypes().get(1));
   }
 
   private static boolean isNullableArraySchema(Schema schema) {
+    // TODO: Check whether this should be expanded to check union branch index 0 as well
     return schema.isNullable() && isSimpleArraySchema(schema.getTypes().get(1));
   }
 }
