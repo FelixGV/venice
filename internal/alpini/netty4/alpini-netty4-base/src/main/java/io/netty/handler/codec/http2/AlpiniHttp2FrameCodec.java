@@ -19,7 +19,7 @@ import org.apache.logging.log4j.Logger;
  * be able to block stream creation from clients without incurring any cost
  * of stream creation on the server side.
  */
-public class EspressoHttp2FrameCodec extends Http2FrameCodec {
+public class AlpiniHttp2FrameCodec extends Http2FrameCodec {
   private static final Logger LOG = LogManager.getLogger();
 
   private static final int BLOCKED_STREAMS_REMEMBER_LIMIT = 500;
@@ -30,7 +30,7 @@ public class EspressoHttp2FrameCodec extends Http2FrameCodec {
   private static final Field DEFAULT_HTTP2_CONNECTION_DECODER_FRAMEREADER =
       ClassUtil.getAccessibleField(DefaultHttp2ConnectionDecoder.class, "frameReader");
 
-  EspressoHttp2FrameCodec(
+  AlpiniHttp2FrameCodec(
       Http2ConnectionEncoder encoder,
       Http2ConnectionDecoder decoder,
       Http2Settings initialSettings,

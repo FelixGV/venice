@@ -5,15 +5,15 @@ import java.util.Objects;
 import java.util.function.Predicate;
 
 
-public class EspressoHttp2FrameCodecBuilder extends Http2FrameCodecBuilder {
+public class AlpiniHttp2FrameCodecBuilder extends Http2FrameCodecBuilder {
   public static final Predicate<Channel> CAN_ALWAYS_CREATE_STREAMS = ch -> true;
   private Predicate<Channel> _canCreateStreams = Channel::isOpen;
 
-  EspressoHttp2FrameCodecBuilder(boolean server) {
+  AlpiniHttp2FrameCodecBuilder(boolean server) {
     super(server);
   }
 
-  public EspressoHttp2FrameCodecBuilder canCreateStreams(Predicate<Channel> canCreateStreams) {
+  public AlpiniHttp2FrameCodecBuilder canCreateStreams(Predicate<Channel> canCreateStreams) {
     _canCreateStreams = Objects.requireNonNull(canCreateStreams);
     return this;
   }
@@ -21,16 +21,16 @@ public class EspressoHttp2FrameCodecBuilder extends Http2FrameCodecBuilder {
   /**
    * Creates a builder for a HTTP/2 server.
    */
-  public static EspressoHttp2FrameCodecBuilder forServer() {
-    return new EspressoHttp2FrameCodecBuilder(true);
+  public static AlpiniHttp2FrameCodecBuilder forServer() {
+    return new AlpiniHttp2FrameCodecBuilder(true);
   }
 
   /**
    * Creates a builder for an HTTP/2 client.
    * @return Builder for client
    */
-  public static EspressoHttp2FrameCodecBuilder forClient() {
-    return new EspressoHttp2FrameCodecBuilder(false);
+  public static AlpiniHttp2FrameCodecBuilder forClient() {
+    return new AlpiniHttp2FrameCodecBuilder(false);
   }
 
   @Override
@@ -38,8 +38,8 @@ public class EspressoHttp2FrameCodecBuilder extends Http2FrameCodecBuilder {
       Http2ConnectionDecoder decoder,
       Http2ConnectionEncoder encoder,
       Http2Settings initialSettings) {
-    EspressoHttp2FrameCodec codec =
-        new EspressoHttp2FrameCodec(encoder, decoder, initialSettings, decoupleCloseAndGoAway(), _canCreateStreams);
+    AlpiniHttp2FrameCodec codec =
+        new AlpiniHttp2FrameCodec(encoder, decoder, initialSettings, decoupleCloseAndGoAway(), _canCreateStreams);
     codec.gracefulShutdownTimeoutMillis(gracefulShutdownTimeoutMillis());
     return codec;
   }

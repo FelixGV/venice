@@ -29,12 +29,12 @@ import java.util.Deque;
  * This implementation uses LIFO order for {@link Channel}s in the {@link ChannelPool}.
  *
  */
-public class EspressoSimpleChannelPool implements ChannelPool {
-  private static final AttributeKey<EspressoSimpleChannelPool> POOL_KEY =
-      AttributeKey.valueOf(EspressoSimpleChannelPool.class, "channelPool");
+public class AlpiniSimpleChannelPool implements ChannelPool {
+  private static final AttributeKey<AlpiniSimpleChannelPool> POOL_KEY =
+      AttributeKey.valueOf(AlpiniSimpleChannelPool.class, "channelPool");
   private static final IllegalStateException FULL_EXCEPTION = ThrowableUtil.unknownStackTrace(
       new IllegalStateException("ChannelPool full"),
-      EspressoSimpleChannelPool.class,
+      AlpiniSimpleChannelPool.class,
       "releaseAndOffer(...)");
 
   private final Deque<Channel> deque = PlatformDependent.newConcurrentDeque();
@@ -50,7 +50,7 @@ public class EspressoSimpleChannelPool implements ChannelPool {
    * @param bootstrap         the {@link Bootstrap} that is used for connections
    * @param handler           the {@link ChannelPoolHandler} that will be notified for the different pool actions
    */
-  public EspressoSimpleChannelPool(Bootstrap bootstrap, final ChannelPoolHandler handler) {
+  public AlpiniSimpleChannelPool(Bootstrap bootstrap, final ChannelPoolHandler handler) {
     this(bootstrap, handler, ChannelHealthChecker.ACTIVE);
   }
 
@@ -62,7 +62,7 @@ public class EspressoSimpleChannelPool implements ChannelPool {
    * @param healthCheck       the {@link ChannelHealthChecker} that will be used to check if a {@link Channel} is
    *                          still healthy when obtain from the {@link ChannelPool}
    */
-  public EspressoSimpleChannelPool(
+  public AlpiniSimpleChannelPool(
       Bootstrap bootstrap,
       final ChannelPoolHandler handler,
       ChannelHealthChecker healthCheck) {
@@ -79,7 +79,7 @@ public class EspressoSimpleChannelPool implements ChannelPool {
    * @param releaseHealthCheck will check channel health before offering back if this parameter set to {@code true};
    *                           otherwise, channel health is only checked at acquisition time
    */
-  public EspressoSimpleChannelPool(
+  public AlpiniSimpleChannelPool(
       Bootstrap bootstrap,
       final ChannelPoolHandler handler,
       ChannelHealthChecker healthCheck,
@@ -98,7 +98,7 @@ public class EspressoSimpleChannelPool implements ChannelPool {
    *                           otherwise, channel health is only checked at acquisition time
    * @param lastRecentUsed    {@code true} {@link Channel} selection will be LIFO, if {@code false} FIFO.
    */
-  public EspressoSimpleChannelPool(
+  public AlpiniSimpleChannelPool(
       Bootstrap bootstrap,
       final ChannelPoolHandler handler,
       ChannelHealthChecker healthCheck,

@@ -28,7 +28,7 @@ import org.apache.logging.log4j.Logger;
  * {ChannelPool} implementation that takes another {ChannelPool} implementation and enforce a maximum
  * number of concurrent connections.
  */
-public class EspressoFixedChannelPool extends EspressoSimpleChannelPool implements ChannelPoolWithStats {
+public class AlpiniFixedChannelPool extends AlpiniSimpleChannelPool implements ChannelPoolWithStats {
   private static final Logger LOG = LogManager.getLogger(FixedChannelPoolImpl.class);
 
   private final String _name;
@@ -57,7 +57,7 @@ public class EspressoFixedChannelPool extends EspressoSimpleChannelPool implemen
    * @param maxConnections    the number of maximal active connections, once this is reached new tries to acquire
    *                          a {@link Channel} will be delayed until a connection is returned to the pool again.
    */
-  public EspressoFixedChannelPool(Bootstrap bootstrap, ChannelPoolHandler handler, int maxConnections) {
+  public AlpiniFixedChannelPool(Bootstrap bootstrap, ChannelPoolHandler handler, int maxConnections) {
     this(bootstrap, handler, maxConnections, Integer.MAX_VALUE);
   }
 
@@ -72,7 +72,7 @@ public class EspressoFixedChannelPool extends EspressoSimpleChannelPool implemen
    * @param maxPendingAcquires    the maximum number of pending acquires. Once this is exceed acquire tries will
    *                              be failed.
    */
-  public EspressoFixedChannelPool(
+  public AlpiniFixedChannelPool(
       Bootstrap bootstrap,
       ChannelPoolHandler handler,
       int maxConnections,
@@ -97,7 +97,7 @@ public class EspressoFixedChannelPool extends EspressoSimpleChannelPool implemen
    * @param maxPendingAcquires    the maximum number of pending acquires. Once this is exceed acquire tries will
    *                              be failed.
    */
-  public EspressoFixedChannelPool(
+  public AlpiniFixedChannelPool(
       Bootstrap bootstrap,
       ChannelPoolHandler handler,
       ChannelHealthChecker healthCheck,
@@ -127,7 +127,7 @@ public class EspressoFixedChannelPool extends EspressoSimpleChannelPool implemen
    * @param releaseHealthCheck    will check channel health before offering back if this parameter set to
    *                              {@code true}.
    */
-  public EspressoFixedChannelPool(
+  public AlpiniFixedChannelPool(
       Bootstrap bootstrap,
       ChannelPoolHandler handler,
       ChannelHealthChecker healthCheck,
@@ -168,7 +168,7 @@ public class EspressoFixedChannelPool extends EspressoSimpleChannelPool implemen
    *                              {@code true}.
    * @param lastRecentUsed        {@code true} {@link Channel} selection will be LIFO, if {@code false} FIFO.
    */
-  public EspressoFixedChannelPool(
+  public AlpiniFixedChannelPool(
       Bootstrap bootstrap,
       ChannelPoolHandler handler,
       ChannelHealthChecker healthCheck,
@@ -218,7 +218,7 @@ public class EspressoFixedChannelPool extends EspressoSimpleChannelPool implemen
               // create a new connection.
               task.acquired();
 
-              EspressoFixedChannelPool.super.acquire(task.promise);
+              AlpiniFixedChannelPool.super.acquire(task.promise);
             }
           };
           break;
@@ -543,7 +543,7 @@ public class EspressoFixedChannelPool extends EspressoSimpleChannelPool implemen
       return GlobalEventExecutor.INSTANCE.submit(new Callable<Void>() {
         @Override
         public Void call() throws Exception {
-          EspressoFixedChannelPool.super.close();
+          AlpiniFixedChannelPool.super.close();
           return null;
         }
       });

@@ -34,7 +34,7 @@ import org.testng.annotations.Test;
  * Forked from Netty's SimplehannelPoolTest
  *
  */
-public class TestEspressoSimpleChannelPool {
+public class TestAlpiniSimpleChannelPool {
   private static final String LOCAL_ADDR_ID = "test.id";
 
   static class CountingChannelPoolHandler implements ChannelPoolHandler {
@@ -90,7 +90,7 @@ public class TestEspressoSimpleChannelPool {
     Channel sc = sb.bind(addr).sync().channel();
     CountingChannelPoolHandler handler = new CountingChannelPoolHandler();
 
-    ChannelPool pool = new EspressoSimpleChannelPool(cb, handler);
+    ChannelPool pool = new AlpiniSimpleChannelPool(cb, handler);
 
     Channel channel = pool.acquire().sync().getNow();
 
@@ -137,7 +137,7 @@ public class TestEspressoSimpleChannelPool {
     Channel sc = sb.bind(addr).sync().channel();
     CountingChannelPoolHandler handler = new CountingChannelPoolHandler();
 
-    ChannelPool pool = new EspressoSimpleChannelPool(cb, handler, ChannelHealthChecker.ACTIVE) {
+    ChannelPool pool = new AlpiniSimpleChannelPool(cb, handler, ChannelHealthChecker.ACTIVE) {
       private final Queue<Channel> queue = new LinkedBlockingQueue<Channel>(1);
 
       @Override
@@ -196,7 +196,7 @@ public class TestEspressoSimpleChannelPool {
     // Start server
     Channel sc = sb.bind(addr).syncUninterruptibly().channel();
     ChannelPoolHandler handler = new CountingChannelPoolHandler();
-    ChannelPool pool = new EspressoSimpleChannelPool(cb, handler);
+    ChannelPool pool = new AlpiniSimpleChannelPool(cb, handler);
     Channel channel1 = pool.acquire().syncUninterruptibly().getNow();
     pool.release(channel1).syncUninterruptibly();
     Channel channel2 = pool.acquire().syncUninterruptibly().getNow();
@@ -239,7 +239,7 @@ public class TestEspressoSimpleChannelPool {
     // Start server
     Channel sc = sb.bind(addr).syncUninterruptibly().channel();
     ChannelPoolHandler handler = new CountingChannelPoolHandler();
-    ChannelPool pool = new EspressoSimpleChannelPool(cb, handler, ChannelHealthChecker.ACTIVE, false);
+    ChannelPool pool = new AlpiniSimpleChannelPool(cb, handler, ChannelHealthChecker.ACTIVE, false);
     Channel channel1 = pool.acquire().syncUninterruptibly().getNow();
     channel1.close().syncUninterruptibly();
     Future<Void> releaseFuture = pool.release(channel1, channel1.eventLoop().<Void>newPromise()).syncUninterruptibly();
@@ -255,8 +255,7 @@ public class TestEspressoSimpleChannelPool {
 
   @Test(groups = "unit")
   public void testBootstrap() {
-    final EspressoSimpleChannelPool pool =
-        new EspressoSimpleChannelPool(new Bootstrap(), new CountingChannelPoolHandler());
+    final AlpiniSimpleChannelPool pool = new AlpiniSimpleChannelPool(new Bootstrap(), new CountingChannelPoolHandler());
 
     try {
       // Checking for the actual bootstrap object doesn't make sense here, since the pool uses a copy with a
@@ -270,7 +269,7 @@ public class TestEspressoSimpleChannelPool {
   @Test(groups = "unit")
   public void testHandler() {
     final ChannelPoolHandler handler = new CountingChannelPoolHandler();
-    final EspressoSimpleChannelPool pool = new EspressoSimpleChannelPool(new Bootstrap(), handler);
+    final AlpiniSimpleChannelPool pool = new AlpiniSimpleChannelPool(new Bootstrap(), handler);
 
     try {
       assertSame(handler, pool.handler());
@@ -282,8 +281,8 @@ public class TestEspressoSimpleChannelPool {
   @Test(groups = "unit")
   public void testHealthChecker() {
     final ChannelHealthChecker healthChecker = ChannelHealthChecker.ACTIVE;
-    final EspressoSimpleChannelPool pool =
-        new EspressoSimpleChannelPool(new Bootstrap(), new CountingChannelPoolHandler(), healthChecker);
+    final AlpiniSimpleChannelPool pool =
+        new AlpiniSimpleChannelPool(new Bootstrap(), new CountingChannelPoolHandler(), healthChecker);
 
     try {
       assertSame(healthChecker, pool.healthChecker());
@@ -294,7 +293,7 @@ public class TestEspressoSimpleChannelPool {
 
   @Test(groups = "unit")
   public void testReleaseHealthCheck() {
-    final EspressoSimpleChannelPool healthCheckOnReleasePool = new EspressoSimpleChannelPool(
+    final AlpiniSimpleChannelPool healthCheckOnReleasePool = new AlpiniSimpleChannelPool(
         new Bootstrap(),
         new CountingChannelPoolHandler(),
         ChannelHealthChecker.ACTIVE,
@@ -306,7 +305,7 @@ public class TestEspressoSimpleChannelPool {
       healthCheckOnReleasePool.close();
     }
 
-    final EspressoSimpleChannelPool noHealthCheckOnReleasePool = new EspressoSimpleChannelPool(
+    final AlpiniSimpleChannelPool noHealthCheckOnReleasePool = new AlpiniSimpleChannelPool(
         new Bootstrap(),
         new CountingChannelPoolHandler(),
         ChannelHealthChecker.ACTIVE,

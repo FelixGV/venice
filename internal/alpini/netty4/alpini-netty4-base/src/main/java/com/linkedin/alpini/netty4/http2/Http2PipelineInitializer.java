@@ -12,7 +12,7 @@ import io.netty.channel.ChannelPipeline;
 import io.netty.handler.codec.MessageToMessageCodec;
 import io.netty.handler.codec.http.HttpObject;
 import io.netty.handler.codec.http2.ActiveStreamsCountHandler;
-import io.netty.handler.codec.http2.EspressoHttp2FrameCodecBuilder;
+import io.netty.handler.codec.http2.AlpiniHttp2FrameCodecBuilder;
 import io.netty.handler.codec.http2.Http2ChannelDuplexHandler;
 import io.netty.handler.codec.http2.Http2FrameCodec;
 import io.netty.handler.codec.http2.Http2FrameCodecBuilder;
@@ -114,7 +114,7 @@ public class Http2PipelineInitializer extends ApplicationProtocolNegotiationHand
   }
 
   protected Http2FrameCodecBuilder serverHttp2FrameCodecBuilder() {
-    return EspressoHttp2FrameCodecBuilder.forServer()
+    return AlpiniHttp2FrameCodecBuilder.forServer()
         .canCreateStreams(this::canCreateStream)
         .initialSettings(_http2Settings)
         .validateHeaders(_validateHeaders);

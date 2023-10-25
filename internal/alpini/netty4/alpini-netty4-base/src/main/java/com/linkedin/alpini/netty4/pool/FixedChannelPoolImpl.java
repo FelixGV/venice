@@ -31,7 +31,7 @@ import org.apache.logging.log4j.Logger;
 /**
  * Created by acurtis on 5/8/18.
  */
-public class FixedChannelPoolImpl extends EspressoFixedChannelPool implements ManagedChannelPool {
+public class FixedChannelPoolImpl extends AlpiniFixedChannelPool implements ManagedChannelPool {
   private static final Logger LOG = LogManager.getLogger(FixedChannelPoolImpl.class);
 
   private final String _name;

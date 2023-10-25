@@ -40,7 +40,7 @@ import org.testng.annotations.Test;
  * Forked from Netty's FixedChannelPoolTest
  *
  */
-public class TestEspressoFixedChannelPool {
+public class TestAlpiniFixedChannelPool {
   private static final String LOCAL_ADDR_ID = "test.id";
 
   private static EventLoopGroup group;
@@ -109,7 +109,7 @@ public class TestEspressoFixedChannelPool {
     Channel sc = sb.bind(addr).syncUninterruptibly().channel();
     CountingChannelPoolHandler handler = new CountingChannelPoolHandler();
 
-    ChannelPool pool = new EspressoFixedChannelPool(cb, handler, 1, Integer.MAX_VALUE);
+    ChannelPool pool = new AlpiniFixedChannelPool(cb, handler, 1, Integer.MAX_VALUE);
 
     Channel channel = pool.acquire().syncUninterruptibly().getNow();
     Future<Channel> future = pool.acquire();
@@ -156,7 +156,7 @@ public class TestEspressoFixedChannelPool {
     // Start server
     Channel sc = sb.bind(addr).syncUninterruptibly().channel();
     ChannelPoolHandler handler = new TestChannelPoolHandler();
-    ChannelPool pool = new EspressoFixedChannelPool(
+    ChannelPool pool = new AlpiniFixedChannelPool(
         cb,
         handler,
         ChannelHealthChecker.ACTIVE,
@@ -193,7 +193,7 @@ public class TestEspressoFixedChannelPool {
     // Start server
     Channel sc = sb.bind(addr).syncUninterruptibly().channel();
     ChannelPoolHandler handler = new TestChannelPoolHandler();
-    ChannelPool pool = new EspressoFixedChannelPool(
+    ChannelPool pool = new AlpiniFixedChannelPool(
         cb,
         handler,
         ChannelHealthChecker.ACTIVE,
@@ -232,7 +232,7 @@ public class TestEspressoFixedChannelPool {
     // Start server
     Channel sc = sb.bind(addr).syncUninterruptibly().channel();
     ChannelPoolHandler handler = new TestChannelPoolHandler();
-    ChannelPool pool = new EspressoFixedChannelPool(cb, handler, 1);
+    ChannelPool pool = new AlpiniFixedChannelPool(cb, handler, 1);
     Channel channel1 = pool.acquire().syncUninterruptibly().getNow();
     channel1.close().syncUninterruptibly();
     pool.release(channel1);
@@ -262,7 +262,7 @@ public class TestEspressoFixedChannelPool {
     // Start server
     Channel sc = sb.bind(addr).syncUninterruptibly().channel();
     ChannelPoolHandler handler = new TestChannelPoolHandler();
-    ChannelPool pool = new EspressoFixedChannelPool(cb, handler, 1, 1);
+    ChannelPool pool = new AlpiniFixedChannelPool(cb, handler, 1, 1);
 
     Channel channel = pool.acquire().syncUninterruptibly().getNow();
     Future<Channel> future = pool.acquire();
@@ -294,8 +294,8 @@ public class TestEspressoFixedChannelPool {
     // Start server
     Channel sc = sb.bind(addr).syncUninterruptibly().channel();
     ChannelPoolHandler handler = new TestChannelPoolHandler();
-    ChannelPool pool = new EspressoFixedChannelPool(cb, handler, 1, 1);
-    ChannelPool pool2 = new EspressoFixedChannelPool(cb, handler, 1, 1);
+    ChannelPool pool = new AlpiniFixedChannelPool(cb, handler, 1, 1);
+    ChannelPool pool2 = new AlpiniFixedChannelPool(cb, handler, 1, 1);
 
     Channel channel = pool.acquire().syncUninterruptibly().getNow();
 
@@ -325,7 +325,7 @@ public class TestEspressoFixedChannelPool {
     // Start server
     Channel sc = sb.bind(addr).syncUninterruptibly().channel();
 
-    EspressoFixedChannelPool pool = new EspressoFixedChannelPool(cb, new TestChannelPoolHandler(), 2);
+    AlpiniFixedChannelPool pool = new AlpiniFixedChannelPool(cb, new TestChannelPoolHandler(), 2);
     final Future<Channel> acquire = pool.acquire();
     final Channel channel = acquire.get();
     pool.close();
@@ -365,7 +365,7 @@ public class TestEspressoFixedChannelPool {
     // Start server
     Channel sc = sb.bind(addr).syncUninterruptibly().channel();
 
-    EspressoFixedChannelPool pool = new EspressoFixedChannelPool(cb, new TestChannelPoolHandler(), 2);
+    AlpiniFixedChannelPool pool = new AlpiniFixedChannelPool(cb, new TestChannelPoolHandler(), 2);
     Channel channel = pool.acquire().syncUninterruptibly().getNow();
     channel.close().syncUninterruptibly();
     pool.release(channel).syncUninterruptibly();
@@ -391,7 +391,7 @@ public class TestEspressoFixedChannelPool {
     // Start server
     final Channel sc = sb.bind(addr).syncUninterruptibly().channel();
 
-    final EspressoFixedChannelPool pool = new EspressoFixedChannelPool(cb, new TestChannelPoolHandler(), 2);
+    final AlpiniFixedChannelPool pool = new AlpiniFixedChannelPool(cb, new TestChannelPoolHandler(), 2);
 
     pool.acquire().get();
     pool.acquire().get();
