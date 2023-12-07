@@ -78,7 +78,7 @@ jobs:
         if: steps.check_alpini_files_changed.outputs.alpini == 'true'
         with:
           java-version: ${{ matrix.jdk }}
-          distribution: 'microsoft'
+          distribution: 'temurin'
           cache: 'gradle'
       # - name: Allow Deprecated TLS versions for Alpini tests
       #   run: |
