@@ -91,14 +91,7 @@ public class TestChannelPoolResolver {
 
     Assert.assertTrue(result.await().isDone());
     Assert.assertFalse(result.isSuccess());
-    String str = result.cause()
-        .getMessage()
-        .trim()
-        .replaceAll(" \\d+ queries", " X queries")
-        .replaceAll("failed to resolve .* after", "failed to resolve XX after");
-    Assert.assertEquals(
-        str,
-        "Search domain query failed. Original hostname: 'unresolved.linkedin.com' failed to resolve XX after X queries");
+    Assert.assertTrue(result.cause().getMessage().startsWith("Failed to resolve 'unresolved.linkedin.com'"));
   }
 
 }

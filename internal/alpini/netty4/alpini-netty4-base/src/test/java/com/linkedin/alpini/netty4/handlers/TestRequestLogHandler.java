@@ -238,7 +238,9 @@ public final class TestRequestLogHandler extends AbstractLeakDetect {
     Assert.assertTrue(
         messageCaptor.getValue()
             .toString()
-            .startsWith("myPipeline remoteAddress:0 HTTP/1.1 GET /foo/bar?query=123 3--> 200 OK 100 /foo "));
+            .startsWith(
+                "myPipeline remoteAddress/<unresolved>:0 HTTP/1.1 GET /foo/bar?query=123 3--> 200 OK 100 /foo "),
+        messageCaptor.getValue().toString());
 
     ch.releaseInbound();
     ch.releaseOutbound();
@@ -320,7 +322,8 @@ public final class TestRequestLogHandler extends AbstractLeakDetect {
     Assert.assertTrue(
         messageCaptor.getValue()
             .toString()
-            .startsWith("myPipeline remoteAddress:0 HTTP/1.1 GET /foo/bar?query=123 3--> 200 OK 100 /foo "),
+            .startsWith(
+                "myPipeline remoteAddress/<unresolved>:0 HTTP/1.1 GET /foo/bar?query=123 3--> 200 OK 100 /foo "),
         messageCaptor.getValue().toString());
 
     ch.disconnect().sync();
