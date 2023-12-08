@@ -8,6 +8,7 @@ import com.linkedin.alpini.consts.QOS;
 import com.linkedin.alpini.netty4.handlers.HttpClientResponseHandler;
 import com.linkedin.alpini.netty4.misc.BasicFullHttpResponse;
 import com.linkedin.alpini.netty4.misc.NettyUtils;
+import com.linkedin.alpini.util.TestNettyUtil;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.bootstrap.InstrumentedBootstrap;
 import io.netty.bootstrap.ServerBootstrap;
@@ -163,7 +164,8 @@ public class TestSimpleChannelPoolManager {
 
     NettyUtils.setMode("EPOLL");
 
-    EventLoopGroup eventLoopGroup = NettyUtils.newEventLoopGroup(4, Executors.defaultThreadFactory());
+    EventLoopGroup eventLoopGroup =
+        TestNettyUtil.skipEpollIfNotFound(() -> NettyUtils.newEventLoopGroup(4, Executors.defaultThreadFactory()));
     try {
       channelPoolManagerTest((MultithreadEventLoopGroup) eventLoopGroup);
     } finally {

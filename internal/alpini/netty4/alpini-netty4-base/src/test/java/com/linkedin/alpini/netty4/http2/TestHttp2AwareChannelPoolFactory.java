@@ -20,6 +20,7 @@ import com.linkedin.alpini.netty4.pool.ChannelPoolManager;
 import com.linkedin.alpini.netty4.pool.ChannelPoolManagerImpl;
 import com.linkedin.alpini.netty4.pool.Http2AwareChannelPoolFactory;
 import com.linkedin.alpini.netty4.pool.NettyDnsResolver;
+import com.linkedin.alpini.util.TestNettyUtil;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.bootstrap.ResolveAllBootstrap;
 import io.netty.bootstrap.ServerBootstrap;
@@ -95,7 +96,7 @@ public class TestHttp2AwareChannelPoolFactory {
 
   @BeforeClass(groups = "unit")
   public void beforeClass() {
-    _eventLoop = new EpollEventLoopGroup(1);
+    _eventLoop = TestNettyUtil.skipEpollIfNotFound(() -> new EpollEventLoopGroup(1));
   }
 
   @AfterClass(groups = "unit")

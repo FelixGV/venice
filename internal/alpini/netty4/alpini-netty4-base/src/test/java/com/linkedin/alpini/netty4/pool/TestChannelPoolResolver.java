@@ -1,5 +1,6 @@
 package com.linkedin.alpini.netty4.pool;
 
+import com.linkedin.alpini.util.TestNettyUtil;
 import io.netty.channel.epoll.EpollDatagramChannel;
 import io.netty.channel.epoll.EpollEventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
@@ -58,7 +59,7 @@ public class TestChannelPoolResolver {
 
   @Test(groups = "unit")
   public void testNettyDnsResolverEPOLL() throws InterruptedException {
-    EpollEventLoopGroup eventLoop = new EpollEventLoopGroup(4);
+    EpollEventLoopGroup eventLoop = TestNettyUtil.skipEpollIfNotFound(() -> new EpollEventLoopGroup(4));
     try {
       testNettyDnsResolver(new NettyDnsResolver(EpollDatagramChannel.class, eventLoop));
     } finally {

@@ -8,6 +8,7 @@ import com.linkedin.alpini.consts.QOS;
 import com.linkedin.alpini.netty4.handlers.HttpClientResponseHandler;
 import com.linkedin.alpini.netty4.misc.ExceptionWithResponseStatus;
 import com.linkedin.alpini.netty4.misc.NettyUtils;
+import com.linkedin.alpini.util.TestNettyUtil;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.bootstrap.InstrumentedBootstrap;
 import io.netty.bootstrap.ServerBootstrap;
@@ -109,7 +110,8 @@ public class TestChannelPoolManagerWithBadSN {
   @Test(groups = "unit", retryAnalyzer = Retry.class, successPercentage = 100, timeOut = 60000, dataProvider = "modes")
   public void testChannelPoolManagerEPOLLBadSN(boolean usingFastImpl) throws Exception {
     NettyUtils.setMode("EPOLL");
-    EventLoopGroup eventLoopGroup = NettyUtils.newEventLoopGroup(1, Executors.defaultThreadFactory());
+    EventLoopGroup eventLoopGroup =
+        TestNettyUtil.skipEpollIfNotFound(() -> NettyUtils.newEventLoopGroup(1, Executors.defaultThreadFactory()));
     try {
       channelPoolManagerTestBadSN((MultithreadEventLoopGroup) eventLoopGroup, usingFastImpl);
     } finally {
