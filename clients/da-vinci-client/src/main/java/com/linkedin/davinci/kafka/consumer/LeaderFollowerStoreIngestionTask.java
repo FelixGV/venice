@@ -1917,20 +1917,47 @@ public class LeaderFollowerStoreIngestionTask extends StoreIngestionTask {
       long latestConsumedProducerTimestamp) {
     boolean isLagAcceptable = offsetLag <= offsetThreshold;
 
-    if (shouldLogLag) {
-      LOGGER.info(
-          "{} [{} lag] partition {} is {}lagging. {}Lag: [{}] {} Threshold [{}]",
-          isOffsetBasedLag ? "Offset" : "Time",
-          consumerTaskId,
-          pcs.getPartition(),
-          (isLagAcceptable ? "not " : ""),
-          (isOffsetBasedLag ? "" : "The latest producer timestamp is " + latestConsumedProducerTimestamp + ". "),
+    if (offsetLag < 0) {
+      LOGGER.warn(
+          "Unexpected! Got a negative lag ({})! Will report lag as not acceptable.",
           offsetLag,
-          (isLagAcceptable ? "<" : ">"),
-          offsetThreshold);
+          new VeniceException("Exception not thrown, just for logging purposes."));
+      return false;
+    }
+
+    if (shouldLogLag) {
+      logLag(
+          isOffsetBasedLag,
+          pcs.getPartition(),
+          isLagAcceptable,
+          latestConsumedProducerTimestamp,
+          offsetLag,
+          offsetThreshold,
+          "");
     }
 
     return isLagAcceptable;
+  }
+
+  protected void logLag(
+      boolean isOffsetBasedLag,
+      int partition,
+      boolean isLagAcceptable,
+      long latestConsumedProducerTimestamp,
+      long offsetLag,
+      long offsetThreshold,
+      String lagLogFooter) {
+    LOGGER.info(
+        "{} [{} lag] partition {} is {}lagging. {}Lag: [{}] {} Threshold [{}]{}",
+        this.consumerTaskId,
+        isOffsetBasedLag ? "Offset" : "Time",
+        partition,
+        (isLagAcceptable ? "not " : ""),
+        (isOffsetBasedLag ? "" : "The latest producer timestamp is " + latestConsumedProducerTimestamp + ". "),
+        offsetLag,
+        (isLagAcceptable ? "<" : ">"),
+        offsetThreshold,
+        lagLogFooter);
   }
 
   /**
