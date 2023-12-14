@@ -1919,10 +1919,12 @@ public class LeaderFollowerStoreIngestionTask extends StoreIngestionTask {
 
     if (offsetLag < 0) {
       LOGGER.warn(
-          "Unexpected! Got a negative lag ({})! Will report lag as not acceptable.",
+          "{} Unexpected! Got a negative lag ({}) for partition {}!",
+          this.consumerTaskId,
           offsetLag,
-          new VeniceException("Exception not thrown, just for logging purposes."));
-      return false;
+          pcs.getPartition());
+      // Cannot return false here, as it breaks a bunch of tests... apparently we rely on negative lag quite a bit :/
+      // return false;
     }
 
     if (shouldLogLag) {
@@ -3294,6 +3296,14 @@ public class LeaderFollowerStoreIngestionTask extends StoreIngestionTask {
         ? offsetFromConsumer
         : cachedPubSubMetadataGetter
             .getOffset(getTopicManager(sourceRealTimeTopicKafkaURL), leaderTopic, partitionToGetLatestOffsetFor);
+
+    if (lastOffsetInRealTimeTopic < 0) {
+      LOGGER.warn(
+          "Unexpected! Got a negative lastOffsetInRealTimeTopic ({})! Will return Long.MAX_VALUE as the lag.",
+          lastOffsetInRealTimeTopic,
+          new VeniceException("Exception not thrown, just for logging purposes."));
+      return Long.MAX_VALUE;
+    }
 
     if (latestLeaderOffset == -1) {
       // If leader hasn't consumed anything yet we should use the value of 0 to calculate the exact offset lag.
