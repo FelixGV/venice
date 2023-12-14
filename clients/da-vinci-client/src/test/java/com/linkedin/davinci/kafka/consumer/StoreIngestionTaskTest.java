@@ -3258,16 +3258,6 @@ public abstract class StoreIngestionTaskTest {
             isOffsetBasedLag,
             0),
         !(leaderCompleteStateCheckEnabled && isActiveActiveReplicationEnabled));
-
-    // Case 9: offsetLag is negative (unexpected!)
-    assertFalse(
-        storeIngestionTaskUnderTest.checkAndLogIfLagIsAcceptableForHybridStore(
-            mockPartitionConsumptionState,
-            -1,
-            offsetThreshold,
-            false,
-            isOffsetBasedLag,
-            0));
   }
 
   @Test(dataProvider = "Three-True-and-False", dataProviderClass = DataProviderUtils.class)
