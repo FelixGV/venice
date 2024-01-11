@@ -7,9 +7,19 @@ import static org.mockito.BDDMockito.times;
 import static org.mockito.BDDMockito.verify;
 import static org.mockito.BDDMockito.when;
 
+import com.linkedin.venice.utils.locks.AutoCloseableLock;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.BiFunction;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
@@ -298,4 +308,65 @@ public class RetryUtilsTest {
     verify(obj, times(3)).getAnInteger();
     reset(obj);
   }
+
+  @Test
+  public void testLockingBehavior() throws ExecutionException, InterruptedException {
+    Lock lock = new ReentrantLock();
+    ExecutorService executorService = Executors.newFixedThreadPool(2);
+    AtomicInteger attemptCounter1 = new AtomicInteger(0);
+    AtomicInteger attemptCounter2 = new AtomicInteger(0);
+    final int ATTEMPT_COUNT = 5;
+    BiFunction<Integer, AtomicInteger, Runnable> runnableSupplier = (threadNumber, attemptCounter) -> () -> {
+      try (AutoCloseableLock ignored = AutoCloseableLock.of(lock)) {
+        RetryUtils.executeWithMaxAttempt(() -> {
+          int attempt = attemptCounter.incrementAndGet();
+          if (attempt < ATTEMPT_COUNT) {
+            throw new RuntimeException("Thread number " + threadNumber + ", attempt " + attempt + ".");
+          } else {
+            System.out.println("Thread number " + threadNumber + " succeeded!");
+          }
+        }, ATTEMPT_COUNT, Duration.ofMillis(1000), List.of(RuntimeException.class));
+      }
+    };
+    Runnable runnable1 = runnableSupplier.apply(1, attemptCounter1);
+    Runnable runnable2 = runnableSupplier.apply(2, attemptCounter2);
+    long startTime = System.currentTimeMillis();
+    Future future1 = executorService.submit(runnable1);
+    Future future2 = executorService.submit(runnable2);
+    future1.get();
+    future2.get();
+    long elapsedTime = System.currentTimeMillis() - startTime;
+    System.out.println("Elapsed time: " + elapsedTime + " ms.");
+  }
+
+  @Test
+  public void testBetterLockingBehavior() throws ExecutionException, InterruptedException {
+    Lock lock = new ReentrantLock();
+    ExecutorService executorService = Executors.newFixedThreadPool(2);
+    AtomicInteger attemptCounter1 = new AtomicInteger(0);
+    AtomicInteger attemptCounter2 = new AtomicInteger(0);
+    final int ATTEMPT_COUNT = 5;
+    BiFunction<Integer, AtomicInteger, Runnable> runnableSupplier = (threadNumber, attemptCounter) -> () -> {
+      RetryUtils.executeWithMaxAttempt(() -> {
+        try (AutoCloseableLock ignored = AutoCloseableLock.of(lock)) {
+          int attempt = attemptCounter.incrementAndGet();
+          if (attempt < ATTEMPT_COUNT) {
+            throw new RuntimeException("Thread number " + threadNumber + ", attempt " + attempt + ".");
+          } else {
+            System.out.println("Thread number " + threadNumber + " succeeded!");
+          }
+        }
+      }, ATTEMPT_COUNT, Duration.ofMillis(1000), List.of(RuntimeException.class));
+    };
+    Runnable runnable1 = runnableSupplier.apply(1, attemptCounter1);
+    Runnable runnable2 = runnableSupplier.apply(2, attemptCounter2);
+    long startTime = System.currentTimeMillis();
+    Future future1 = executorService.submit(runnable1);
+    Future future2 = executorService.submit(runnable2);
+    future1.get();
+    future2.get();
+    long elapsedTime = System.currentTimeMillis() - startTime;
+    System.out.println("Elapsed time: " + elapsedTime + " ms.");
+  }
+
 }
