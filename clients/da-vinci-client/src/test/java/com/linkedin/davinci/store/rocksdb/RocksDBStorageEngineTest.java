@@ -21,8 +21,8 @@ import com.linkedin.venice.utils.VeniceProperties;
 import java.util.Optional;
 import java.util.Set;
 import org.testng.Assert;
-import org.testng.annotations.AfterClass;
-import org.testng.annotations.BeforeClass;
+import org.testng.annotations.AfterMethod;
+import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 
@@ -56,12 +56,12 @@ public class RocksDBStorageEngineTest extends AbstractStorageEngineTest {
     createStoreForTest();
   }
 
-  @BeforeClass
+  @BeforeMethod
   public void setUp() {
     createStorageEngineForTest();
   }
 
-  @AfterClass
+  @AfterMethod
   public void cleanUp() throws Exception {
     storageService.dropStorePartition(storeConfig, PARTITION_ID);
     storageService.stop();
