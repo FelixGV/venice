@@ -59,12 +59,16 @@ public class WriteComputeProcessor {
       Schema currValueSchema,
       ValueAndRmd<GenericRecord> oldRecordAndRmd,
       GenericRecord writeComputeRecord,
+      int incomingValueSchemaId,
+      int incomingUpdateProtocolVersion,
       long updateOperationTimestamp,
       int updateOperationColoID) {
     return writeComputeHandlerV2.updateRecordWithRmd(
         Utils.notNull(currValueSchema),
         Utils.notNull(oldRecordAndRmd),
         Utils.notNull(writeComputeRecord),
+        incomingValueSchemaId,
+        incomingUpdateProtocolVersion,
         updateOperationTimestamp,
         updateOperationColoID);
   }

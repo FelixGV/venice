@@ -1,13 +1,16 @@
 package com.linkedin.davinci.schema.merge;
 
 import com.linkedin.davinci.utils.IndexedHashMap;
+import com.linkedin.venice.schema.rmd.v1.CollectionRmdTimestamp;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
+import org.apache.avro.Schema;
+import org.apache.avro.generic.GenericRecord;
 
 
-class Utils {
-  private Utils() {
+public class MergeTimestampUtils {
+  private MergeTimestampUtils() {
     // Utility class
   }
 
@@ -62,5 +65,41 @@ class Utils {
       idx++;
     }
     return elementToTimestampMap;
+  }
+
+  public static CollectionRmdTimestamp getCollectionRmdTimestamp(
+      GenericRecord timestampRecord,
+      Schema.Field valueField) {
+    Object objectTimestamp = getObjectTimestamp(timestampRecord, valueField, GenericRecord.class);
+    return new CollectionRmdTimestamp((GenericRecord) objectTimestamp);
+  }
+
+  static long getLongTimestamp(GenericRecord timestampRecord, Schema.Field valueField) {
+    return (long) getObjectTimestamp(timestampRecord, valueField, Long.class);
+  }
+
+  private static Object getObjectTimestamp(GenericRecord timestampRecord, Schema.Field valueField, Class expectedType) {
+    Schema.Field timestampRecordField = getTimestampField(timestampRecord, valueField);
+    Object o = timestampRecord.get(timestampRecordField.pos());
+    if (!expectedType.isInstance(o)) {
+      throw new IllegalArgumentException(
+          String.format(
+              "Expected timestamp field %s to be a %s, but instead got: %s",
+              valueField.name(),
+              expectedType.getSimpleName(),
+              o));
+    }
+    return o;
+  }
+
+  public static Schema.Field getTimestampField(GenericRecord timestampRecord, Schema.Field valueField) {
+    Schema.Field timestampRecordField = timestampRecord.getSchema().getFields().get(valueField.pos());
+    if (!timestampRecordField.name().equals(valueField.name())) {
+      // This would happen if the schema of the RMD is mismatched with that of the value, which does not seem possible.
+      // Out of an abundance of caution, we introduce this fallback here, though if we can convince ourselves that this
+      // cannot happen, then we could eliminate this string comparison and make the function a bit more efficient...
+      timestampRecordField = timestampRecord.getSchema().getField(valueField.name());
+    }
+    return timestampRecordField;
   }
 }

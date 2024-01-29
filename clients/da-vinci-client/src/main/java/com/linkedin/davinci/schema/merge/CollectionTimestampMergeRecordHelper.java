@@ -38,7 +38,7 @@ public class CollectionTimestampMergeRecordHelper extends PerFieldTimestampMerge
             newPutTimestamp,
             putOperationColoID,
             (List<Object>) newFieldValue,
-            getCollectionRmdTimestamp(oldTimestampRecord, oldRecordField),
+            MergeTimestampUtils.getCollectionRmdTimestamp(oldTimestampRecord, oldRecordField),
             oldRecord,
             oldRecordField);
       case MAP:
@@ -50,7 +50,7 @@ public class CollectionTimestampMergeRecordHelper extends PerFieldTimestampMerge
             newPutTimestamp,
             putOperationColoID,
             (IndexedHashMap<String, Object>) newFieldValue,
-            getCollectionRmdTimestamp(oldTimestampRecord, oldRecordField),
+            MergeTimestampUtils.getCollectionRmdTimestamp(oldTimestampRecord, oldRecordField),
             oldRecord,
             oldRecordField);
       default:
@@ -76,14 +76,14 @@ public class CollectionTimestampMergeRecordHelper extends PerFieldTimestampMerge
         return collectionFieldOperationHandler.handleDeleteMap(
             deleteTimestamp,
             coloID,
-            getCollectionRmdTimestamp(currentTimestampRecord, currentRecordField),
+            MergeTimestampUtils.getCollectionRmdTimestamp(currentTimestampRecord, currentRecordField),
             currentRecord,
             currentRecordField);
       case ARRAY:
         return collectionFieldOperationHandler.handleDeleteList(
             deleteTimestamp,
             coloID,
-            getCollectionRmdTimestamp(currentTimestampRecord, currentRecordField),
+            MergeTimestampUtils.getCollectionRmdTimestamp(currentTimestampRecord, currentRecordField),
             currentRecord,
             currentRecordField);
       default:
@@ -94,20 +94,5 @@ public class CollectionTimestampMergeRecordHelper extends PerFieldTimestampMerge
             deleteTimestamp,
             coloID);
     }
-  }
-
-  private CollectionRmdTimestamp getCollectionRmdTimestamp(
-      GenericRecord timestampRecord,
-      Schema.Field valueRecordField) {
-    // Collection field must have collection timestamp at this point.
-    Object collectionFieldTimestampObj = timestampRecord.get(valueRecordField.name());
-    if (!(collectionFieldTimestampObj instanceof GenericRecord)) {
-      throw new IllegalStateException(
-          String.format(
-              "Expect field %s to be a generic record from timestamp record %s",
-              valueRecordField.name(),
-              timestampRecord));
-    }
-    return new CollectionRmdTimestamp((GenericRecord) collectionFieldTimestampObj);
   }
 }

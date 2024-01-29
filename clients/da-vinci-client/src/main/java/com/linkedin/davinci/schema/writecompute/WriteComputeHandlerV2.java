@@ -7,6 +7,7 @@ import com.linkedin.davinci.schema.SchemaUtils;
 import com.linkedin.davinci.schema.merge.AvroCollectionElementComparator;
 import com.linkedin.davinci.schema.merge.CollectionFieldOperationHandler;
 import com.linkedin.davinci.schema.merge.MergeRecordHelper;
+import com.linkedin.davinci.schema.merge.MergeTimestampUtils;
 import com.linkedin.davinci.schema.merge.SortBasedCollectionFieldOpHandler;
 import com.linkedin.davinci.schema.merge.UpdateResultStatus;
 import com.linkedin.davinci.schema.merge.ValueAndRmd;
@@ -16,6 +17,8 @@ import com.linkedin.venice.schema.writecompute.WriteComputeConstants;
 import com.linkedin.venice.schema.writecompute.WriteComputeHandlerV1;
 import com.linkedin.venice.schema.writecompute.WriteComputeOperation;
 import com.linkedin.venice.utils.AvroSchemaUtils;
+import com.linkedin.venice.utils.SparseConcurrentList;
+import com.linkedin.venice.utils.collections.BiIntKeyCache;
 import java.util.List;
 import java.util.Map;
 import javax.annotation.Nonnull;
@@ -30,6 +33,17 @@ import org.apache.commons.lang.Validate;
 public class WriteComputeHandlerV2 extends WriteComputeHandlerV1 {
   private final MergeRecordHelper mergeRecordHelper;
   private final CollectionFieldOperationHandler collectionFieldOperationHandler;
+
+  /**
+   * This list of lists of list allows us to avoid looking up by field name, which requires doing a hash code of the
+   * name string. This hash code was demonstrated to be high overhead in a CPU profiling.
+   *
+   * 1st ID: incoming value schema ID
+   * 2nd ID: incoming update protocol version
+   * 3rd ID: current value schema ID
+   */
+  private final BiIntKeyCache<SparseConcurrentList<FieldMapping[]>> fieldMappingCache =
+      new BiIntKeyCache<>((first, second) -> new SparseConcurrentList<>());
 
   WriteComputeHandlerV2(MergeRecordHelper mergeRecordHelper) {
     Validate.notNull(mergeRecordHelper);
@@ -46,6 +60,8 @@ public class WriteComputeHandlerV2 extends WriteComputeHandlerV1 {
       @Nonnull Schema currValueSchema,
       @Nonnull ValueAndRmd<GenericRecord> currRecordAndRmd,
       @Nonnull GenericRecord writeComputeRecord,
+      int incomingValueSchemaId,
+      int incomingUpdateProtocolVersion,
       final long updateOperationTimestamp,
       final int coloID) {
     // For now we always create a record if the current one is null. But there could be a case where the created record
@@ -75,17 +91,27 @@ public class WriteComputeHandlerV2 extends WriteComputeHandlerV1 {
     }
     boolean notUpdated = true;
     final Schema writeComputeSchema = writeComputeRecord.getSchema();
-    for (Schema.Field writeComputeField: writeComputeSchema.getFields()) {
-      final String writeComputeFieldName = writeComputeField.name();
-      Schema.Field currentValueField = currRecordAndRmd.getValue().getSchema().getField(writeComputeFieldName);
-      if (currentValueField == null) {
+    SparseConcurrentList<FieldMapping[]> fieldMappingsForIncomingUpdate =
+        fieldMappingCache.get(incomingValueSchemaId, incomingUpdateProtocolVersion);
+    FieldMapping[] fieldMappingsForCurrentValue =
+        fieldMappingsForIncomingUpdate.computeIfAbsent(currRecordAndRmd.getValueSchemaId(), currValueSchemaId -> {
+          FieldMapping[] result = new FieldMapping[writeComputeSchema.getFields().size()];
+          int index = 0;
+          Schema valueSchema = currRecordAndRmd.getValue().getSchema();
+          for (Schema.Field writeComputeField: writeComputeSchema.getFields()) {
+            result[index++] = new FieldMapping(writeComputeField, valueSchema.getField(writeComputeField.name()));
+          }
+          return result;
+        });
+    for (FieldMapping fieldMapping: fieldMappingsForCurrentValue) {
+      if (fieldMapping.valueField == null) {
         throw new IllegalStateException(
             "Current value record must have a schema that has the same field names as the "
                 + "write compute schema because the current value's schema should be the schema that is used to generate "
-                + "the write-compute schema. Got missing field: " + writeComputeFieldName);
+                + "the write-compute schema. Got missing field: " + fieldMapping.updateField.name());
       }
 
-      Object writeComputeFieldValue = writeComputeRecord.get(writeComputeField.pos());
+      Object writeComputeFieldValue = writeComputeRecord.get(fieldMapping.updateField.pos());
       WriteComputeOperation operationType = WriteComputeOperation.getFieldOperationType(writeComputeFieldValue);
       switch (operationType) {
         case NO_OP_ON_FIELD:
@@ -95,7 +121,7 @@ public class WriteComputeHandlerV2 extends WriteComputeHandlerV1 {
           UpdateResultStatus putResult = mergeRecordHelper.putOnField(
               currRecordAndRmd.getValue(),
               timestampRecord,
-              currentValueField,
+              fieldMapping.valueField,
               writeComputeFieldValue,
               updateOperationTimestamp,
               coloID);
@@ -105,11 +131,11 @@ public class WriteComputeHandlerV2 extends WriteComputeHandlerV1 {
         case LIST_OPS:
         case MAP_OPS:
           UpdateResultStatus collectionMergeResult = modifyCollectionField(
-              assertAndGetTsRecordFieldIsRecord(timestampRecord, writeComputeFieldName),
+              MergeTimestampUtils.getCollectionRmdTimestamp(timestampRecord, fieldMapping.valueField),
               (GenericRecord) writeComputeFieldValue,
               updateOperationTimestamp,
               currRecordAndRmd.getValue(),
-              currentValueField);
+              fieldMapping.valueField);
           notUpdated &= (collectionMergeResult.equals(UpdateResultStatus.NOT_UPDATED_AT_ALL));
           continue;
         default:
@@ -123,7 +149,7 @@ public class WriteComputeHandlerV2 extends WriteComputeHandlerV1 {
   }
 
   private UpdateResultStatus modifyCollectionField(
-      GenericRecord fieldTimestampRecord,
+      CollectionRmdTimestamp fieldTimestampRecord,
       GenericRecord fieldWriteComputeRecord,
       long modifyTimestamp,
       GenericRecord currValueRecord,
@@ -132,7 +158,7 @@ public class WriteComputeHandlerV2 extends WriteComputeHandlerV1 {
       case ARRAY:
         return collectionFieldOperationHandler.handleModifyList(
             modifyTimestamp,
-            new CollectionRmdTimestamp(fieldTimestampRecord),
+            fieldTimestampRecord,
             currValueRecord,
             currentValueField,
             (List<Object>) fieldWriteComputeRecord.get(WriteComputeConstants.SET_UNION),
@@ -152,7 +178,7 @@ public class WriteComputeHandlerV2 extends WriteComputeHandlerV1 {
         }
         return collectionFieldOperationHandler.handleModifyMap(
             modifyTimestamp,
-            new CollectionRmdTimestamp(fieldTimestampRecord),
+            fieldTimestampRecord,
             currValueRecord,
             currentValueField,
             (Map<String, Object>) fieldWriteComputeRecord.get(WriteComputeConstants.MAP_UNION),
@@ -166,15 +192,13 @@ public class WriteComputeHandlerV2 extends WriteComputeHandlerV1 {
     }
   }
 
-  private GenericRecord assertAndGetTsRecordFieldIsRecord(GenericRecord timestampRecord, String fieldName) {
-    Object fieldTimestamp = timestampRecord.get(fieldName);
-    if (!(fieldTimestamp instanceof GenericRecord)) {
-      throw new IllegalStateException(
-          String.format(
-              "Expect field '%s' in the timestamp record to be a generic record. Got timestamp record: %s",
-              fieldName,
-              timestampRecord));
+  private static class FieldMapping {
+    final Schema.Field updateField;
+    final Schema.Field valueField;
+
+    private FieldMapping(Schema.Field updateField, Schema.Field valueField) {
+      this.updateField = updateField;
+      this.valueField = valueField;
     }
-    return (GenericRecord) fieldTimestamp;
   }
 }

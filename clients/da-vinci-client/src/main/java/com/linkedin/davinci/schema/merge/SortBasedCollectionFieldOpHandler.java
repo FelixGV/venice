@@ -77,7 +77,7 @@ public class SortBasedCollectionFieldOpHandler extends CollectionFieldOperationH
     final int putOnlyPartLength = collectionFieldRmd.getPutOnlyPartLength();
 
     // Below map contains only elements with timestamps that are strictly larger than the Put timestamp.
-    final IndexedHashMap<Object, Long> activeElementToTsMap = Utils.createElementToActiveTsMap(
+    final IndexedHashMap<Object, Long> activeElementToTsMap = MergeTimestampUtils.createElementToActiveTsMap(
         currElements,
         currActiveTimestamps,
         currTopLevelTimestamp,
@@ -87,7 +87,7 @@ public class SortBasedCollectionFieldOpHandler extends CollectionFieldOperationH
     final List<Object> deletedElements = collectionFieldRmd.getDeletedElements();
     final List<Long> deletedTimestamps = collectionFieldRmd.getDeletedElementTimestamps();
     final IndexedHashMap<Object, Long> deletedElementToTsMap =
-        Utils.createDeletedElementToTsMap(deletedElements, deletedTimestamps, putTimestamp);
+        MergeTimestampUtils.createDeletedElementToTsMap(deletedElements, deletedTimestamps, putTimestamp);
 
     // Step 1: Check to-be-put list elements against the deleted and existing elements in the list.
     // An iterator is used to iterate the to-be-put list because it is O(1) to remove an element from the to-be-put list
@@ -208,7 +208,7 @@ public class SortBasedCollectionFieldOpHandler extends CollectionFieldOperationH
 
     final List<Long> activeTimestamps = collectionFieldRmd.getActiveElementTimestamps();
     // Below map contains only elements with timestamps that are strictly larger than the Put timestamp.
-    final IndexedHashMap<KeyValPair, Long> activeEntriesToTsMap = Utils.createElementToActiveTsMap(
+    final IndexedHashMap<KeyValPair, Long> activeEntriesToTsMap = MergeTimestampUtils.createElementToActiveTsMap(
         currKeyValPairs,
         activeTimestamps,
         collectionFieldRmd.getTopLevelFieldTimestamp(),
@@ -218,7 +218,7 @@ public class SortBasedCollectionFieldOpHandler extends CollectionFieldOperationH
     final List<String> deletedKeys = collectionFieldRmd.getDeletedElements();
     final List<Long> deletedTimestamps = collectionFieldRmd.getDeletedElementTimestamps();
     final IndexedHashMap<String, Long> deletedKeyToTsMap =
-        Utils.createDeletedElementToTsMap(deletedKeys, deletedTimestamps, putTimestamp);
+        MergeTimestampUtils.createDeletedElementToTsMap(deletedKeys, deletedTimestamps, putTimestamp);
 
     // Step 1: Check to-be-put map entries against the deleted and existing entries in the map.
     Iterator<Map.Entry<String, Object>> toPutMapIterator = toPutMap.entrySet().iterator();
@@ -430,7 +430,7 @@ public class SortBasedCollectionFieldOpHandler extends CollectionFieldOperationH
       deDupListFromEnd(currElements);
     }
     final long topLevelTimestamp = collectionFieldRmd.getTopLevelFieldTimestamp();
-    final IndexedHashMap<Object, Long> activeElementToTsMap = Utils.createElementToActiveTsMap(
+    final IndexedHashMap<Object, Long> activeElementToTsMap = MergeTimestampUtils.createElementToActiveTsMap(
         currElements,
         Collections.emptyList(),
         collectionFieldRmd.getTopLevelFieldTimestamp(),
@@ -527,7 +527,7 @@ public class SortBasedCollectionFieldOpHandler extends CollectionFieldOperationH
       currElements = Collections.emptyList();
     }
     final List<Long> activeTimestamps = collectionFieldRmd.getActiveElementTimestamps();
-    final IndexedHashMap<Object, Long> activeElementToTsMap = Utils.createElementToActiveTsMap(
+    final IndexedHashMap<Object, Long> activeElementToTsMap = MergeTimestampUtils.createElementToActiveTsMap(
         currElements,
         activeTimestamps,
         collectionFieldRmd.getTopLevelFieldTimestamp(),
@@ -537,7 +537,7 @@ public class SortBasedCollectionFieldOpHandler extends CollectionFieldOperationH
     final List<Object> deletedElements = collectionFieldRmd.getDeletedElements();
     final List<Long> deletedTimestamps = collectionFieldRmd.getDeletedElementTimestamps();
     final IndexedHashMap<Object, Long> deletedElementToTsMap =
-        Utils.createDeletedElementToTsMap(deletedElements, deletedTimestamps, Long.MIN_VALUE);
+        MergeTimestampUtils.createDeletedElementToTsMap(deletedElements, deletedTimestamps, Long.MIN_VALUE);
 
     boolean updated = false;
     int newPutOnlyPartLength = collectionFieldRmd.getPutOnlyPartLength();
@@ -843,7 +843,7 @@ public class SortBasedCollectionFieldOpHandler extends CollectionFieldOperationH
     currMap.forEach((key, value) -> currKeyValPairs.add(new KeyValPair(key, value)));
 
     final List<Long> activeTimestamps = collectionFieldRmd.getActiveElementTimestamps();
-    final IndexedHashMap<KeyValPair, Long> activeEntriesToTsMap = Utils.createElementToActiveTsMap(
+    final IndexedHashMap<KeyValPair, Long> activeEntriesToTsMap = MergeTimestampUtils.createElementToActiveTsMap(
         currKeyValPairs,
         activeTimestamps,
         collectionFieldRmd.getTopLevelFieldTimestamp(),
@@ -853,7 +853,7 @@ public class SortBasedCollectionFieldOpHandler extends CollectionFieldOperationH
     final List<String> deletedKeys = collectionFieldRmd.getDeletedElements();
     final List<Long> deletedTimestamps = collectionFieldRmd.getDeletedElementTimestamps();
     final IndexedHashMap<String, Long> deletedKeyToTsMap =
-        Utils.createDeletedElementToTsMap(deletedKeys, deletedTimestamps, Long.MIN_VALUE);
+        MergeTimestampUtils.createDeletedElementToTsMap(deletedKeys, deletedTimestamps, Long.MIN_VALUE);
 
     boolean updated = false;
     int newPutOnlyPartLength = collectionFieldRmd.getPutOnlyPartLength();

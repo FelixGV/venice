@@ -2,7 +2,6 @@ package com.linkedin.davinci.replication.merge;
 
 import com.linkedin.davinci.schema.merge.ValueAndRmd;
 import com.linkedin.venice.annotation.Threadsafe;
-import com.linkedin.venice.utils.lazy.Lazy;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericRecord;
 
@@ -102,7 +101,9 @@ public interface Merge<T> {
    */
   ValueAndRmd<T> update(
       ValueAndRmd<T> oldValueAndRmd,
-      Lazy<GenericRecord> writeOperation,
+      GenericRecord writeOperation,
+      int incomingValueSchemaId,
+      int incomingUpdateProtocolVersion,
       Schema currValueSchema,
       long updateOperationTimestamp,
       int updateOperationColoID,

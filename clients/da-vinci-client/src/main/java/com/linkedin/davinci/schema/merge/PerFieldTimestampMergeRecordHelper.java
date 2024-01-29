@@ -19,7 +19,7 @@ abstract class PerFieldTimestampMergeRecordHelper implements MergeRecordHelper {
       Object newFieldValue,
       final long newPutTimestamp,
       final int putOperationColoID) {
-    final long oldTimestamp = validateAndGetPrimitiveTimestamp(oldTimestampRecord, oldRecordField.name());
+    final long oldTimestamp = MergeTimestampUtils.getLongTimestamp(oldTimestampRecord, oldRecordField);
     if (oldTimestamp > newPutTimestamp) {
       // Current field does not change.
       return UpdateResultStatus.NOT_UPDATED_AT_ALL;
@@ -38,7 +38,8 @@ abstract class PerFieldTimestampMergeRecordHelper implements MergeRecordHelper {
     } else {
       // New field value wins.
       oldRecord.put(oldRecordField.pos(), newFieldValue);
-      oldTimestampRecord.put(oldRecordField.name(), newPutTimestamp);
+      oldTimestampRecord
+          .put(MergeTimestampUtils.getTimestampField(oldTimestampRecord, oldRecordField).pos(), newPutTimestamp);
       return UpdateResultStatus.COMPLETELY_UPDATED;
     }
   }
@@ -91,36 +92,20 @@ abstract class PerFieldTimestampMergeRecordHelper implements MergeRecordHelper {
       long deleteTimestamp,
       int coloID) {
     // Must have per-field timestamp with Long type
-    final long currFieldTimestamp = validateAndGetPrimitiveTimestamp(currentTimestampRecord, currentRecordField.name());
+    final long currFieldTimestamp = MergeTimestampUtils.getLongTimestamp(currentTimestampRecord, currentRecordField);
     if (currFieldTimestamp <= deleteTimestamp) {
       // Delete current field.
       Object curFieldDefaultValue = GenericData.get()
           .deepCopy(currentRecordField.schema(), AvroCompatibilityHelper.getGenericDefaultValue(currentRecordField));
       currentRecord.put(currentRecordField.pos(), curFieldDefaultValue);
       if (currFieldTimestamp < deleteTimestamp) {
-        currentTimestampRecord.put(currentRecordField.name(), deleteTimestamp);
+        currentTimestampRecord.put(
+            MergeTimestampUtils.getTimestampField(currentTimestampRecord, currentRecordField).pos(),
+            deleteTimestamp);
       }
       return UpdateResultStatus.COMPLETELY_UPDATED;
     } else {
       return UpdateResultStatus.NOT_UPDATED_AT_ALL;
     }
-  }
-
-  private long validateAndGetPrimitiveTimestamp(GenericRecord timestampRecord, String fieldName) {
-    final Object timestampObj = timestampRecord.get(fieldName);
-
-    if (timestampObj == null) {
-      throw new IllegalArgumentException(
-          "Expect timestamp field " + fieldName + " to be non-null in timestamp record: " + timestampRecord);
-    }
-
-    if (!(timestampObj instanceof Long)) {
-      throw new IllegalArgumentException(
-          String.format(
-              "Expect timestamp field %s to be a Long. But got timestamp record: %s",
-              fieldName,
-              timestampRecord));
-    }
-    return (long) timestampObj;
   }
 }

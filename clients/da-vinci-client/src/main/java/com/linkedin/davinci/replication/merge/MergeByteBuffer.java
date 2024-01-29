@@ -5,7 +5,6 @@ import static com.linkedin.venice.schema.rmd.RmdConstants.TIMESTAMP_FIELD_POS;
 import com.linkedin.davinci.schema.merge.ValueAndRmd;
 import com.linkedin.venice.schema.rmd.RmdTimestampType;
 import com.linkedin.venice.schema.rmd.RmdUtils;
-import com.linkedin.venice.utils.lazy.Lazy;
 import java.nio.ByteBuffer;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericRecord;
@@ -66,7 +65,9 @@ public class MergeByteBuffer extends AbstractMerge<ByteBuffer> {
   @Override
   public ValueAndRmd<ByteBuffer> update(
       ValueAndRmd<ByteBuffer> oldValueAndRmd,
-      Lazy<GenericRecord> writeOperation,
+      GenericRecord writeOperation,
+      int incomingValueSchemaId,
+      int incomingUpdateProtocolVersion,
       Schema currValueSchema,
       long updateOperationTimestamp,
       int updateOperationColoID,

@@ -259,7 +259,9 @@ public class MergeConflictResolver {
     Schema oldValueSchema = getValueSchema(oldValueSchemaID);
     ValueAndRmd<GenericRecord> updatedValueAndRmd = mergeGenericRecord.update(
         oldValueAndRmd,
-        Lazy.of(() -> writeComputeRecord),
+        writeComputeRecord,
+        incomingValueSchemaId,
+        incomingUpdateProtocolVersion,
         oldValueSchema,
         updateOperationTimestamp,
         newValueColoID,

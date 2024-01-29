@@ -13,7 +13,6 @@ import com.linkedin.venice.schema.rmd.RmdTimestampType;
 import com.linkedin.venice.schema.rmd.RmdUtils;
 import com.linkedin.venice.schema.rmd.v1.RmdSchemaGeneratorV1;
 import com.linkedin.venice.utils.AvroSupersetSchemaUtils;
-import com.linkedin.venice.utils.lazy.Lazy;
 import java.util.List;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericRecord;
@@ -188,7 +187,9 @@ public class MergeGenericRecord extends AbstractMerge<GenericRecord> {
   @Override
   public ValueAndRmd<GenericRecord> update(
       ValueAndRmd<GenericRecord> oldValueAndRmd,
-      Lazy<GenericRecord> writeComputeRecord,
+      GenericRecord writeComputeRecord,
+      int incomingValueSchemaId,
+      int incomingUpdateProtocolVersion,
       Schema currValueSchema, // Schema of the current value that is to-be-updated here.
       long updateOperationTimestamp,
       int updateOperationColoID,
@@ -198,7 +199,9 @@ public class MergeGenericRecord extends AbstractMerge<GenericRecord> {
     return writeComputeProcessor.updateRecordWithRmd(
         currValueSchema,
         oldValueAndRmd,
-        writeComputeRecord.get(),
+        writeComputeRecord,
+        incomingValueSchemaId,
+        incomingUpdateProtocolVersion,
         updateOperationTimestamp,
         updateOperationColoID);
   }

@@ -182,7 +182,7 @@ public class MergeGenericRecordTest {
     wcRecord.put("name", noOpRecord);
     wcRecord.put("age", 20);
     Merge<GenericRecord> genericRecordMerge = createMergeGenericRecord();
-    valueAndRmd = genericRecordMerge.update(valueAndRmd, Lazy.of(() -> wcRecord), wcRecord.getSchema(), 30, -1, 1, 0);
+    valueAndRmd = genericRecordMerge.update(valueAndRmd, wcRecord, 1, 1, wcRecord.getSchema(), 30, -1, 1, 0);
 
     // verify id and name fields are from new record
     Assert.assertEquals(valueAndRmd.getValue().get("id"), wcRecord.get(0));
@@ -195,12 +195,12 @@ public class MergeGenericRecordTest {
 
     // verify we reuse the same instance when nothing changed.
     ValueAndRmd<GenericRecord> valueAndRmd1 =
-        genericRecordMerge.update(valueAndRmd, Lazy.of(() -> wcRecord), wcRecord.getSchema(), 10, -1, 1, 0);
+        genericRecordMerge.update(valueAndRmd, wcRecord, 1, 1, wcRecord.getSchema(), 10, -1, 1, 0);
     Assert.assertTrue(valueAndRmd1.getValue() == valueAndRmd.getValue());
 
     // validate ts record change from LONG to GenericRecord.
     // timeStampRecord.put(0, 10L); // N.B. The test fails when this is uncommented. TODO: Figure out if it's important?
-    valueAndRmd = genericRecordMerge.update(valueAndRmd, Lazy.of(() -> wcRecord), wcRecord.getSchema(), 30, -1, 1, 0);
+    valueAndRmd = genericRecordMerge.update(valueAndRmd, wcRecord, 1, 1, wcRecord.getSchema(), 30, -1, 1, 0);
     ts = (GenericRecord) valueAndRmd.getRmd().get(TIMESTAMP_FIELD_NAME);
     Assert.assertEquals(ts.get("id"), 30L);
     Assert.assertEquals(ts.get("name"), 10L);
@@ -217,7 +217,7 @@ public class MergeGenericRecordTest {
     ValueAndRmd finalValueAndRmd = valueAndRmd;
     Assert.assertThrows(
         IllegalStateException.class,
-        () -> genericRecordMerge.update(finalValueAndRmd, Lazy.of(() -> wcRecord), wcRecord.getSchema(), 10, -1, 1, 0));
+        () -> genericRecordMerge.update(finalValueAndRmd, wcRecord, 1, 1, wcRecord.getSchema(), 10, -1, 1, 0));
   }
 
   @Test
