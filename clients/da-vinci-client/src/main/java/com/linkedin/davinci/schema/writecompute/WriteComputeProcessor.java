@@ -56,6 +56,7 @@ public class WriteComputeProcessor {
   }
 
   public ValueAndRmd<GenericRecord> updateRecordWithRmd(
+      int currValueSchemaId,
       Schema currValueSchema,
       ValueAndRmd<GenericRecord> oldRecordAndRmd,
       GenericRecord writeComputeRecord,
@@ -64,6 +65,7 @@ public class WriteComputeProcessor {
       long updateOperationTimestamp,
       int updateOperationColoID) {
     return writeComputeHandlerV2.updateRecordWithRmd(
+        currValueSchemaId,
         Utils.notNull(currValueSchema),
         Utils.notNull(oldRecordAndRmd),
         Utils.notNull(writeComputeRecord),

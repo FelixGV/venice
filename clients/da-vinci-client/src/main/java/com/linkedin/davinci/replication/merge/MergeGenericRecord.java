@@ -5,6 +5,7 @@ import static com.linkedin.venice.schema.rmd.RmdConstants.TIMESTAMP_FIELD_POS;
 import com.linkedin.avroutil1.compatibility.AvroCompatibilityHelperCommon;
 import com.linkedin.avroutil1.compatibility.AvroVersion;
 import com.linkedin.davinci.schema.merge.MergeRecordHelper;
+import com.linkedin.davinci.schema.merge.PredefinedValueAndRmd;
 import com.linkedin.davinci.schema.merge.UpdateResultStatus;
 import com.linkedin.davinci.schema.merge.ValueAndRmd;
 import com.linkedin.davinci.schema.writecompute.WriteComputeProcessor;
@@ -173,7 +174,8 @@ public class MergeGenericRecord extends AbstractMerge<GenericRecord> {
 
         if (recordDeleteResultStatus == UpdateResultStatus.COMPLETELY_UPDATED) {
           // Full delete
-          oldValueAndRmd.setValue(null);
+          // oldValueAndRmd.setValue(null);
+          return new PredefinedValueAndRmd<>(null, -1, oldValueAndRmd.getRmd());
         } else if (recordDeleteResultStatus == UpdateResultStatus.NOT_UPDATED_AT_ALL) {
           oldValueAndRmd.setUpdateIgnored(true);
         }
@@ -190,6 +192,7 @@ public class MergeGenericRecord extends AbstractMerge<GenericRecord> {
       GenericRecord writeComputeRecord,
       int incomingValueSchemaId,
       int incomingUpdateProtocolVersion,
+      int currValueSchemaId,
       Schema currValueSchema, // Schema of the current value that is to-be-updated here.
       long updateOperationTimestamp,
       int updateOperationColoID,
@@ -197,6 +200,7 @@ public class MergeGenericRecord extends AbstractMerge<GenericRecord> {
       int newValueSourceBrokerID) {
     updateReplicationCheckpointVector(oldValueAndRmd.getRmd(), newValueSourceOffset, newValueSourceBrokerID);
     return writeComputeProcessor.updateRecordWithRmd(
+        currValueSchemaId,
         currValueSchema,
         oldValueAndRmd,
         writeComputeRecord,

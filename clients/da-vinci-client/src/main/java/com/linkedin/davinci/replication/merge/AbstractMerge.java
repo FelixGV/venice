@@ -3,6 +3,7 @@ package com.linkedin.davinci.replication.merge;
 import static com.linkedin.venice.schema.rmd.RmdConstants.REPLICATION_CHECKPOINT_VECTOR_FIELD_POS;
 import static com.linkedin.venice.schema.rmd.RmdConstants.TIMESTAMP_FIELD_POS;
 
+import com.linkedin.davinci.schema.merge.PredefinedValueAndRmd;
 import com.linkedin.davinci.schema.merge.ValueAndRmd;
 import java.util.List;
 import org.apache.avro.generic.GenericRecord;
@@ -25,10 +26,10 @@ abstract class AbstractMerge<T> implements Merge<T> {
 
     if (oldTimestamp < putOperationTimestamp) {
       // New value wins
-      oldValueAndRmd.setValue(newValue);
+      // oldValueAndRmd.setValue(newValue);
       oldRmd.put(TIMESTAMP_FIELD_POS, putOperationTimestamp);
       updateReplicationCheckpointVector(oldRmd, newValueSourceOffset, newValueSourceBrokerID);
-
+      return new PredefinedValueAndRmd(newValue, -1 /* FIXME */, oldRmd);
     } else if (oldTimestamp == putOperationTimestamp) {
       // When timestamps tie, compare decide which one should win.
       final T oldValue = oldValueAndRmd.getValue();
@@ -36,8 +37,9 @@ abstract class AbstractMerge<T> implements Merge<T> {
       if (newValue == oldValue) { // Old value wins
         oldValueAndRmd.setUpdateIgnored(true);
       } else {
-        oldValueAndRmd.setValue(newValue);
+        // oldValueAndRmd.setValue(newValue);
         updateReplicationCheckpointVector(oldRmd, newValueSourceOffset, newValueSourceBrokerID);
+        return new PredefinedValueAndRmd(newValue, -1 /* FIXME */, oldRmd);
       }
 
     } else {
@@ -55,12 +57,12 @@ abstract class AbstractMerge<T> implements Merge<T> {
       ValueAndRmd<T> oldValueAndRmd) {
     // Delete wins when old and new write operation timestamps are equal.
     if (oldTimestamp <= deleteOperationTimestamp) {
-      oldValueAndRmd.setValue(null);
+      // oldValueAndRmd.setValue(null);
       // Still need to track the delete timestamp in order to reject future PUT record with lower replication timestamp
       final GenericRecord oldRmd = oldValueAndRmd.getRmd();
       oldRmd.put(TIMESTAMP_FIELD_POS, deleteOperationTimestamp);
       updateReplicationCheckpointVector(oldRmd, newValueSourceOffset, newValueSourceBrokerID);
-
+      return new PredefinedValueAndRmd(null, -1, oldRmd);
     } else {
       oldValueAndRmd.setUpdateIgnored(true);
     }

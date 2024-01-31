@@ -8,6 +8,7 @@ import com.linkedin.davinci.schema.merge.AvroCollectionElementComparator;
 import com.linkedin.davinci.schema.merge.CollectionFieldOperationHandler;
 import com.linkedin.davinci.schema.merge.MergeRecordHelper;
 import com.linkedin.davinci.schema.merge.MergeTimestampUtils;
+import com.linkedin.davinci.schema.merge.PredefinedValueAndRmd;
 import com.linkedin.davinci.schema.merge.SortBasedCollectionFieldOpHandler;
 import com.linkedin.davinci.schema.merge.UpdateResultStatus;
 import com.linkedin.davinci.schema.merge.ValueAndRmd;
@@ -57,6 +58,7 @@ public class WriteComputeHandlerV2 extends WriteComputeHandlerV1 {
    * Handle partial update request on a value record that has associated replication metadata.
    */
   public ValueAndRmd<GenericRecord> updateRecordWithRmd(
+      int currValueSchemaId,
       @Nonnull Schema currValueSchema,
       @Nonnull ValueAndRmd<GenericRecord> currRecordAndRmd,
       @Nonnull GenericRecord writeComputeRecord,
@@ -66,20 +68,21 @@ public class WriteComputeHandlerV2 extends WriteComputeHandlerV1 {
       final int coloID) {
     // For now we always create a record if the current one is null. But there could be a case where the created record
     // does not get updated as a result of this update method. In this case, the current record should stay being null
-    // instead
-    // of being all record with all fields having their default value. TODO: handle this case.
-    GenericRecord currValueRecord = currRecordAndRmd.getValue();
-    if (currValueRecord == null) {
-      currRecordAndRmd.setValue(AvroSchemaUtils.createGenericRecord(currValueSchema));
-    }
+    // instead of being all record with all fields having their default value. TODO: handle this case.
+    final ValueAndRmd<GenericRecord> recordAndRmdToPopulate = currRecordAndRmd.getValue() == null
+        ? new PredefinedValueAndRmd<>(
+            AvroSchemaUtils.createGenericRecord(currValueSchema),
+            currValueSchemaId,
+            currRecordAndRmd.getRmd())
+        : currRecordAndRmd;
 
-    Object timestampObject = currRecordAndRmd.getRmd().get(TIMESTAMP_FIELD_POS);
+    Object timestampObject = recordAndRmdToPopulate.getRmd().get(TIMESTAMP_FIELD_POS);
     if (!(timestampObject instanceof GenericRecord)) {
       throw new IllegalStateException(
           String.format(
               "Expect the %s field to have a generic record. Got replication metadata: %s",
               TIMESTAMP_FIELD_NAME,
-              currRecordAndRmd.getRmd()));
+              recordAndRmdToPopulate.getRmd()));
     }
 
     final GenericRecord timestampRecord = (GenericRecord) timestampObject;
@@ -94,10 +97,10 @@ public class WriteComputeHandlerV2 extends WriteComputeHandlerV1 {
     SparseConcurrentList<FieldMapping[]> fieldMappingsForIncomingUpdate =
         fieldMappingCache.get(incomingValueSchemaId, incomingUpdateProtocolVersion);
     FieldMapping[] fieldMappingsForCurrentValue =
-        fieldMappingsForIncomingUpdate.computeIfAbsent(currRecordAndRmd.getValueSchemaId(), currValueSchemaId -> {
+        fieldMappingsForIncomingUpdate.computeIfAbsent(recordAndRmdToPopulate.getValueSchemaId(), k -> {
           FieldMapping[] result = new FieldMapping[writeComputeSchema.getFields().size()];
           int index = 0;
-          Schema valueSchema = currRecordAndRmd.getValue().getSchema();
+          Schema valueSchema = recordAndRmdToPopulate.getValue().getSchema();
           for (Schema.Field writeComputeField: writeComputeSchema.getFields()) {
             result[index++] = new FieldMapping(writeComputeField, valueSchema.getField(writeComputeField.name()));
           }
@@ -119,7 +122,7 @@ public class WriteComputeHandlerV2 extends WriteComputeHandlerV1 {
 
         case PUT_NEW_FIELD:
           UpdateResultStatus putResult = mergeRecordHelper.putOnField(
-              currRecordAndRmd.getValue(),
+              recordAndRmdToPopulate.getValue(),
               timestampRecord,
               fieldMapping.valueField,
               writeComputeFieldValue,
@@ -134,7 +137,7 @@ public class WriteComputeHandlerV2 extends WriteComputeHandlerV1 {
               MergeTimestampUtils.getCollectionRmdTimestamp(timestampRecord, fieldMapping.valueField),
               (GenericRecord) writeComputeFieldValue,
               updateOperationTimestamp,
-              currRecordAndRmd.getValue(),
+              recordAndRmdToPopulate.getValue(),
               fieldMapping.valueField);
           notUpdated &= (collectionMergeResult.equals(UpdateResultStatus.NOT_UPDATED_AT_ALL));
           continue;
@@ -143,9 +146,9 @@ public class WriteComputeHandlerV2 extends WriteComputeHandlerV1 {
       }
     }
     if (notUpdated) {
-      currRecordAndRmd.setUpdateIgnored(true);
+      recordAndRmdToPopulate.setUpdateIgnored(true);
     }
-    return currRecordAndRmd;
+    return recordAndRmdToPopulate;
   }
 
   private UpdateResultStatus modifyCollectionField(

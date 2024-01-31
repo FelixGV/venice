@@ -68,6 +68,7 @@ public class MergeByteBuffer extends AbstractMerge<ByteBuffer> {
       GenericRecord writeOperation,
       int incomingValueSchemaId,
       int incomingUpdateProtocolVersion,
+      int currValueSchemaId,
       Schema currValueSchema,
       long updateOperationTimestamp,
       int updateOperationColoID,

@@ -104,6 +104,7 @@ public interface Merge<T> {
       GenericRecord writeOperation,
       int incomingValueSchemaId,
       int incomingUpdateProtocolVersion,
+      int currValueSchemaId,
       Schema currValueSchema,
       long updateOperationTimestamp,
       int updateOperationColoID,

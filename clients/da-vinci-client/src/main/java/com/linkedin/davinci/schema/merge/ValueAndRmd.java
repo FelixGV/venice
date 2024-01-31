@@ -1,41 +1,22 @@
 package com.linkedin.davinci.schema.merge;
 
-import com.linkedin.venice.utils.lazy.Lazy;
+import java.util.Objects;
 import javax.annotation.Nonnull;
 import org.apache.avro.generic.GenericRecord;
-import org.apache.commons.lang.Validate;
 
 
-/**
- * This class holds a value of type {@param T} and its corresponding replication metadata.
- */
-public class ValueAndRmd<T> {
-  private Lazy<T> value;
+public abstract class ValueAndRmd<T> {
   private GenericRecord rmd;
   private boolean updateIgnored; // Whether we should skip the incoming message since it could be a stale message.
-  private int valueSchemaId;
 
-  public ValueAndRmd(Lazy<T> value, @Nonnull GenericRecord rmd) {
-    Validate.notNull(rmd);
-    this.value = value;
-    this.rmd = rmd;
-    this.valueSchemaId = -1;
+  public ValueAndRmd(@Nonnull GenericRecord rmd) {
+    this.rmd = Objects.requireNonNull(rmd);
   }
 
-  public T getValue() {
-    return value.get();
-  }
-
-  public void setValue(T value) {
-    this.value = Lazy.of(() -> value);
-  }
+  public abstract T getValue();
 
   public GenericRecord getRmd() {
-    return rmd;
-  }
-
-  public void setRmd(GenericRecord rmd) {
-    this.rmd = rmd;
+    return this.rmd;
   }
 
   public void setUpdateIgnored(boolean updateIgnored) {
@@ -43,14 +24,8 @@ public class ValueAndRmd<T> {
   }
 
   public boolean isUpdateIgnored() {
-    return updateIgnored;
+    return this.updateIgnored;
   }
 
-  public void setValueSchemaId(int valueSchemaId) {
-    this.valueSchemaId = valueSchemaId;
-  }
-
-  public int getValueSchemaId() {
-    return this.valueSchemaId;
-  }
+  public abstract int getValueSchemaId();
 }
