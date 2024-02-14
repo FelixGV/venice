@@ -66,14 +66,7 @@ public class RouterRequestThrottlingTest {
     doReturn(true).when(zkRoutersClusterManager).isThrottlingEnabled();
     doReturn(true).when(zkRoutersClusterManager).isMaxCapacityProtectionEnabled();
     RoutingDataRepository routingDataRepository = mock(RoutingDataRepository.class);
-    throttler = new ReadRequestThrottler(
-        zkRoutersClusterManager,
-        storeRepository,
-        routingDataRepository,
-        2000,
-        stats,
-        1.5,
-        1000);
+    throttler = new ReadRequestThrottler(zkRoutersClusterManager, storeRepository, 2000, stats, 1.5, 1000);
   }
 
   @DataProvider(name = "multiGet_compute")
