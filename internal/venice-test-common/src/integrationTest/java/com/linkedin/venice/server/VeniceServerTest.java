@@ -135,7 +135,8 @@ public class VeniceServerTest {
       cluster.stopVeniceServer(server.getPort());
       cluster.restartVeniceServer(server.getPort());
       repository = server.getVeniceServer().getStorageService().getStorageEngineRepository();
-      Assert.assertEquals(repository.getAllLocalStorageEngines().size(), 1, "We should not cleanup the local storage");
+      // N.B.: We have 2 here because of the participant store.
+      Assert.assertEquals(repository.getAllLocalStorageEngines().size(), 2, "We should not cleanup the local storage");
 
       // Stop server, remove it from the cluster then restart. We expect that all local storage would be deleted. Once
       // the server join again.

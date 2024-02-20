@@ -26,6 +26,12 @@ public class NodeRemovableResult {
     return details;
   }
 
+  @Override
+  public String toString() {
+    return "NodeRemovableResult{" + "isRemovable=" + isRemovable + ", blockingResource='" + blockingResource + '\''
+        + ", blockingReason=" + blockingReason + ", details='" + details + '\'' + '}';
+  }
+
   public static NodeRemovableResult removableResult(String details) {
     NodeRemovableResult result = new NodeRemovableResult();
     result.details = details;

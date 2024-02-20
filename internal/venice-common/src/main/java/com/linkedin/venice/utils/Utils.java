@@ -732,10 +732,6 @@ public class Utils {
     return new HashSet<>(Arrays.asList(objs));
   }
 
-  public static long calculateDurationMs(Time time, long startTimeMs) {
-    return time.getMilliseconds() - startTimeMs;
-  }
-
   public static void closeQuietlyWithErrorLogged(Closeable... closeables) {
     if (closeables == null) {
       return;

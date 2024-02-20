@@ -483,11 +483,6 @@ public interface Admin extends AutoCloseable, Closeable {
       Optional<String> emergencySourceRegion,
       String targetedRegions);
 
-  /**
-   * Return whether ssl is enabled for the given store for push.
-   */
-  boolean isSSLEnabledForPush(String clusterName, String storeName);
-
   boolean isSslToKafka();
 
   TopicManager getTopicManager();
@@ -659,6 +654,12 @@ public interface Admin extends AutoCloseable, Closeable {
    *         true if it's the first time truncating this topic.
    */
   boolean truncateKafkaTopic(String topicName);
+
+  /**
+   * This function is called when the participant store is verified to be fully created, which is an async process.
+   * @param clusterName for which the participant store is fully ready
+   */
+  void registerParticipantStoreRealTimeTopic(String clusterName);
 
   /**
    * Check whether the specified resource is fully removed or not.

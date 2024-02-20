@@ -3152,8 +3152,8 @@ public class VeniceParentHelixAdmin implements Admin {
     try {
       RmdSchemaEntry rmdSchemaEntry =
           new RmdSchemaEntry(valueSchemaId, replicationMetadataVersionId, replicationMetadataSchemaStr);
-      final boolean replicationMetadataSchemaAlreadyPresent = getVeniceHelixAdmin()
-          .checkIfMetadataSchemaAlreadyPresent(clusterName, storeName, valueSchemaId, rmdSchemaEntry);
+      final boolean replicationMetadataSchemaAlreadyPresent =
+          getVeniceHelixAdmin().checkIfMetadataSchemaAlreadyPresent(clusterName, storeName, rmdSchemaEntry);
       if (replicationMetadataSchemaAlreadyPresent) {
         LOGGER.info(
             "Replication metadata schema already exists for store: {} in cluster: {} metadataSchema: {} "
@@ -3576,14 +3576,6 @@ public class VeniceParentHelixAdmin implements Admin {
       String targetedRegions) {
     return getVeniceHelixAdmin()
         .getNativeReplicationSourceFabric(clusterName, store, sourceGridFabric, emergencySourceRegion, targetedRegions);
-  }
-
-  /**
-   * @see VeniceHelixAdmin#isSSLEnabledForPush(String, String)
-   */
-  @Override
-  public boolean isSSLEnabledForPush(String clusterName, String storeName) {
-    return getVeniceHelixAdmin().isSSLEnabledForPush(clusterName, storeName);
   }
 
   /**
@@ -4163,6 +4155,11 @@ public class VeniceParentHelixAdmin implements Admin {
   @Override
   public boolean truncateKafkaTopic(String kafkaTopicName) {
     return getVeniceHelixAdmin().truncateKafkaTopic(kafkaTopicName);
+  }
+
+  @Override
+  public void registerParticipantStoreRealTimeTopic(String clusterName) {
+    getVeniceHelixAdmin().registerParticipantStoreRealTimeTopic(clusterName);
   }
 
   /**

@@ -271,7 +271,7 @@ public abstract class TestRead {
       return;
     }
 
-    double maxInflightRequestCount = getAggregateRouterMetricValue(".total--in_flight_request_count.Max");
+    double maxInflightRequestCount = getAggregateRouterMetricValue("." + storeName + "--in_flight_request_count.Max");
     Assert.assertEquals(maxInflightRequestCount, 0.0, "There should be no in-flight requests yet!");
 
     String UNKNOWN_FIELD_NAME = "unknown_field";
@@ -327,18 +327,18 @@ public abstract class TestRead {
         }
 
         double maxInflightRequestCountAfterQueries =
-            getAggregateRouterMetricValue(".total--in_flight_request_count.Max");
+            getAggregateRouterMetricValue("." + storeName + "--in_flight_request_count.Max");
         Assert.assertTrue(maxInflightRequestCountAfterQueries > 0.0, "There should be in-flight requests now!");
 
         // Check retry requests
         Assert.assertTrue(
-            getAggregateRouterMetricValue(".total--retry_count.LambdaStat") > 0,
+            getAggregateRouterMetricValue("." + storeName + "--retry_count.LambdaStat") > 0,
             "After " + rounds + " reads, there should be some single-get retry requests");
         Assert.assertTrue(
-            getAggregateRouterMetricValue(".total--retry_delay.Avg") > 0,
+            getAggregateRouterMetricValue("." + storeName + "--retry_delay.Avg") > 0,
             "After " + rounds + " reads, there should be some single-get retry requests");
         Assert.assertTrue(
-            getAggregateRouterMetricValue(".total--multiget_streaming_retry_count.LambdaStat") > 0,
+            getAggregateRouterMetricValue("." + storeName + "--multiget_streaming_retry_count.LambdaStat") > 0,
             "After " + rounds + " reads, there should be some batch-get retry requests");
 
         // Check Router connection pool metrics
@@ -389,27 +389,33 @@ public abstract class TestRead {
         // 1. We do MAX_KEY_LIMIT * 2 because we do a batch get and a batch compute
         // 2. And then + 2 because we also do two single get requests
         expectedLookupCount += rounds * (MAX_KEY_LIMIT * 2 + 2.0);
-        Assert.assertEquals(getAggregateRouterMetricValue(".total--request_usage.Total"), expectedLookupCount, 0.0001);
         Assert.assertEquals(
-            getAggregateRouterMetricValue(".total--read_quota_usage_kps.Total"),
+            getAggregateRouterMetricValue("." + storeName + "--request_usage.Total"),
+            expectedLookupCount,
+            0.0001);
+        Assert.assertEquals(
+            getAggregateRouterMetricValue("." + storeName + "--read_quota_usage_kps.Total"),
             expectedLookupCount,
             0.0001);
 
         // following 2 asserts fails with HTTP/2 probably due to http2 frames, needs to validate on venice-p
         if (!isRouterHttp2ClientEnabled()) {
-          Assert.assertEquals(getMaxServerMetricValue(".total--multiget_request_part_count.Max"), 1.0);
+          Assert.assertEquals(getMaxServerMetricValue("." + storeName + "--multiget_request_part_count.Max"), 1.0);
           if (readComputeEnabled) {
-            Assert.assertEquals(getMaxServerMetricValue(".total--compute_request_part_count.Max"), 1.0);
+            Assert.assertEquals(getMaxServerMetricValue("." + storeName + "--compute_request_part_count.Max"), 1.0);
             Assert.assertTrue(
-                getMaxServerMetricValue(".total--compute_storage_engine_read_compute_efficiency.Max") > 1.0);
-            Assert.assertEquals(getAggregateRouterMetricValue(".total--compute_multiget_fallback.Total"), 0.0);
+                getMaxServerMetricValue(
+                    "." + storeName + "--compute_storage_engine_read_compute_efficiency.Max") > 1.0);
+            Assert.assertEquals(
+                getAggregateRouterMetricValue("." + storeName + "--compute_multiget_fallback.Total"),
+                0.0);
             Assert.assertEquals(
                 clientMetrics.getMetric("." + storeName + "--compute_streaming_multiget_fallback.OccurrenceRate")
                     .value(),
                 0.0);
           } else {
             Assert.assertEquals(
-                getAggregateRouterMetricValue(".total--compute_multiget_fallback.Total"),
+                getAggregateRouterMetricValue("." + storeName + "--compute_multiget_fallback.Total"),
                 (double) MAX_KEY_LIMIT);
             Assert.assertTrue(
                 clientMetrics.getMetric("." + storeName + "--compute_streaming_multiget_fallback.OccurrenceRate")
@@ -418,9 +424,9 @@ public abstract class TestRead {
         }
 
         // Verify storage node metrics
-        Assert.assertTrue(getMaxServerMetricValue(".total--records_consumed.Rate") > 0.0);
-        Assert.assertTrue(getMaxServerMetricValue(".total--multiget_request_size_in_bytes.Max") > 0.0);
-        Assert.assertTrue(getMaxServerMetricValue(".total--compute_request_size_in_bytes.Max") > 0.0);
+        Assert.assertTrue(getMaxServerMetricValue("." + storeName + "--records_consumed.Rate") > 0.0);
+        Assert.assertTrue(getMaxServerMetricValue("." + storeName + "--multiget_request_size_in_bytes.Max") > 0.0);
+        Assert.assertTrue(getMaxServerMetricValue("." + storeName + "--compute_request_size_in_bytes.Max") > 0.0);
 
         for (VeniceServerWrapper veniceServerWrapper: veniceCluster.getVeniceServers()) {
           Map<String, ? extends Metric> metrics = veniceServerWrapper.getMetricsRepository().metrics();
@@ -466,14 +472,14 @@ public abstract class TestRead {
 
       // Single get quota test
       int throttledRequestsForSingleGet =
-          (int) getAggregateRouterMetricValue(".total--multiget_throttled_request.Count");
+          (int) getAggregateRouterMetricValue("." + storeName + "--multiget_throttled_request.Count");
       Assert.assertEquals(
           throttledRequestsForSingleGet,
           0,
           "The throttled_request metric should be at zero before the test.");
 
       double throttledRequestLatencyForSingleGet =
-          getAggregateRouterMetricValue(".total--throttled_request_latency.Max");
+          getAggregateRouterMetricValue("." + storeName + "--throttled_request_latency.Max");
       Assert.assertEquals(
           throttledRequestLatencyForSingleGet,
           0.0,
@@ -502,13 +508,13 @@ public abstract class TestRead {
               + numberOfRequests + " requests)");
 
       int throttledRequestsForSingleGetAfterQueries =
-          (int) getAggregateRouterMetricValue(".total--throttled_request.Count");
+          (int) getAggregateRouterMetricValue("." + storeName + "--throttled_request.Count");
       Assert.assertEquals(
           throttledRequestsForSingleGetAfterQueries,
           quotaExceptionsCount,
           "The throttled_request metric is inconsistent with the number of quota exceptions received by the client!");
 
-      getAggregateRouterMetricValue(".total--throttled_request_latency.Max");
+      getAggregateRouterMetricValue("." + storeName + "--throttled_request_latency.Max");
       /** TODO Re-enable this assertion once we stop throwing batch get quota exceptions from {@link com.linkedin.venice.router.api.VeniceDelegateMode} */
       // Assert.assertTrue(throttledRequestLatencyForSingleGetAfterQueries > 0.0, "There should be single get throttled
       // request latency now!");
@@ -516,14 +522,14 @@ public abstract class TestRead {
       // Batch get quota test
 
       int throttledRequestsForBatchGet =
-          (int) getAggregateRouterMetricValue(".total--multiget_throttled_request.Count");
+          (int) getAggregateRouterMetricValue("." + storeName + "--multiget_throttled_request.Count");
       Assert.assertEquals(
           throttledRequestsForBatchGet,
           0,
           "The throttled_request metric should be at zero before the test.");
 
       double throttledRequestLatencyForBatchGet =
-          getAggregateRouterMetricValue(".total--multiget_throttled_request_latency.Max");
+          getAggregateRouterMetricValue("." + storeName + "--multiget_throttled_request_latency.Max");
       Assert.assertEquals(
           throttledRequestLatencyForBatchGet,
           0.0,
@@ -573,13 +579,13 @@ public abstract class TestRead {
               + " ms for " + numberOfRequests + " requests)");
 
       int throttledRequestsForBatchGetAfterQueries =
-          (int) getAggregateRouterMetricValue(".total--multiget_streaming_throttled_request.Count");
+          (int) getAggregateRouterMetricValue("." + storeName + "--multiget_streaming_throttled_request.Count");
       Assert.assertEquals(
           throttledRequestsForBatchGetAfterQueries,
           quotaExceptionsCountForBatchGet,
           "The throttled_request metric is inconsistent with the number of quota exceptions received by the client!");
 
-      getAggregateRouterMetricValue(".total--multiget_throttled_request_latency.Max");
+      getAggregateRouterMetricValue("." + storeName + "--multiget_throttled_request_latency.Max");
       /** TODO Re-enable this assertion once we stop throwing batch get quota exceptions from {@link com.linkedin.venice.router.api.VeniceDelegateMode} */
       // Assert.assertTrue(throttledRequestLatencyForBatchGetAfterQueries > 0.0, "There should be batch get throttled
       // request latency now!");

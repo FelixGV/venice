@@ -169,7 +169,7 @@ public class CreateVersion extends AbstractRoute {
         responseObject.setReplicas(replicationFactor);
         responseObject.setPartitions(partitionCount);
 
-        boolean isSSL = admin.isSSLEnabledForPush(clusterName, storeName);
+        boolean isSSL = admin.isSslToKafka();
         responseObject.setKafkaBootstrapServers(admin.getKafkaBootstrapServers(isSSL));
         responseObject.setKafkaSourceRegion(admin.getRegionName());
         responseObject.setEnableSSL(isSSL);

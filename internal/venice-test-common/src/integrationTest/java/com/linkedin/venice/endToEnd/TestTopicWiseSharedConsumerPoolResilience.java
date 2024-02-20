@@ -1,9 +1,7 @@
 package com.linkedin.venice.endToEnd;
 
-import static com.linkedin.venice.ConfigKeys.ADMIN_HELIX_MESSAGING_CHANNEL_ENABLED;
 import static com.linkedin.venice.ConfigKeys.KAFKA_READ_CYCLE_DELAY_MS;
 import static com.linkedin.venice.ConfigKeys.PARTICIPANT_MESSAGE_CONSUMPTION_DELAY_MS;
-import static com.linkedin.venice.ConfigKeys.PARTICIPANT_MESSAGE_STORE_ENABLED;
 import static com.linkedin.venice.ConfigKeys.SERVER_CONSUMER_POOL_SIZE_PER_KAFKA_CLUSTER;
 import static com.linkedin.venice.ConfigKeys.SERVER_SHARED_CONSUMER_ASSIGNMENT_STRATEGY;
 import static com.linkedin.venice.hadoop.VenicePushJobConstants.VENICE_STORE_NAME_PROP;
@@ -44,9 +42,6 @@ public class TestTopicWiseSharedConsumerPoolResilience {
   @BeforeClass(alwaysRun = true)
   public void setUp() {
     Properties extraProperties = new Properties();
-    // Disable helix message channel for job kill and enable participant message
-    extraProperties.setProperty(ADMIN_HELIX_MESSAGING_CHANNEL_ENABLED, "false");
-    extraProperties.setProperty(PARTICIPANT_MESSAGE_STORE_ENABLED, "true");
     // Disable ParticipantStoreIngestionTask
     extraProperties.setProperty(PARTICIPANT_MESSAGE_CONSUMPTION_DELAY_MS, Integer.toString(Integer.MAX_VALUE));
     extraProperties.setProperty(SERVER_CONSUMER_POOL_SIZE_PER_KAFKA_CLUSTER, Integer.toString(3));

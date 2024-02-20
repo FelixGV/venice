@@ -10,6 +10,7 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.testng.Assert.assertEquals;
 
+import com.linkedin.r2.transport.common.Client;
 import com.linkedin.venice.client.store.AvroSpecificStoreClient;
 import com.linkedin.venice.compression.CompressionStrategy;
 import com.linkedin.venice.fastclient.ClientConfig;
@@ -73,6 +74,7 @@ public class VeniceClientBasedMetadataTest {
     doReturn(1L).when(clientConfig).getMetadataRefreshIntervalInSeconds();
     doReturn(storeName).when(clientConfig).getStoreName();
     doReturn(clusterStats).when(clientConfig).getClusterStats();
+    doReturn(mock(Client.class)).when(clientConfig).getR2Client();
     return clientConfig;
   }
 

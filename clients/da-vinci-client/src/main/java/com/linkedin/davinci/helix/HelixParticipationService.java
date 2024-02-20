@@ -2,12 +2,10 @@ package com.linkedin.davinci.helix;
 
 import com.linkedin.davinci.config.VeniceConfigLoader;
 import com.linkedin.davinci.config.VeniceServerConfig;
-import com.linkedin.davinci.config.VeniceStoreVersionConfig;
 import com.linkedin.davinci.ingestion.DefaultIngestionBackend;
 import com.linkedin.davinci.ingestion.IsolatedIngestionBackend;
 import com.linkedin.davinci.ingestion.VeniceIngestionBackend;
 import com.linkedin.davinci.kafka.consumer.KafkaStoreIngestionService;
-import com.linkedin.davinci.kafka.consumer.StoreIngestionService;
 import com.linkedin.davinci.notifier.PartitionPushStatusNotifier;
 import com.linkedin.davinci.notifier.PushMonitorNotifier;
 import com.linkedin.davinci.notifier.VeniceNotifier;
@@ -20,7 +18,6 @@ import com.linkedin.venice.exceptions.VeniceException;
 import com.linkedin.venice.helix.HelixAdapterSerializer;
 import com.linkedin.venice.helix.HelixInstanceConverter;
 import com.linkedin.venice.helix.HelixPartitionStatusAccessor;
-import com.linkedin.venice.helix.HelixStatusMessageChannel;
 import com.linkedin.venice.helix.SafeHelixManager;
 import com.linkedin.venice.helix.VeniceOfflinePushMonitorAccessor;
 import com.linkedin.venice.helix.ZkClientFactory;
@@ -29,15 +26,12 @@ import com.linkedin.venice.meta.Instance;
 import com.linkedin.venice.meta.ReadOnlySchemaRepository;
 import com.linkedin.venice.meta.ReadOnlyStoreRepository;
 import com.linkedin.venice.pubsub.PubSubProducerAdapterFactory;
-import com.linkedin.venice.pushmonitor.KillOfflinePushMessage;
 import com.linkedin.venice.pushstatushelper.PushStatusStoreWriter;
 import com.linkedin.venice.schema.SchemaEntry;
 import com.linkedin.venice.schema.writecompute.DerivedSchemaEntry;
 import com.linkedin.venice.schema.writecompute.WriteComputeSchemaConverter;
 import com.linkedin.venice.serialization.avro.AvroProtocolDefinition;
 import com.linkedin.venice.service.AbstractVeniceService;
-import com.linkedin.venice.stats.HelixMessageChannelStats;
-import com.linkedin.venice.status.StatusMessageHandler;
 import com.linkedin.venice.utils.DaemonThreadFactory;
 import com.linkedin.venice.utils.HelixUtils;
 import com.linkedin.venice.utils.Utils;
@@ -67,8 +61,7 @@ import org.apache.logging.log4j.Logger;
 /**
  * Venice Participation Service wrapping Helix Participant.
  */
-public class HelixParticipationService extends AbstractVeniceService
-    implements StatusMessageHandler<KillOfflinePushMessage> {
+public class HelixParticipationService extends AbstractVeniceService {
   private static final Logger LOGGER = LogManager.getLogger(HelixParticipationService.class);
 
   private static final int MAX_RETRY = 30;
@@ -78,7 +71,6 @@ public class HelixParticipationService extends AbstractVeniceService
   private final String clusterName;
   private final String participantName;
   private final String zkAddress;
-  private final StoreIngestionService ingestionService;
   private final StorageService storageService;
   private final VeniceConfigLoader veniceConfigLoader;
   private final ReadOnlyStoreRepository helixReadOnlyStoreRepository;
@@ -102,7 +94,7 @@ public class HelixParticipationService extends AbstractVeniceService
   }
 
   public HelixParticipationService(
-      StoreIngestionService storeIngestionService,
+      KafkaStoreIngestionService storeIngestionService,
       StorageService storageService,
       StorageMetadataService storageMetadataService,
       VeniceConfigLoader veniceConfigLoader,
@@ -115,7 +107,6 @@ public class HelixParticipationService extends AbstractVeniceService
       String hostname,
       CompletableFuture<SafeHelixManager> managerFuture,
       HeartbeatMonitoringService heartbeatMonitoringService) {
-    this.ingestionService = storeIngestionService;
     this.storageService = storageService;
     this.clusterName = clusterName;
     this.heartbeatMonitoringService = heartbeatMonitoringService;
@@ -129,22 +120,17 @@ public class HelixParticipationService extends AbstractVeniceService
     this.instance = new Instance(participantName, hostname, port);
     this.managerFuture = managerFuture;
     this.partitionPushStatusAccessorFuture = new CompletableFuture<>();
-    if (!(storeIngestionService instanceof KafkaStoreIngestionService)) {
-      throw new VeniceException("Expecting " + KafkaStoreIngestionService.class.getName() + " for ingestion backend!");
-    }
     if (veniceConfigLoader.getVeniceServerConfig().getIngestionMode().equals(IngestionMode.ISOLATED)) {
       this.ingestionBackend = new IsolatedIngestionBackend(
           veniceConfigLoader,
           helixReadOnlyStoreRepository,
           metricsRepository,
           storageMetadataService,
-          (KafkaStoreIngestionService) storeIngestionService,
+          storeIngestionService,
           storageService);
     } else {
-      this.ingestionBackend = new DefaultIngestionBackend(
-          storageMetadataService,
-          (KafkaStoreIngestionService) storeIngestionService,
-          storageService);
+      this.ingestionBackend =
+          new DefaultIngestionBackend(storageMetadataService, storeIngestionService, storageService);
     }
   }
 
@@ -227,11 +213,6 @@ public class HelixParticipationService extends AbstractVeniceService
       return HelixInstanceConverter.convertInstanceToZNRecord(instance);
     };
     helixManager.setLiveInstanceInfoProvider(liveInstanceInfoProvider);
-
-    // Create a message channel to receive message from controller.
-    HelixStatusMessageChannel messageChannel =
-        new HelixStatusMessageChannel(helixManager, new HelixMessageChannelStats(metricsRepository, clusterName));
-    messageChannel.registerHandler(KillOfflinePushMessage.class, this);
 
     // TODO Venice Listener should not be started, until the HelixService is started.
     asyncStart();
@@ -438,21 +419,5 @@ public class HelixParticipationService extends AbstractVeniceService
 
   public ReadOnlyStoreRepository getHelixReadOnlyStoreRepository() {
     return helixReadOnlyStoreRepository;
-  }
-
-  @Override
-  public void handleMessage(KillOfflinePushMessage message) {
-    VeniceStoreVersionConfig storeConfig = veniceConfigLoader.getStoreConfig(message.getKafkaTopic());
-    if (ingestionService.containsRunningConsumption(storeConfig)) {
-      // push is failed, stop consumption.
-      LOGGER.info(
-          "Receive the message to kill consumption for topic: {}, msgId: {}",
-          message.getKafkaTopic(),
-          message.getMessageId());
-      ingestionService.killConsumptionTask(storeConfig.getStoreVersionName());
-      LOGGER.info("Killed Consumption for topic: {}, msgId: {}", message.getKafkaTopic(), message.getMessageId());
-    } else {
-      LOGGER.info("Ignore the kill message for topic: {}", message.getKafkaTopic());
-    }
   }
 }

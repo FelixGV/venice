@@ -1,8 +1,6 @@
 package com.linkedin.venice.endToEnd;
 
-import static com.linkedin.venice.ConfigKeys.ADMIN_HELIX_MESSAGING_CHANNEL_ENABLED;
 import static com.linkedin.venice.ConfigKeys.PARTICIPANT_MESSAGE_CONSUMPTION_DELAY_MS;
-import static com.linkedin.venice.ConfigKeys.PARTICIPANT_MESSAGE_STORE_ENABLED;
 import static com.linkedin.venice.hadoop.VenicePushJobConstants.DEFAULT_KEY_FIELD_PROP;
 import static com.linkedin.venice.hadoop.VenicePushJobConstants.DEFAULT_VALUE_FIELD_PROP;
 import static com.linkedin.venice.hadoop.VenicePushJobConstants.SEND_CONTROL_MESSAGES_DIRECTLY;
@@ -50,10 +48,6 @@ public class TestPushJobVersionCleanup {
     Properties serverProperties = new Properties();
     serverProperties.setProperty(PARTICIPANT_MESSAGE_CONSUMPTION_DELAY_MS, "60000");
 
-    Properties controllerProps = new Properties();
-    controllerProps.put(ADMIN_HELIX_MESSAGING_CHANNEL_ENABLED, false);
-    controllerProps.put(PARTICIPANT_MESSAGE_STORE_ENABLED, true);
-
     multiRegionMultiClusterWrapper = ServiceFactory.getVeniceTwoLayerMultiRegionMultiClusterWrapper(
         NUMBER_OF_CHILD_DATACENTERS,
         NUMBER_OF_CLUSTERS,
@@ -62,8 +56,8 @@ public class TestPushJobVersionCleanup {
         1,
         1,
         1,
-        Optional.of(controllerProps),
-        Optional.of(controllerProps),
+        Optional.empty(),
+        Optional.empty(),
         Optional.of(serverProperties),
         false);
     childDatacenters = multiRegionMultiClusterWrapper.getChildRegions();

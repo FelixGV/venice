@@ -17,6 +17,7 @@ import com.linkedin.venice.utils.concurrent.VeniceConcurrentHashMap;
 import com.linkedin.venice.utils.metrics.MetricsRepositoryUtils;
 import io.tehuti.metrics.MetricsRepository;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import org.apache.avro.specific.SpecificRecord;
@@ -130,15 +131,17 @@ public class ClientConfig<K, V, T extends SpecificRecord> {
     if (storeName == null || storeName.isEmpty()) {
       throw new VeniceClientException("storeName param shouldn't be empty");
     }
-    if (r2Client == null && !useGrpc) {
-      throw new VeniceClientException("r2Client param shouldn't be null");
-    }
-    if (useGrpc && grpcClientConfig == null) {
-      throw new UnsupportedOperationException(
-          "we require additional gRPC related configs when we create a gRPC enabled client");
+    if (useGrpc) {
+      this.r2Client =
+          Objects
+              .requireNonNull(
+                  grpcClientConfig,
+                  "we require additional gRPC related configs when we create a gRPC enabled client")
+              .getR2Client();
+    } else {
+      this.r2Client = Objects.requireNonNull(r2Client, "r2Client param shouldn't be null");
     }
 
-    this.r2Client = r2Client;
     this.storeName = storeName;
     this.statsPrefix = (statsPrefix == null ? "" : statsPrefix);
     if (metricsRepository == null) {

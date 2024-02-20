@@ -6,7 +6,6 @@ import static com.linkedin.venice.ConfigKeys.ADMIN_CHECK_READ_METHOD_FOR_KAFKA;
 import static com.linkedin.venice.ConfigKeys.ADMIN_CONSUMPTION_CYCLE_TIMEOUT_MS;
 import static com.linkedin.venice.ConfigKeys.ADMIN_CONSUMPTION_MAX_WORKER_THREAD_POOL_SIZE;
 import static com.linkedin.venice.ConfigKeys.ADMIN_CONSUMPTION_TIMEOUT_MINUTES;
-import static com.linkedin.venice.ConfigKeys.ADMIN_HELIX_MESSAGING_CHANNEL_ENABLED;
 import static com.linkedin.venice.ConfigKeys.ADMIN_HOSTNAME;
 import static com.linkedin.venice.ConfigKeys.ADMIN_PORT;
 import static com.linkedin.venice.ConfigKeys.ADMIN_SECURE_PORT;
@@ -80,7 +79,6 @@ import static com.linkedin.venice.ConfigKeys.NATIVE_REPLICATION_SOURCE_FABRIC;
 import static com.linkedin.venice.ConfigKeys.PARENT_CONTROLLER_MAX_ERRORED_TOPIC_NUM_TO_KEEP;
 import static com.linkedin.venice.ConfigKeys.PARENT_CONTROLLER_WAITING_TIME_FOR_CONSUMPTION_MS;
 import static com.linkedin.venice.ConfigKeys.PARENT_KAFKA_CLUSTER_FABRIC_LIST;
-import static com.linkedin.venice.ConfigKeys.PARTICIPANT_MESSAGE_STORE_ENABLED;
 import static com.linkedin.venice.ConfigKeys.PUBSUB_TOPIC_MANAGER_METADATA_FETCHER_CONSUMER_POOL_SIZE;
 import static com.linkedin.venice.ConfigKeys.PUBSUB_TOPIC_MANAGER_METADATA_FETCHER_THREAD_POOL_SIZE;
 import static com.linkedin.venice.ConfigKeys.PUB_SUB_ADMIN_ADAPTER_FACTORY_CLASS;
@@ -186,10 +184,8 @@ public class VeniceControllerConfig extends VeniceControllerClusterConfig {
   private final int minNumberOfStoreVersionsToPreserve;
   private final int parentControllerMaxErroredTopicNumToKeep;
   private final String pushJobStatusStoreClusterName;
-  private final boolean participantMessageStoreEnabled;
   private final String systemSchemaClusterName;
   private final int topicDeletionStatusPollIntervalMs;
-  private final boolean adminHelixMessagingChannelEnabled;
   private final boolean isControllerClusterLeaderHAAS;
   private final boolean isVeniceClusterLeaderHAAS;
   private final String controllerHAASSuperClusterName;
@@ -444,13 +440,6 @@ public class VeniceControllerConfig extends VeniceControllerClusterConfig {
     this.parentControllerMaxErroredTopicNumToKeep = props.getInt(PARENT_CONTROLLER_MAX_ERRORED_TOPIC_NUM_TO_KEEP, 0);
 
     this.pushJobStatusStoreClusterName = props.getString(PUSH_JOB_STATUS_STORE_CLUSTER_NAME, "");
-    this.participantMessageStoreEnabled = props.getBoolean(PARTICIPANT_MESSAGE_STORE_ENABLED, false);
-    this.adminHelixMessagingChannelEnabled = props.getBoolean(ADMIN_HELIX_MESSAGING_CHANNEL_ENABLED, true);
-    if (!adminHelixMessagingChannelEnabled && !participantMessageStoreEnabled) {
-      throw new VeniceException(
-          "Cannot perform kill push job if both " + ADMIN_HELIX_MESSAGING_CHANNEL_ENABLED + " and "
-              + PARTICIPANT_MESSAGE_STORE_ENABLED + " are set to false");
-    }
     this.systemSchemaClusterName = props.getString(CONTROLLER_SYSTEM_SCHEMA_CLUSTER_NAME, "");
     this.earlyDeleteBackUpEnabled = props.getBoolean(CONTROLLER_EARLY_DELETE_BACKUP_ENABLED, true);
     this.topicDeletionStatusPollIntervalMs = props
@@ -781,10 +770,6 @@ public class VeniceControllerConfig extends VeniceControllerClusterConfig {
     return pushJobStatusStoreClusterName;
   }
 
-  public boolean isParticipantMessageStoreEnabled() {
-    return participantMessageStoreEnabled;
-  }
-
   public boolean isDaVinciPushStatusEnabled() {
     return true;
   }
@@ -795,10 +780,6 @@ public class VeniceControllerConfig extends VeniceControllerClusterConfig {
 
   public int getTopicDeletionStatusPollIntervalMs() {
     return topicDeletionStatusPollIntervalMs;
-  }
-
-  public boolean isAdminHelixMessagingChannelEnabled() {
-    return adminHelixMessagingChannelEnabled;
   }
 
   public boolean isControllerClusterLeaderHAAS() {

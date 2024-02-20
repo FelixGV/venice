@@ -18,7 +18,6 @@ import static com.linkedin.venice.ConfigKeys.NATIVE_REPLICATION_FABRIC_ALLOWLIST
 import static com.linkedin.venice.ConfigKeys.NATIVE_REPLICATION_SOURCE_FABRIC_AS_DEFAULT_FOR_BATCH_ONLY_STORES;
 import static com.linkedin.venice.ConfigKeys.NATIVE_REPLICATION_SOURCE_FABRIC_AS_DEFAULT_FOR_HYBRID_STORES;
 import static com.linkedin.venice.ConfigKeys.PARENT_KAFKA_CLUSTER_FABRIC_LIST;
-import static com.linkedin.venice.ConfigKeys.PARTICIPANT_MESSAGE_STORE_ENABLED;
 import static com.linkedin.venice.integration.utils.VeniceClusterWrapperConstants.CHILD_REGION_NAME_PREFIX;
 import static com.linkedin.venice.integration.utils.VeniceClusterWrapperConstants.DEFAULT_PARENT_DATA_CENTER_REGION_NAME;
 
@@ -116,7 +115,6 @@ public class VeniceTwoLayerMultiRegionMultiClusterWrapper extends ProcessWrapper
      * Enable participant system store by default in a two-layer multi-region set-up
      */
     Properties defaultParentControllerProps = new Properties();
-    defaultParentControllerProps.setProperty(PARTICIPANT_MESSAGE_STORE_ENABLED, "true");
     defaultParentControllerProps.setProperty(ADMIN_TOPIC_REMOTE_CONSUMPTION_ENABLED, "false");
 
     ZkServerWrapper zkServer = null;
@@ -195,7 +193,6 @@ public class VeniceTwoLayerMultiRegionMultiClusterWrapper extends ProcessWrapper
       defaultChildControllerProps.putAll(finalParentControllerProperties);
       defaultChildControllerProps.putAll(nativeReplicationRequiredChildControllerProps);
       defaultChildControllerProps.putAll(activeActiveRequiredChildControllerProps);
-      defaultChildControllerProps.setProperty(PARTICIPANT_MESSAGE_STORE_ENABLED, "true");
       defaultChildControllerProps.setProperty(ADMIN_TOPIC_REMOTE_CONSUMPTION_ENABLED, "true");
 
       final Properties finalChildControllerProperties = new Properties();

@@ -14,7 +14,6 @@ import com.linkedin.venice.helix.HelixReadWriteSchemaRepository;
 import com.linkedin.venice.helix.HelixReadWriteSchemaRepositoryAdapter;
 import com.linkedin.venice.helix.HelixReadWriteStoreRepository;
 import com.linkedin.venice.helix.HelixReadWriteStoreRepositoryAdapter;
-import com.linkedin.venice.helix.HelixStatusMessageChannel;
 import com.linkedin.venice.helix.SafeHelixManager;
 import com.linkedin.venice.helix.StoragePersonaRepository;
 import com.linkedin.venice.helix.VeniceOfflinePushMonitorAccessor;
@@ -28,7 +27,6 @@ import com.linkedin.venice.pushmonitor.AggPushHealthStats;
 import com.linkedin.venice.pushmonitor.AggPushStatusCleanUpStats;
 import com.linkedin.venice.pushmonitor.LeakedPushStatusCleanUpService;
 import com.linkedin.venice.pushmonitor.PushMonitorDelegator;
-import com.linkedin.venice.stats.HelixMessageChannelStats;
 import com.linkedin.venice.system.store.MetaStoreWriter;
 import com.linkedin.venice.utils.locks.AutoCloseableLock;
 import com.linkedin.venice.utils.locks.ClusterLockManager;
@@ -63,7 +61,6 @@ public class HelixVeniceClusterResources implements VeniceResource {
   private final HelixExternalViewRepository routingDataRepository;
   private HelixCustomizedViewOfflinePushRepository customizedViewRepo;
   private final ReadWriteSchemaRepository schemaRepository;
-  private final HelixStatusMessageChannel messageChannel;
   private final VeniceControllerClusterConfig config;
   private final PushMonitorDelegator pushMonitor;
   private final LeakedPushStatusCleanUpService leakedPushStatusCleanUpService;
@@ -139,10 +136,6 @@ public class HelixVeniceClusterResources implements VeniceResource {
     this.routingDataRepository = new HelixExternalViewRepository(spectatorManager);
     this.customizedViewRepo =
         new HelixCustomizedViewOfflinePushRepository(this.helixManager, storeMetadataRepository, true);
-    this.messageChannel = new HelixStatusMessageChannel(
-        helixManager,
-        new HelixMessageChannelStats(metricsRepository, clusterName),
-        config.getHelixSendMessageTimeoutMs());
     VeniceOfflinePushMonitorAccessor offlinePushMonitorAccessor = new VeniceOfflinePushMonitorAccessor(
         clusterName,
         zkClient,
@@ -357,10 +350,6 @@ public class HelixVeniceClusterResources implements VeniceResource {
   // setCustomizedViewRepository is used for testing only.
   void setCustomizedViewRepository(HelixCustomizedViewOfflinePushRepository repo) {
     customizedViewRepo = repo;
-  }
-
-  public HelixStatusMessageChannel getMessageChannel() {
-    return messageChannel;
   }
 
   public SafeHelixManager getHelixManager() {

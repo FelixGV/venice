@@ -200,6 +200,12 @@ public final class SystemStoreInitializationHelper {
 
       LOGGER.info("Created a version for internal store {} in cluster {}", systemStoreName, clusterName);
     }
+
+    if (protocolDefinition == AvroProtocolDefinition.PARTICIPANT_MESSAGE_SYSTEM_STORE_VALUE) {
+      admin.getRealTimeTopic(clusterName, systemStoreName);
+      admin.registerParticipantStoreRealTimeTopic(clusterName);
+      LOGGER.info("Participant Store RT topic is verified to be available for cluster: {}", clusterName);
+    }
   }
 
   // Visible for testing

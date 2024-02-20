@@ -20,7 +20,6 @@ import java.util.concurrent.TimeUnit;
 import org.apache.helix.AccessOption;
 import org.apache.helix.manager.zk.ZkBaseDataAccessor;
 import org.apache.helix.zookeeper.impl.client.ZkClient;
-import org.apache.helix.zookeeper.zkclient.IZkChildListener;
 import org.apache.helix.zookeeper.zkclient.IZkDataListener;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -333,16 +332,6 @@ public class VeniceOfflinePushMonitorAccessor implements OfflinePushAccessor {
       partitionStatusAccessor
           .unsubscribeDataChanges(getPartitionStatusPath(topicName, partitionId), partitionStatusZkListener);
     }
-  }
-
-  @Override
-  public void subscribePushStatusCreationChange(IZkChildListener childListener) {
-    offlinePushStatusAccessor.subscribeChildChanges(getOfflinePushStatuesParentPath(), childListener);
-  }
-
-  @Override
-  public void unsubscribePushStatusCreationChange(IZkChildListener childListener) {
-    offlinePushStatusAccessor.unsubscribeChildChanges(getOfflinePushStatuesParentPath(), childListener);
   }
 
   /**

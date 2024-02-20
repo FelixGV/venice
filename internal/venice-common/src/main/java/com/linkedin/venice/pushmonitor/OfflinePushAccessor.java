@@ -2,7 +2,6 @@ package com.linkedin.venice.pushmonitor;
 
 import java.util.List;
 import java.util.Optional;
-import org.apache.helix.zookeeper.zkclient.IZkChildListener;
 
 
 /**
@@ -85,14 +84,4 @@ public interface OfflinePushAccessor {
    * Unsubscribe the data change of partition status.
    */
   void unsubscribePartitionsStatusChange(String topicName, int partitionCount, PartitionStatusListener listener);
-
-  /**
-   * Subscribe a child listener that listens to OfflinePushStatus creation/deleted.
-   */
-  void subscribePushStatusCreationChange(IZkChildListener childListener);
-
-  /**
-   * Unsubscribe a child listener
-   */
-  void unsubscribePushStatusCreationChange(IZkChildListener childListener);
 }

@@ -1,8 +1,6 @@
 package com.linkedin.venice.endToEnd;
 
-import static com.linkedin.venice.ConfigKeys.ADMIN_HELIX_MESSAGING_CHANNEL_ENABLED;
 import static com.linkedin.venice.ConfigKeys.PARTICIPANT_MESSAGE_CONSUMPTION_DELAY_MS;
-import static com.linkedin.venice.ConfigKeys.PARTICIPANT_MESSAGE_STORE_ENABLED;
 import static com.linkedin.venice.ConfigKeys.TOPIC_CLEANUP_SLEEP_INTERVAL_BETWEEN_TOPIC_LIST_FETCH_MS;
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertFalse;
@@ -72,8 +70,6 @@ public class ParticipantStoreTest {
     Properties controllerConfig = new Properties();
     Properties serverFeatureProperties = new Properties();
     Properties serverProperties = new Properties();
-    controllerConfig.setProperty(PARTICIPANT_MESSAGE_STORE_ENABLED, "true");
-    controllerConfig.setProperty(ADMIN_HELIX_MESSAGING_CHANNEL_ENABLED, "false");
     // Disable topic cleanup since parent and child are sharing the same kafka cluster.
     controllerConfig
         .setProperty(TOPIC_CLEANUP_SLEEP_INTERVAL_BETWEEN_TOPIC_LIST_FETCH_MS, String.valueOf(Long.MAX_VALUE));

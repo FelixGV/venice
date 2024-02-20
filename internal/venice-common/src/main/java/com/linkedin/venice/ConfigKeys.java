@@ -214,7 +214,6 @@ public class ConfigKeys {
   public static final String MIN_ACTIVE_REPLICA = "min.active.replica";
   public static final String CLUSTER_TO_D2 = "cluster.to.d2";
   public static final String CLUSTER_TO_SERVER_D2 = "cluster.to.server.d2";
-  public static final String HELIX_SEND_MESSAGE_TIMEOUT_MS = "helix.send.message.timeout.ms";
   public static final String REFRESH_ATTEMPTS_FOR_ZK_RECONNECT = "refresh.attempts.for.zk.reconnect";
   public static final String REFRESH_INTERVAL_FOR_ZK_RECONNECT_MS = "refresh.interval.for.zk.reconnect.ms";
   public static final String KAFKA_READ_CYCLE_DELAY_MS = "kafka.read.cycle.delay.ms";
@@ -1292,34 +1291,6 @@ public class ConfigKeys {
    */
   public static final String STORAGE_ENGINE_OVERHEAD_RATIO = "storage.engine.overhead.ratio";
 
-  // go/inclusivecode deprecated(alias="enable.offline.push.ssl.allowlist")
-  @Deprecated
-  public static final String ENABLE_OFFLINE_PUSH_SSL_WHITELIST = "enable.offline.push.ssl.whitelist";
-  /**
-   * The switcher to enable/disable the allowlist of ssl offline pushes. If we disable the allowlist here, depends on
-   * the config "SSL_TO_KAFKA", all pushes will be secured by SSL or none of pushes will be secured by SSL.
-   */
-  public static final String ENABLE_OFFLINE_PUSH_SSL_ALLOWLIST = "enable.offline.push.ssl.allowlist";
-
-  // go/inclusivecode deprecated(alias="enable.hybrid.push.ssl.allowlist")
-  @Deprecated
-  public static final String ENABLE_HYBRID_PUSH_SSL_WHITELIST = "enable.hybrid.push.ssl.whitelist";
-  /**
-   * The switcher to enable/disable the allowlist of ssl hybrid pushes including both batch and near-line pushes for
-   * that store. If we disable the allowlist here, depends on the config "SSL_TO_KAFKA", all pushes will be secured by
-   * SSL or none of pushes will be secured by SSL.
-   */
-  public static final String ENABLE_HYBRID_PUSH_SSL_ALLOWLIST = "enable.hybrid.push.ssl.allowlist";
-
-  // go/inclusivecode deprecated(alias="push.ssl.allowlist")
-  @Deprecated
-  public static final String PUSH_SSL_WHITELIST = "push.ssl.whitelist";
-
-  /**
-   * Allowlist of stores which are allowed to push data with SSL.
-   */
-  public static final String PUSH_SSL_ALLOWLIST = "push.ssl.allowlist";
-
   /**
    * Whether to block storage requests on the non-ssl port.  Will still allow metadata requests on the non-ssl port
    * and will log storage requests on the non-ssl port even if set to false;
@@ -1380,16 +1351,6 @@ public class ConfigKeys {
   public static final String CONTROLLER_EARLY_DELETE_BACKUP_ENABLED = "controller.early.delete.backup.enabled";
 
   /**
-   * Flag to indicate which push monitor controller will pick up for an upcoming push
-   */
-  public static final String PUSH_MONITOR_TYPE = "push.monitor.type";
-
-  /**
-   * Flag to enable the participant message store setup and write operations to the store.
-   */
-  public static final String PARTICIPANT_MESSAGE_STORE_ENABLED = "participant.message.store.enabled";
-
-  /**
    * The name of the cluster that should host the special stores used to serve system schemas.
    */
   public static final String CONTROLLER_SYSTEM_SCHEMA_CLUSTER_NAME = "controller.system.schema.cluster.name";
@@ -1401,12 +1362,6 @@ public class ConfigKeys {
    * TODO: deprecate {@link #CONTROLLER_SYSTEM_SCHEMA_CLUSTER_NAME}
    */
   public static final String SYSTEM_SCHEMA_CLUSTER_NAME = "system.schema.cluster.name";
-
-  /**
-   * Flag to enable the controller to send kill push job helix messages to the storage node upon consuming kill push job
-   * admin messages.
-   */
-  public static final String ADMIN_HELIX_MESSAGING_CHANNEL_ENABLED = "admin.helix.messaging.channel.enabled";
 
   /**
    * Minimum delay between each cycle where the storage node polls the participant message store to see if any of its

@@ -72,6 +72,7 @@ import com.linkedin.venice.controllerapi.VersionResponse;
 import com.linkedin.venice.exceptions.ErrorType;
 import com.linkedin.venice.exceptions.InvalidVeniceSchemaException;
 import com.linkedin.venice.exceptions.ResourceStillExistsException;
+import com.linkedin.venice.exceptions.StoreVersionNotFoundException;
 import com.linkedin.venice.exceptions.VeniceException;
 import com.linkedin.venice.exceptions.VeniceHttpException;
 import com.linkedin.venice.exceptions.VeniceNoClusterException;
@@ -156,7 +157,6 @@ import com.linkedin.venice.pubsub.manager.TopicManagerContext;
 import com.linkedin.venice.pubsub.manager.TopicManagerRepository;
 import com.linkedin.venice.pushmonitor.ExecutionStatus;
 import com.linkedin.venice.pushmonitor.ExecutionStatusWithDetails;
-import com.linkedin.venice.pushmonitor.KillOfflinePushMessage;
 import com.linkedin.venice.pushmonitor.OfflinePushStatus;
 import com.linkedin.venice.pushmonitor.PushMonitor;
 import com.linkedin.venice.pushmonitor.PushMonitorDelegator;
@@ -181,7 +181,6 @@ import com.linkedin.venice.serializer.SerializerDeserializerFactory;
 import com.linkedin.venice.service.ICProvider;
 import com.linkedin.venice.stats.AbstractVeniceAggStats;
 import com.linkedin.venice.stats.ZkClientStatusStats;
-import com.linkedin.venice.status.StatusMessageChannel;
 import com.linkedin.venice.status.protocol.BatchJobHeartbeatKey;
 import com.linkedin.venice.status.protocol.BatchJobHeartbeatValue;
 import com.linkedin.venice.status.protocol.PushJobDetails;
@@ -620,7 +619,7 @@ public class VeniceHelixAdmin implements Admin, StoreCleaner {
 
     // Participant stores are not read or written in parent colo. Parent controller skips participant store
     // initialization.
-    if (!multiClusterConfigs.isParent() && multiClusterConfigs.isParticipantMessageStoreEnabled()) {
+    if (!multiClusterConfigs.isParent()) {
       initRoutines.add(
           new PerClusterInternalRTStoreInitializationRoutine(
               PARTICIPANT_MESSAGE_SYSTEM_STORE_VALUE,
@@ -826,12 +825,14 @@ public class VeniceHelixAdmin implements Admin, StoreCleaner {
     List<String> partitionNames =
         Collections.singletonList(VeniceControllerStateModel.getPartitionNameFromVeniceClusterName(clusterName));
     helixAdminClient.enablePartition(true, controllerClusterName, controllerName, clusterName, partitionNames);
-    if (multiClusterConfigs.getControllerConfig(clusterName).isParticipantMessageStoreEnabled()) {
-      participantMessageStoreRTTMap.put(
-          clusterName,
-          Version.composeRealTimeTopic(VeniceSystemStoreUtils.getParticipantStoreNameForCluster(clusterName)));
-    }
     waitUntilClusterResourceIsVisibleInEV(clusterName);
+  }
+
+  @Override
+  public void registerParticipantStoreRealTimeTopic(String clusterName) {
+    participantMessageStoreRTTMap.put(
+        clusterName,
+        Version.composeRealTimeTopic(VeniceSystemStoreUtils.getParticipantStoreNameForCluster(clusterName)));
   }
 
   private void waitUntilClusterResourceIsVisibleInEV(String clusterName) {
@@ -2855,51 +2856,6 @@ public class VeniceHelixAdmin implements Admin, StoreCleaner {
             versionSwapDeferred).getSecond();
   }
 
-  /**
-   * The intended semantic is to use this method to find the version that something is currently pushing to.  It looks
-   * at all versions greater than the current version and identifies the version with a status of STARTED.  If there
-   * is no STARTED version, it creates a new one for the push to use.  This means we cannot use this method to support
-   * multiple concurrent pushes.
-   *
-   * @param store
-   * @return the started version if there is only one, throws an exception if there is an error version with
-   * a greater number than the current version.  Otherwise returns Optional.empty()
-   */
-  protected static Optional<Version> getStartedVersion(Store store) {
-    List<Version> startedVersions = new ArrayList<>();
-    for (Version version: store.getVersions()) {
-      if (version.getNumber() <= store.getCurrentVersion()) {
-        continue;
-      }
-      switch (version.getStatus()) {
-        case ONLINE:
-        case PUSHED:
-          break; // These we can ignore
-        case STARTED:
-          startedVersions.add(version);
-          break;
-        case ERROR:
-        case NOT_CREATED:
-        default:
-          throw new VeniceException(
-              "Version " + version.getNumber() + " for store " + store.getName() + " has status "
-                  + version.getStatus().toString() + ".  Cannot create a new version until this store is cleaned up.");
-      }
-    }
-    if (startedVersions.size() == 1) {
-      return Optional.of(startedVersions.get(0));
-    } else if (startedVersions.size() > 1) {
-      String startedVersionsString = startedVersions.stream()
-          .map(Version::getNumber)
-          .map(n -> Integer.toString(n))
-          .collect(Collectors.joining(","));
-      throw new VeniceException(
-          "Store " + store.getName() + " has versions " + startedVersionsString + " that are all STARTED.  "
-              + "Cannot create a new version while there are multiple STARTED versions");
-    }
-    return Optional.empty();
-  }
-
   private Optional<Version> getVersionWithPushId(String clusterName, String storeName, String pushId) {
     Store store = getStore(clusterName, storeName);
     if (store == null) {
@@ -3085,7 +3041,7 @@ public class VeniceHelixAdmin implements Admin, StoreCleaner {
   @Override
   public RepushInfo getRepushInfo(String clusterName, String storeName, Optional<String> fabricName) {
     Store store = getStore(clusterName, storeName);
-    boolean isSSL = isSSLEnabledForPush(clusterName, storeName);
+    boolean isSSL = isSslToKafka();
     String systemSchemaClusterName = multiClusterConfigs.getSystemSchemaClusterName();
     VeniceControllerConfig systemSchemaClusterConfig = multiClusterConfigs.getControllerConfig(systemSchemaClusterName);
     String systemSchemaClusterD2Service = systemSchemaClusterConfig.getClusterToD2Map().get(systemSchemaClusterName);
@@ -4880,8 +4836,28 @@ public class VeniceHelixAdmin implements Admin, StoreCleaner {
               topic);
           return;
         }
-        if (pushMonitor.getOfflinePushOrThrow(topic).getCurrentStatus().equals(ExecutionStatus.ERROR)) {
-          throw new VeniceException("Push " + topic + " has already failed.");
+
+        try {
+          OfflinePushStatus pushStatus = pushMonitor.getOfflinePushOrThrow(topic);
+          if (pushStatus.getCurrentStatus().equals(ExecutionStatus.ERROR)) {
+            throw new VeniceException(
+                "Push " + topic + " has already failed. Status details: " + pushStatus.getStatusDetails());
+          }
+        } catch (StoreVersionNotFoundException e) {
+          /**
+           * N.B.: We used to do this check only prior to looking up the push status, but there can be a race condition
+           *       where thd leadership is lost right after the check. Technically, there is still a race now but the
+           *       probability of flapping back and forth in such a short period of time seems unlikely, so it may
+           *       be a good enough bandaid...
+           */
+          if (!isLeaderControllerFor(clusterName)) {
+            LOGGER.warn(
+                "No longer leader controller for cluster {}; will stop waiting for the resource assignment for {}",
+                clusterName,
+                topic);
+            return;
+          }
+          throw e;
         }
 
         ResourceAssignment resourceAssignment = routingDataRepository.getResourceAssignment();
@@ -5296,11 +5272,7 @@ public class VeniceHelixAdmin implements Admin, StoreCleaner {
     return false;
   }
 
-  boolean checkIfMetadataSchemaAlreadyPresent(
-      String clusterName,
-      String storeName,
-      int valueSchemaId,
-      RmdSchemaEntry rmdSchemaEntry) {
+  boolean checkIfMetadataSchemaAlreadyPresent(String clusterName, String storeName, RmdSchemaEntry rmdSchemaEntry) {
     checkControllerLeadershipFor(clusterName);
     try {
       Collection<RmdSchemaEntry> schemaEntries =
@@ -5332,7 +5304,7 @@ public class VeniceHelixAdmin implements Admin, StoreCleaner {
 
     RmdSchemaEntry rmdSchemaEntry =
         new RmdSchemaEntry(valueSchemaId, replicationMetadataVersionId, replicationMetadataSchemaStr);
-    if (checkIfMetadataSchemaAlreadyPresent(clusterName, storeName, valueSchemaId, rmdSchemaEntry)) {
+    if (checkIfMetadataSchemaAlreadyPresent(clusterName, storeName, rmdSchemaEntry)) {
       LOGGER.info(
           "Timestamp metadata schema Already present: for store: {} in cluster: {} metadataSchema: {} "
               + "replicationMetadataVersionId: {} valueSchemaId: {}",
@@ -5978,39 +5950,7 @@ public class VeniceHelixAdmin implements Admin, StoreCleaner {
   }
 
   /**
-   * @see Admin#isSSLEnabledForPush(String, String)
-   */
-  @Override
-  public boolean isSSLEnabledForPush(String clusterName, String storeName) {
-    if (isSslToKafka()) {
-      Store store = getStore(clusterName, storeName);
-      if (store == null) {
-        throw new VeniceNoStoreException(storeName);
-      }
-      if (store.isHybrid()) {
-        if (multiClusterConfigs.getCommonConfig().isEnableNearlinePushSSLAllowlist()
-            && (!multiClusterConfigs.getCommonConfig().getPushSSLAllowlist().contains(storeName))) {
-          // allowlist is enabled but the given store is not in that list, so ssl is not enabled for this store.
-          return false;
-        }
-      } else {
-        if (multiClusterConfigs.getCommonConfig().isEnableOfflinePushSSLAllowlist()
-            && (!multiClusterConfigs.getCommonConfig().getPushSSLAllowlist().contains(storeName))) {
-          // allowlist is enabled but the given store is not in that list, so ssl is not enabled for this store.
-          return false;
-        }
-      }
-      // allowlist is not enabled, or allowlist is enabled and the given store is in that list, so ssl is enabled for
-      // this store for push.
-      return true;
-    } else {
-      return false;
-    }
-  }
-
-  /**
    * Test if ssl is enabled to Kafka.
-   * @see ConfigKeys#SSL_TO_KAFKA_LEGACY
    * @see ConfigKeys#KAFKA_OVER_SSL
    */
   @Override
@@ -6313,24 +6253,7 @@ public class VeniceHelixAdmin implements Admin, StoreCleaner {
       }
     }
 
-    StatusMessageChannel messageChannel = resources.getMessageChannel();
-    // As we should already have retry outside of this function call, so we do not need to retry again inside.
-    int retryCount = 1;
-    // Broadcast kill message to all of storage nodes assigned to given resource. Helix will help us to only send
-    // message to the live instances.
-    // The alternative way here is that get the storage nodes in BOOTSTRAP state of given resource, then send the
-    // kill message node by node. Considering the simplicity, broadcast is a better.
-    // In prospective of performance, each time helix sending a message needs to read the whole LIVE_INSTANCE and
-    // EXTERNAL_VIEW from ZK, so sending message nodes by nodes would generate lots of useless read requests. Of course
-    // broadcast would generate useless write requests to ZK(N-M useless messages, N=number of nodes assigned to
-    // resource,
-    // M=number of nodes have completed the ingestion or have not started). But considering the number of nodes in
-    // our cluster is not too big, so it's not a big deal here.
-    if (multiClusterConfigs.getControllerConfig(clusterName).isAdminHelixMessagingChannelEnabled()) {
-      messageChannel.sendToStorageNodes(clusterName, new KillOfflinePushMessage(kafkaTopic), kafkaTopic, retryCount);
-    }
-    if (multiClusterConfigs.getControllerConfig(clusterName).isParticipantMessageStoreEnabled()
-        && participantMessageStoreRTTMap.containsKey(clusterName)) {
+    if (participantMessageStoreRTTMap.containsKey(clusterName)) {
       sendKillMessageToParticipantStore(clusterName, kafkaTopic);
     }
   }
@@ -6365,22 +6288,27 @@ public class VeniceHelixAdmin implements Admin, StoreCleaner {
     return participantMessageWriterMap.computeIfAbsent(clusterName, k -> {
       int attempts = 0;
       boolean verified = false;
-      PubSubTopic topic = pubSubTopicRepository.getTopic(participantMessageStoreRTTMap.get(clusterName));
+      String rtTopicName = null;
       while (attempts < INTERNAL_STORE_GET_RRT_TOPIC_ATTEMPTS) {
-        if (getTopicManager().containsTopicAndAllPartitionsAreOnline(topic)) {
-          verified = true;
-          break;
+        rtTopicName = participantMessageStoreRTTMap.get(clusterName);
+        if (rtTopicName != null) {
+          // If it's null, then it's not ready yet
+          PubSubTopic topic = pubSubTopicRepository.getTopic(rtTopicName);
+          if (getTopicManager().containsTopicAndAllPartitionsAreOnline(topic)) {
+            verified = true;
+            break;
+          }
         }
         attempts++;
         Utils.sleep(INTERNAL_STORE_RTT_RETRY_BACKOFF_MS);
       }
       if (!verified) {
         throw new VeniceException(
-            "Can't find the expected topic " + topic + " for participant message store "
+            "Can't find the expected RT topic for participant message store "
                 + VeniceSystemStoreUtils.getParticipantStoreNameForCluster(clusterName));
       }
       return getVeniceWriterFactory().createVeniceWriter(
-          new VeniceWriterOptions.Builder(topic.getName())
+          new VeniceWriterOptions.Builder(rtTopicName)
               .setKeySerializer(new VeniceAvroKafkaSerializer(ParticipantMessageKey.getClassSchema().toString()))
               .setValueSerializer(new VeniceAvroKafkaSerializer(ParticipantMessageValue.getClassSchema().toString()))
               .build());

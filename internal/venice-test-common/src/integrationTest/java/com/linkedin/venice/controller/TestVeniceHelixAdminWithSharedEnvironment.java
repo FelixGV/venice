@@ -21,8 +21,6 @@ import com.linkedin.venice.exceptions.VeniceException;
 import com.linkedin.venice.exceptions.VeniceNoStoreException;
 import com.linkedin.venice.exceptions.VeniceUnsupportedOperationException;
 import com.linkedin.venice.helix.HelixReadOnlyLiveClusterConfigRepository;
-import com.linkedin.venice.helix.HelixStatusMessageChannel;
-import com.linkedin.venice.helix.SafeHelixManager;
 import com.linkedin.venice.helix.ZkStoreConfigAccessor;
 import com.linkedin.venice.integration.utils.D2TestUtils;
 import com.linkedin.venice.meta.DataReplicationPolicy;
@@ -48,7 +46,6 @@ import com.linkedin.venice.pubsub.api.exceptions.PubSubOpTimeoutException;
 import com.linkedin.venice.pubsub.manager.TopicManager;
 import com.linkedin.venice.pubsub.manager.TopicManagerRepository;
 import com.linkedin.venice.pushmonitor.ExecutionStatus;
-import com.linkedin.venice.pushmonitor.KillOfflinePushMessage;
 import com.linkedin.venice.pushmonitor.PushMonitor;
 import com.linkedin.venice.schema.rmd.RmdSchemaEntry;
 import com.linkedin.venice.schema.rmd.RmdSchemaGenerator;
@@ -100,7 +97,7 @@ public class TestVeniceHelixAdminWithSharedEnvironment extends AbstractTestVenic
 
   @BeforeClass(alwaysRun = true)
   public void setUp() throws Exception {
-    setupCluster(true, metricsRepository);
+    setupCluster(metricsRepository);
     verifyParticipantMessageStoreSetup();
   }
 
@@ -264,11 +261,6 @@ public class TestVeniceHelixAdminWithSharedEnvironment extends AbstractTestVenic
     veniceAdmin.createStore(clusterName, storeName, "owner", KEY_SCHEMA, VALUE_SCHEMA);
     veniceAdmin
         .updateStore(clusterName, storeName, new UpdateStoreQueryParams().setReplicationFactor(DEFAULT_REPLICA_COUNT));
-    // Register the handle for kill message. Otherwise, when job manager collect the old version, it would meet error
-    // after sending kill job message. Because, participant can not handle message correctly.
-    HelixStatusMessageChannel channel =
-        new HelixStatusMessageChannel(helixManagerByNodeID.get(NODE_ID), helixMessageChannelStats);
-    channel.registerHandler(KillOfflinePushMessage.class, message -> {/*ignore*/});
 
     delayParticipantJobCompletion(true);
 
@@ -324,11 +316,6 @@ public class TestVeniceHelixAdminWithSharedEnvironment extends AbstractTestVenic
     veniceAdmin.createStore(clusterName, storeName, "owner", KEY_SCHEMA, VALUE_SCHEMA);
     veniceAdmin
         .updateStore(clusterName, storeName, new UpdateStoreQueryParams().setReplicationFactor(DEFAULT_REPLICA_COUNT));
-    // Register the handle for kill message. Otherwise, when job manager collect the old version, it would meet error
-    // after sending kill job message. Because, participant can not handle message correctly.
-    HelixStatusMessageChannel channel =
-        new HelixStatusMessageChannel(helixManagerByNodeID.get(NODE_ID), helixMessageChannelStats);
-    channel.registerHandler(KillOfflinePushMessage.class, message -> {/*ignore*/});
     Version version = null;
     for (int i = 0; i < 3; i++) {
       version = veniceAdmin.incrementVersionIdempotent(clusterName, storeName, Version.guidBasedDummyPushId(), 1, 1);
@@ -925,85 +912,72 @@ public class TestVeniceHelixAdminWithSharedEnvironment extends AbstractTestVenic
   public void testDeleteAllVersionsInStore() {
     delayParticipantJobCompletion(true);
     String storeName = Utils.getUniqueString("testDeleteAllVersions");
-    // register kill message handler for participants.
-    for (SafeHelixManager manager: this.helixManagerByNodeID.values()) {
-      HelixStatusMessageChannel channel = new HelixStatusMessageChannel(manager, helixMessageChannelStats);
-      channel.registerHandler(KillOfflinePushMessage.class, message -> {
-        // make state transition failed to simulate kill consumption task.
-        stateModelFactoryByNodeID.forEach(
-            (nodeId, stateModelFactory) -> stateModelFactory.makeTransitionCompleted(message.getKafkaTopic(), 0));
-      });
+    // Store has not been created.
+    Assert
+        .assertThrows(VeniceNoStoreException.class, () -> veniceAdmin.deleteAllVersionsInStore(clusterName, storeName));
 
-      // Store has not been created.
-      Assert.assertThrows(
-          VeniceNoStoreException.class,
-          () -> veniceAdmin.deleteAllVersionsInStore(clusterName, storeName));
-
-      // Prepare 3 version. The first two are completed and the last one is still ongoing.
-      int versionCount = 3;
-      veniceAdmin.createStore(clusterName, storeName, "testOwner", KEY_SCHEMA, VALUE_SCHEMA);
-      veniceAdmin.updateStore(
-          clusterName,
-          storeName,
-          new UpdateStoreQueryParams().setReplicationFactor(DEFAULT_REPLICA_COUNT));
-      Version lastVersion = null;
-      for (int i = 0; i < versionCount; i++) {
-        lastVersion =
-            veniceAdmin.incrementVersionIdempotent(clusterName, storeName, Version.guidBasedDummyPushId(), 1, 1);
-        if (i < versionCount - 1) {
-          // Hang the state transition of the last version only. Otherwise, retiring would be triggered.
-          for (Map.Entry<String, MockTestStateModelFactory> entry: stateModelFactoryByNodeID.entrySet()) {
-            MockTestStateModelFactory value = entry.getValue();
-            value.makeTransitionCompleted(lastVersion.kafkaTopicName(), 0);
-          }
-          int versionNumber = lastVersion.getNumber();
-          TestUtils.waitForNonDeterministicCompletion(
-              30,
-              TimeUnit.SECONDS,
-              () -> veniceAdmin.getCurrentVersion(clusterName, storeName) == versionNumber);
+    // Prepare 3 version. The first two are completed and the last one is still ongoing.
+    int versionCount = 3;
+    veniceAdmin.createStore(clusterName, storeName, "testOwner", KEY_SCHEMA, VALUE_SCHEMA);
+    veniceAdmin
+        .updateStore(clusterName, storeName, new UpdateStoreQueryParams().setReplicationFactor(DEFAULT_REPLICA_COUNT));
+    Version lastVersion = null;
+    for (int i = 0; i < versionCount; i++) {
+      lastVersion =
+          veniceAdmin.incrementVersionIdempotent(clusterName, storeName, Version.guidBasedDummyPushId(), 1, 1);
+      if (i < versionCount - 1) {
+        // Hang the state transition of the last version only. Otherwise, retiring would be triggered.
+        for (Map.Entry<String, MockTestStateModelFactory> entry: stateModelFactoryByNodeID.entrySet()) {
+          MockTestStateModelFactory value = entry.getValue();
+          value.makeTransitionCompleted(lastVersion.kafkaTopicName(), 0);
         }
+        int versionNumber = lastVersion.getNumber();
+        TestUtils.waitForNonDeterministicCompletion(
+            30,
+            TimeUnit.SECONDS,
+            () -> veniceAdmin.getCurrentVersion(clusterName, storeName) == versionNumber);
       }
-      Assert.assertEquals(veniceAdmin.getStore(clusterName, storeName).getVersions().size(), 2);
-      // Store has not been disabled.
-      Assert.assertThrows(VeniceException.class, () -> veniceAdmin.deleteAllVersionsInStore(clusterName, storeName));
+    }
+    Assert.assertEquals(veniceAdmin.getStore(clusterName, storeName).getVersions().size(), 2);
+    // Store has not been disabled.
+    Assert.assertThrows(VeniceException.class, () -> veniceAdmin.deleteAllVersionsInStore(clusterName, storeName));
 
-      veniceAdmin.setStoreReadability(clusterName, storeName, false);
-      // Store has not been disabled to write
-      Assert.assertThrows(VeniceException.class, () -> veniceAdmin.deleteAllVersionsInStore(clusterName, storeName));
+    veniceAdmin.setStoreReadability(clusterName, storeName, false);
+    // Store has not been disabled to write
+    Assert.assertThrows(VeniceException.class, () -> veniceAdmin.deleteAllVersionsInStore(clusterName, storeName));
 
-      veniceAdmin.setStoreReadability(clusterName, storeName, true);
-      veniceAdmin.setStoreWriteability(clusterName, storeName, false);
-      // Store has not been disabled to read
-      Assert.assertThrows(VeniceException.class, () -> veniceAdmin.deleteAllVersionsInStore(clusterName, storeName));
+    veniceAdmin.setStoreReadability(clusterName, storeName, true);
+    veniceAdmin.setStoreWriteability(clusterName, storeName, false);
+    // Store has not been disabled to read
+    Assert.assertThrows(VeniceException.class, () -> veniceAdmin.deleteAllVersionsInStore(clusterName, storeName));
 
-      // Store has been disabled.
-      veniceAdmin.setStoreReadability(clusterName, storeName, false);
-      veniceAdmin.deleteAllVersionsInStore(clusterName, storeName);
-      Assert.assertEquals(
-          veniceAdmin.getStore(clusterName, storeName).getVersions().size(),
-          0,
-          " Versions should be deleted.");
-      Assert.assertEquals(veniceAdmin.getStore(clusterName, storeName).getCurrentVersion(), Store.NON_EXISTING_VERSION);
-      // After enabling store, the serving version is -1 because there is not version available in this store.
-      veniceAdmin.setStoreReadability(clusterName, storeName, true);
-      Assert.assertEquals(
-          veniceAdmin.getStore(clusterName, storeName).getCurrentVersion(),
-          Store.NON_EXISTING_VERSION,
-          "No version should be available to read");
-      String uncompletedTopic = lastVersion.kafkaTopicName();
-      Assert.assertTrue(
-          veniceAdmin.isTopicTruncated(uncompletedTopic),
-          "Kafka topic: " + uncompletedTopic + " should be truncated for the uncompleted version.");
-      String completedTopic = Version.composeKafkaTopic(storeName, lastVersion.getNumber() - 1);
-      Assert.assertTrue(
-          veniceAdmin.isTopicTruncated(completedTopic),
-          "Kafka topic: " + completedTopic + " should be truncated for the completed version.");
+    // Store has been disabled.
+    veniceAdmin.setStoreReadability(clusterName, storeName, false);
+    veniceAdmin.deleteAllVersionsInStore(clusterName, storeName);
+    Assert.assertEquals(
+        veniceAdmin.getStore(clusterName, storeName).getVersions().size(),
+        0,
+        " Versions should be deleted.");
+    Assert.assertEquals(veniceAdmin.getStore(clusterName, storeName).getCurrentVersion(), Store.NON_EXISTING_VERSION);
+    // After enabling store, the serving version is -1 because there is not version available in this store.
+    veniceAdmin.setStoreReadability(clusterName, storeName, true);
+    Assert.assertEquals(
+        veniceAdmin.getStore(clusterName, storeName).getCurrentVersion(),
+        Store.NON_EXISTING_VERSION,
+        "No version should be available to read");
+    String uncompletedTopic = lastVersion.kafkaTopicName();
+    Assert.assertTrue(
+        veniceAdmin.isTopicTruncated(uncompletedTopic),
+        "Kafka topic: " + uncompletedTopic + " should be truncated for the uncompleted version.");
+    String completedTopic = Version.composeKafkaTopic(storeName, lastVersion.getNumber() - 1);
+    Assert.assertTrue(
+        veniceAdmin.isTopicTruncated(completedTopic),
+        "Kafka topic: " + completedTopic + " should be truncated for the completed version.");
 
-      delayParticipantJobCompletion(false);
-      for (Map.Entry<String, MockTestStateModelFactory> entry: stateModelFactoryByNodeID.entrySet()) {
-        MockTestStateModelFactory value = entry.getValue();
-        value.makeTransitionCompleted(lastVersion.kafkaTopicName(), 0);
-      }
+    delayParticipantJobCompletion(false);
+    for (Map.Entry<String, MockTestStateModelFactory> entry: stateModelFactoryByNodeID.entrySet()) {
+      MockTestStateModelFactory value = entry.getValue();
+      value.makeTransitionCompleted(lastVersion.kafkaTopicName(), 0);
     }
   }
 
@@ -1026,10 +1000,6 @@ public class TestVeniceHelixAdminWithSharedEnvironment extends AbstractTestVenic
   @Test
   public void testDeleteOldVersionInStore() {
     String storeName = Utils.getUniqueString("testDeleteOldVersion");
-    for (SafeHelixManager manager: this.helixManagerByNodeID.values()) {
-      HelixStatusMessageChannel channel = new HelixStatusMessageChannel(manager, helixMessageChannelStats);
-      channel.registerHandler(KillOfflinePushMessage.class, message -> {/*ignore*/ });
-    }
     veniceAdmin.createStore(clusterName, storeName, "testOwner", KEY_SCHEMA, VALUE_SCHEMA);
     veniceAdmin
         .updateStore(clusterName, storeName, new UpdateStoreQueryParams().setReplicationFactor(DEFAULT_REPLICA_COUNT));
@@ -1060,12 +1030,6 @@ public class TestVeniceHelixAdminWithSharedEnvironment extends AbstractTestVenic
   @Test
   public void testRetireOldStoreVersionsKillOfflineFails() {
     String storeName = Utils.getUniqueString("testDeleteOldVersion");
-    HelixStatusMessageChannel channel = new HelixStatusMessageChannel(helixManager, helixMessageChannelStats);
-    channel.registerHandler(KillOfflinePushMessage.class, message -> {
-      if (message.getKafkaTopic().equals(Version.composeKafkaTopic(storeName, 1))) {
-        throw new VeniceException("offline job failed!!");
-      }
-    });
 
     veniceAdmin.createStore(clusterName, storeName, "testOwner", KEY_SCHEMA, VALUE_SCHEMA);
     veniceAdmin
@@ -1092,13 +1056,6 @@ public class TestVeniceHelixAdminWithSharedEnvironment extends AbstractTestVenic
   public void testDeleteStore() {
     String storeName = Utils.getUniqueString("testDeleteStore");
     TestUtils.createTestStore(storeName, storeOwner, System.currentTimeMillis());
-    for (SafeHelixManager manager: this.helixManagerByNodeID.values()) {
-      HelixStatusMessageChannel channel = new HelixStatusMessageChannel(manager, helixMessageChannelStats);
-      channel.registerHandler(
-          KillOfflinePushMessage.class,
-          message -> stateModelFactoryByNodeID.forEach(
-              (nodeId, stateModelFactory) -> stateModelFactory.makeTransitionCompleted(message.getKafkaTopic(), 0)));
-    }
     veniceAdmin.createStore(clusterName, storeName, storeOwner, "\"string\"", "\"string\"");
     veniceAdmin
         .updateStore(clusterName, storeName, new UpdateStoreQueryParams().setReplicationFactor(DEFAULT_REPLICA_COUNT));
@@ -1167,39 +1124,29 @@ public class TestVeniceHelixAdminWithSharedEnvironment extends AbstractTestVenic
     int largestUsedVersionNumber = 1000;
 
     TestUtils.createTestStore(storeName, storeOwner, System.currentTimeMillis());
-    for (SafeHelixManager manager: this.helixManagerByNodeID.values()) {
-      HelixStatusMessageChannel channel = new HelixStatusMessageChannel(manager, helixMessageChannelStats);
-      channel.registerHandler(
-          KillOfflinePushMessage.class,
-          message -> stateModelFactoryByNodeID.forEach(
-              (nodeId, stateModelFactory) -> stateModelFactory.makeTransitionCompleted(message.getKafkaTopic(), 0)));
+    veniceAdmin.createStore(clusterName, storeName, storeOwner, "\"string\"", "\"string\"");
+    veniceAdmin
+        .updateStore(clusterName, storeName, new UpdateStoreQueryParams().setReplicationFactor(DEFAULT_REPLICA_COUNT));
+    Version version =
+        veniceAdmin.incrementVersionIdempotent(clusterName, storeName, Version.guidBasedDummyPushId(), 1, 1);
+    TestUtils.waitForNonDeterministicCompletion(
+        TOTAL_TIMEOUT_FOR_SHORT_TEST_MS,
+        TimeUnit.MILLISECONDS,
+        () -> veniceAdmin.getCurrentVersion(clusterName, storeName) == version.getNumber());
+    PubSubTopic storeVersionTopic =
+        pubSubTopicRepository.getTopic(Version.composeKafkaTopic(storeName, version.getNumber()));
+    Assert.assertTrue(
+        veniceAdmin.getTopicManager().containsTopicAndAllPartitionsAreOnline(storeVersionTopic),
+        "Kafka topic should be created.");
 
-      veniceAdmin.createStore(clusterName, storeName, storeOwner, "\"string\"", "\"string\"");
-      veniceAdmin.updateStore(
-          clusterName,
-          storeName,
-          new UpdateStoreQueryParams().setReplicationFactor(DEFAULT_REPLICA_COUNT));
-      Version version =
-          veniceAdmin.incrementVersionIdempotent(clusterName, storeName, Version.guidBasedDummyPushId(), 1, 1);
-      TestUtils.waitForNonDeterministicCompletion(
-          TOTAL_TIMEOUT_FOR_SHORT_TEST_MS,
-          TimeUnit.MILLISECONDS,
-          () -> veniceAdmin.getCurrentVersion(clusterName, storeName) == version.getNumber());
-      PubSubTopic storeVersionTopic =
-          pubSubTopicRepository.getTopic(Version.composeKafkaTopic(storeName, version.getNumber()));
-      Assert.assertTrue(
-          veniceAdmin.getTopicManager().containsTopicAndAllPartitionsAreOnline(storeVersionTopic),
-          "Kafka topic should be created.");
-
-      veniceAdmin.setStoreReadability(clusterName, storeName, false);
-      veniceAdmin.setStoreWriteability(clusterName, storeName, false);
-      veniceAdmin.deleteStore(clusterName, storeName, largestUsedVersionNumber, true);
-      Assert.assertNull(veniceAdmin.getStore(clusterName, storeName), "Store should be deleted before.");
-      Assert.assertEquals(
-          veniceAdmin.getStoreGraveyard().getLargestUsedVersionNumber(storeName),
-          largestUsedVersionNumber,
-          "LargestUsedVersionNumber should be overwritten and kept in graveyard.");
-    }
+    veniceAdmin.setStoreReadability(clusterName, storeName, false);
+    veniceAdmin.setStoreWriteability(clusterName, storeName, false);
+    veniceAdmin.deleteStore(clusterName, storeName, largestUsedVersionNumber, true);
+    Assert.assertNull(veniceAdmin.getStore(clusterName, storeName), "Store should be deleted before.");
+    Assert.assertEquals(
+        veniceAdmin.getStoreGraveyard().getLargestUsedVersionNumber(storeName),
+        largestUsedVersionNumber,
+        "LargestUsedVersionNumber should be overwritten and kept in graveyard.");
   }
 
   @Test

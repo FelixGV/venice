@@ -309,7 +309,7 @@ public class StoresRoutes extends AbstractRoute {
           storeInfo.setBackupVersionRetentionMs(admin.getBackupVersionDefaultRetentionMs());
         }
         storeInfo.setColoToCurrentVersions(admin.getCurrentVersionsForMultiColos(clusterName, storeName));
-        boolean isSSL = admin.isSSLEnabledForPush(clusterName, storeName);
+        boolean isSSL = admin.isSslToKafka();
         storeInfo.setKafkaBrokerUrl(admin.getKafkaBootstrapServers(isSSL));
 
         veniceResponse.setStore(storeInfo);

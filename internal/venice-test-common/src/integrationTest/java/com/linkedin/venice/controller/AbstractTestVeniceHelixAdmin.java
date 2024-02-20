@@ -1,6 +1,5 @@
 package com.linkedin.venice.controller;
 
-import static com.linkedin.venice.ConfigKeys.ADMIN_HELIX_MESSAGING_CHANNEL_ENABLED;
 import static com.linkedin.venice.ConfigKeys.CHILD_CLUSTER_ALLOWLIST;
 import static com.linkedin.venice.ConfigKeys.CLUSTER_NAME;
 import static com.linkedin.venice.ConfigKeys.CLUSTER_TO_D2;
@@ -12,7 +11,7 @@ import static com.linkedin.venice.ConfigKeys.DEFAULT_MAX_NUMBER_OF_PARTITIONS;
 import static com.linkedin.venice.ConfigKeys.DEFAULT_PARTITION_SIZE;
 import static com.linkedin.venice.ConfigKeys.KAFKA_BOOTSTRAP_SERVERS;
 import static com.linkedin.venice.ConfigKeys.KAFKA_REPLICATION_FACTOR;
-import static com.linkedin.venice.ConfigKeys.PARTICIPANT_MESSAGE_STORE_ENABLED;
+import static com.linkedin.venice.ConfigKeys.SSL_KAFKA_BOOTSTRAP_SERVERS;
 import static com.linkedin.venice.ConfigKeys.TOPIC_CLEANUP_SEND_CONCURRENT_DELETES_REQUESTS;
 import static com.linkedin.venice.ConfigKeys.UNREGISTER_METRIC_FOR_DELETED_STORE_ENABLED;
 import static com.linkedin.venice.ConfigKeys.ZOOKEEPER_ADDRESS;
@@ -29,7 +28,6 @@ import com.linkedin.venice.integration.utils.ZkServerWrapper;
 import com.linkedin.venice.meta.Store;
 import com.linkedin.venice.meta.Version;
 import com.linkedin.venice.pubsub.PubSubTopicRepository;
-import com.linkedin.venice.stats.HelixMessageChannelStats;
 import com.linkedin.venice.utils.HelixUtils;
 import com.linkedin.venice.utils.MockTestStateModelFactory;
 import com.linkedin.venice.utils.TestUtils;
@@ -77,33 +75,23 @@ class AbstractTestVeniceHelixAdmin {
 
   VeniceProperties controllerProps;
   Map<String, MockTestStateModelFactory> stateModelFactoryByNodeID = new ConcurrentHashMap<>();
-  HelixMessageChannelStats helixMessageChannelStats;
   VeniceControllerMultiClusterConfig multiClusterConfig;
 
   final PubSubTopicRepository pubSubTopicRepository = new PubSubTopicRepository();
 
   public void setupCluster() throws Exception {
-    setupCluster(true, new MetricsRepository());
+    setupCluster(new MetricsRepository());
   }
 
-  public void setupCluster(boolean createParticipantStore) throws Exception {
-    setupCluster(createParticipantStore, new MetricsRepository());
-  }
-
-  public void setupCluster(boolean createParticipantStore, MetricsRepository metricsRepository) throws Exception {
+  public void setupCluster(MetricsRepository metricsRepository) throws Exception {
     Utils.thisIsLocalhost();
     zkServerWrapper = ServiceFactory.getZkServer();
     zkAddress = zkServerWrapper.getAddress();
     pubSubBrokerWrapper = ServiceFactory.getPubSubBroker();
     clusterName = Utils.getUniqueString("test-cluster");
     Properties properties = getControllerProperties(clusterName);
-    if (!createParticipantStore) {
-      properties.put(PARTICIPANT_MESSAGE_STORE_ENABLED, false);
-      properties.put(ADMIN_HELIX_MESSAGING_CHANNEL_ENABLED, true);
-    }
     properties.put(UNREGISTER_METRIC_FOR_DELETED_STORE_ENABLED, true);
     controllerProps = new VeniceProperties(properties);
-    helixMessageChannelStats = new HelixMessageChannelStats(new MetricsRepository(), clusterName);
     controllerConfig = new VeniceControllerConfig(controllerProps);
     multiClusterConfig = TestUtils.getMultiClusterConfigFromOneCluster(controllerConfig);
     veniceAdmin = new VeniceHelixAdmin(
@@ -116,27 +104,24 @@ class AbstractTestVeniceHelixAdmin {
     startParticipant();
     waitUntilIsLeader(veniceAdmin, clusterName, LEADER_CHANGE_TIMEOUT_MS);
 
-    if (createParticipantStore) {
-      // Wait for participant store to finish materializing
-      TestUtils.waitForNonDeterministicAssertion(10, TimeUnit.SECONDS, () -> {
-        Store store =
-            veniceAdmin.getStore(clusterName, VeniceSystemStoreUtils.getParticipantStoreNameForCluster(clusterName));
-        Assert.assertNotNull(store);
-        Assert.assertEquals(store.getCurrentVersion(), 1);
-      });
-    }
+    TestUtils.waitForNonDeterministicAssertion(10, TimeUnit.SECONDS, () -> {
+      Store store =
+          veniceAdmin.getStore(clusterName, VeniceSystemStoreUtils.getParticipantStoreNameForCluster(clusterName));
+      Assert.assertNotNull(store);
+      Assert.assertEquals(store.getCurrentVersion(), 1);
+    });
   }
 
   public void cleanupCluster() {
     stopAllParticipants();
     try {
       veniceAdmin.stop(clusterName);
-      veniceAdmin.close();
     } catch (Exception e) {
       LOGGER.warn(e);
     }
-    zkServerWrapper.close();
-    pubSubBrokerWrapper.close();
+    Utils.closeQuietlyWithErrorLogged(veniceAdmin);
+    Utils.closeQuietlyWithErrorLogged(zkServerWrapper);
+    Utils.closeQuietlyWithErrorLogged(pubSubBrokerWrapper);
   }
 
   void startParticipant() throws Exception {
@@ -201,6 +186,7 @@ class AbstractTestVeniceHelixAdmin {
     properties.put(ZOOKEEPER_ADDRESS, zkAddress);
     properties.put(CLUSTER_NAME, clusterName);
     properties.put(KAFKA_BOOTSTRAP_SERVERS, pubSubBrokerWrapper.getAddress());
+    properties.put(SSL_KAFKA_BOOTSTRAP_SERVERS, pubSubBrokerWrapper.getSSLAddress());
     properties.put(DEFAULT_MAX_NUMBER_OF_PARTITIONS, MAX_NUMBER_OF_PARTITION);
     properties.put(DEFAULT_PARTITION_SIZE, 10);
     properties.put(CLUSTER_TO_D2, TestUtils.getClusterToD2String(Collections.singletonMap(clusterName, "dummy_d2")));
@@ -208,8 +194,6 @@ class AbstractTestVeniceHelixAdmin {
         CLUSTER_TO_SERVER_D2,
         TestUtils.getClusterToD2String(Collections.singletonMap(clusterName, "dummy_server_d2")));
     properties.put(CONTROLLER_ADD_VERSION_VIA_ADMIN_PROTOCOL, true);
-    properties.put(ADMIN_HELIX_MESSAGING_CHANNEL_ENABLED, false);
-    properties.put(PARTICIPANT_MESSAGE_STORE_ENABLED, true);
     properties.put(TOPIC_CLEANUP_SEND_CONCURRENT_DELETES_REQUESTS, true);
     properties.put(CONTROLLER_SYSTEM_SCHEMA_CLUSTER_NAME, clusterName);
     properties.put(CHILD_CLUSTER_ALLOWLIST, "dc-0");

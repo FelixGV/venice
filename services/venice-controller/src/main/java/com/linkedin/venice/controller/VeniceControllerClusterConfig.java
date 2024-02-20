@@ -23,21 +23,16 @@ import static com.linkedin.venice.ConfigKeys.DEFAULT_ROUTING_STRATEGY;
 import static com.linkedin.venice.ConfigKeys.DELAY_TO_REBALANCE_MS;
 import static com.linkedin.venice.ConfigKeys.ENABLE_ACTIVE_ACTIVE_REPLICATION_AS_DEFAULT_FOR_BATCH_ONLY_STORE;
 import static com.linkedin.venice.ConfigKeys.ENABLE_ACTIVE_ACTIVE_REPLICATION_AS_DEFAULT_FOR_HYBRID_STORE;
-import static com.linkedin.venice.ConfigKeys.ENABLE_HYBRID_PUSH_SSL_ALLOWLIST;
-import static com.linkedin.venice.ConfigKeys.ENABLE_HYBRID_PUSH_SSL_WHITELIST;
 import static com.linkedin.venice.ConfigKeys.ENABLE_INCREMENTAL_PUSH_FOR_HYBRID_ACTIVE_ACTIVE_USER_STORES;
 import static com.linkedin.venice.ConfigKeys.ENABLE_NATIVE_REPLICATION_AS_DEFAULT_FOR_BATCH_ONLY;
 import static com.linkedin.venice.ConfigKeys.ENABLE_NATIVE_REPLICATION_AS_DEFAULT_FOR_HYBRID;
 import static com.linkedin.venice.ConfigKeys.ENABLE_NATIVE_REPLICATION_FOR_BATCH_ONLY;
 import static com.linkedin.venice.ConfigKeys.ENABLE_NATIVE_REPLICATION_FOR_HYBRID;
-import static com.linkedin.venice.ConfigKeys.ENABLE_OFFLINE_PUSH_SSL_ALLOWLIST;
-import static com.linkedin.venice.ConfigKeys.ENABLE_OFFLINE_PUSH_SSL_WHITELIST;
 import static com.linkedin.venice.ConfigKeys.ENABLE_PARTIAL_UPDATE_FOR_HYBRID_ACTIVE_ACTIVE_USER_STORES;
 import static com.linkedin.venice.ConfigKeys.ENABLE_PARTIAL_UPDATE_FOR_HYBRID_NON_ACTIVE_ACTIVE_USER_STORES;
 import static com.linkedin.venice.ConfigKeys.ENABLE_PARTITION_COUNT_ROUND_UP;
 import static com.linkedin.venice.ConfigKeys.FORCE_LEADER_ERROR_REPLICA_FAIL_OVER_ENABLED;
 import static com.linkedin.venice.ConfigKeys.HELIX_REBALANCE_ALG;
-import static com.linkedin.venice.ConfigKeys.HELIX_SEND_MESSAGE_TIMEOUT_MS;
 import static com.linkedin.venice.ConfigKeys.KAFKA_BOOTSTRAP_SERVERS;
 import static com.linkedin.venice.ConfigKeys.KAFKA_LOG_COMPACTION_FOR_HYBRID_STORES;
 import static com.linkedin.venice.ConfigKeys.KAFKA_MIN_IN_SYNC_REPLICAS;
@@ -56,9 +51,6 @@ import static com.linkedin.venice.ConfigKeys.NATIVE_REPLICATION_SOURCE_FABRIC_AS
 import static com.linkedin.venice.ConfigKeys.OFFLINE_JOB_START_TIMEOUT_MS;
 import static com.linkedin.venice.ConfigKeys.PARTITION_COUNT_ROUND_UP_SIZE;
 import static com.linkedin.venice.ConfigKeys.PERSISTENCE_TYPE;
-import static com.linkedin.venice.ConfigKeys.PUSH_MONITOR_TYPE;
-import static com.linkedin.venice.ConfigKeys.PUSH_SSL_ALLOWLIST;
-import static com.linkedin.venice.ConfigKeys.PUSH_SSL_WHITELIST;
 import static com.linkedin.venice.ConfigKeys.REFRESH_ATTEMPTS_FOR_ZK_RECONNECT;
 import static com.linkedin.venice.ConfigKeys.REFRESH_INTERVAL_FOR_ZK_RECONNECT_MS;
 import static com.linkedin.venice.ConfigKeys.REPLICATION_METADATA_VERSION;
@@ -79,12 +71,9 @@ import com.linkedin.venice.meta.PersistenceType;
 import com.linkedin.venice.meta.ReadStrategy;
 import com.linkedin.venice.meta.RoutingStrategy;
 import com.linkedin.venice.pushmonitor.LeakedPushStatusCleanUpService;
-import com.linkedin.venice.pushmonitor.PushMonitorType;
 import com.linkedin.venice.utils.KafkaSSLUtils;
 import com.linkedin.venice.utils.VeniceProperties;
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
@@ -119,19 +108,13 @@ public class VeniceControllerClusterConfig {
   private Map<String, String> clusterToD2Map;
   private Map<String, String> clusterToServerD2Map;
   private boolean sslToKafka;
-  private int helixSendMessageTimeoutMilliseconds;
   private int adminTopicReplicationFactor;
-  private PushMonitorType pushMonitorType;
-
   private String kafkaSecurityProtocol;
   // SSL related config
   Optional<SSLConfig> sslConfig;
   private String sslFactoryClassName;
   private int refreshAttemptsForZkReconnect;
   private long refreshIntervalForZkReconnectInMs;
-  private boolean enableOfflinePushSSLAllowlist;
-  private boolean enableNearlinePushSSLAllowlist;
-  private List<String> pushSSLAllowlist;
 
   /**
    * TODO: the follower 3 cluster level configs remains in the code base in case the new cluster level configs are not
@@ -348,7 +331,6 @@ public class VeniceControllerClusterConfig {
       // In that case , ssl kafka broker list is an mandatory field
       sslKafkaBootStrapServers = props.getString(SSL_KAFKA_BOOTSTRAP_SERVERS);
     }
-    helixSendMessageTimeoutMilliseconds = props.getInt(HELIX_SEND_MESSAGE_TIMEOUT_MS, 10000);
 
     kafkaSecurityProtocol = props.getString(KAFKA_SECURITY_PROTOCOL, SecurityProtocol.PLAINTEXT.name());
     if (!KafkaSSLUtils.isKafkaProtocolValid(kafkaSecurityProtocol)) {
@@ -363,21 +345,8 @@ public class VeniceControllerClusterConfig {
     refreshAttemptsForZkReconnect = props.getInt(REFRESH_ATTEMPTS_FOR_ZK_RECONNECT, 3);
     refreshIntervalForZkReconnectInMs =
         props.getLong(REFRESH_INTERVAL_FOR_ZK_RECONNECT_MS, java.util.concurrent.TimeUnit.SECONDS.toMillis(10));
-    enableOfflinePushSSLAllowlist = props.getBooleanWithAlternative(
-        ENABLE_OFFLINE_PUSH_SSL_ALLOWLIST,
-        // go/inclusivecode deferred(Reference will be removed when clients have migrated)
-        ENABLE_OFFLINE_PUSH_SSL_WHITELIST,
-        true);
-    enableNearlinePushSSLAllowlist = props.getBooleanWithAlternative(
-        ENABLE_HYBRID_PUSH_SSL_ALLOWLIST,
-        // go/inclusivecode deferred(Reference will be removed when clients have migrated)
-        ENABLE_HYBRID_PUSH_SSL_WHITELIST,
-        true);
-    pushSSLAllowlist = props.getListWithAlternative(PUSH_SSL_ALLOWLIST, PUSH_SSL_WHITELIST, new ArrayList<>());
     helixRebalanceAlg = props.getString(HELIX_REBALANCE_ALG, CrushRebalanceStrategy.class.getName());
     adminTopicReplicationFactor = props.getInt(ADMIN_TOPIC_REPLICATION_FACTOR, 3);
-    this.pushMonitorType =
-        PushMonitorType.valueOf(props.getString(PUSH_MONITOR_TYPE, PushMonitorType.WRITE_COMPUTE_STORE.name()));
     if (adminTopicReplicationFactor < 1) {
       throw new ConfigurationException(ADMIN_TOPIC_REPLICATION_FACTOR + " cannot be less than 1.");
     }
@@ -519,10 +488,6 @@ public class VeniceControllerClusterConfig {
     return sslKafkaBootStrapServers;
   }
 
-  public int getHelixSendMessageTimeoutMs() {
-    return helixSendMessageTimeoutMilliseconds;
-  }
-
   public String getKafkaSecurityProtocol() {
     return kafkaSecurityProtocol;
   }
@@ -543,28 +508,12 @@ public class VeniceControllerClusterConfig {
     return refreshIntervalForZkReconnectInMs;
   }
 
-  public boolean isEnableOfflinePushSSLAllowlist() {
-    return enableOfflinePushSSLAllowlist;
-  }
-
-  public List<String> getPushSSLAllowlist() {
-    return pushSSLAllowlist;
-  }
-
-  public boolean isEnableNearlinePushSSLAllowlist() {
-    return enableNearlinePushSSLAllowlist;
-  }
-
   public String getHelixRebalanceAlg() {
     return helixRebalanceAlg;
   }
 
   public int getAdminTopicReplicationFactor() {
     return adminTopicReplicationFactor;
-  }
-
-  public PushMonitorType getPushMonitorType() {
-    return pushMonitorType;
   }
 
   public Optional<Integer> getMinInSyncReplicas() {

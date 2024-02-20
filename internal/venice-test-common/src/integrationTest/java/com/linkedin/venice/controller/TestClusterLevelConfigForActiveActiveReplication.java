@@ -3,7 +3,6 @@ package com.linkedin.venice.controller;
 import static com.linkedin.venice.ConfigKeys.ENABLE_ACTIVE_ACTIVE_REPLICATION_AS_DEFAULT_FOR_BATCH_ONLY_STORE;
 import static com.linkedin.venice.ConfigKeys.ENABLE_ACTIVE_ACTIVE_REPLICATION_AS_DEFAULT_FOR_HYBRID_STORE;
 import static com.linkedin.venice.ConfigKeys.ENABLE_NATIVE_REPLICATION_AS_DEFAULT_FOR_BATCH_ONLY;
-import static com.linkedin.venice.ConfigKeys.PARTICIPANT_MESSAGE_STORE_ENABLED;
 import static com.linkedin.venice.controller.VeniceHelixAdmin.VERSION_ID_UNSET;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -235,16 +234,13 @@ public class TestClusterLevelConfigForActiveActiveReplication extends AbstractTe
     veniceAdmin.setTopicManagerRepository(mockedTopicManageRepository);
     TestUtils
         .waitForNonDeterministicCompletion(5, TimeUnit.SECONDS, () -> veniceAdmin.isLeaderControllerFor(clusterName));
-    Object createParticipantStoreFromProp = controllerProperties.get(PARTICIPANT_MESSAGE_STORE_ENABLED);
-    if (createParticipantStoreFromProp != null && Boolean.parseBoolean(createParticipantStoreFromProp.toString())) {
-      // Wait for participant store to finish materializing
-      TestUtils.waitForNonDeterministicAssertion(10, TimeUnit.SECONDS, () -> {
-        Store store =
-            veniceAdmin.getStore(clusterName, VeniceSystemStoreUtils.getParticipantStoreNameForCluster(clusterName));
-        Assert.assertNotNull(store);
-        assertEquals(store.getCurrentVersion(), 1);
-      });
-    }
+    // Wait for participant store to finish materializing
+    TestUtils.waitForNonDeterministicAssertion(10, TimeUnit.SECONDS, () -> {
+      Store store =
+          veniceAdmin.getStore(clusterName, VeniceSystemStoreUtils.getParticipantStoreNameForCluster(clusterName));
+      Assert.assertNotNull(store);
+      assertEquals(store.getCurrentVersion(), 1);
+    });
     return originalTopicManagerRepository;
   }
 

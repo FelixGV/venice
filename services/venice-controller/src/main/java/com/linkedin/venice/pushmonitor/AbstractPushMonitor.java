@@ -11,6 +11,7 @@ import static com.linkedin.venice.pushmonitor.OfflinePushStatus.HELIX_RESOURCE_N
 import com.linkedin.venice.controller.HelixAdminClient;
 import com.linkedin.venice.controller.VeniceControllerConfig;
 import com.linkedin.venice.controller.stats.DisabledPartitionStats;
+import com.linkedin.venice.exceptions.StoreVersionNotFoundException;
 import com.linkedin.venice.exceptions.VeniceException;
 import com.linkedin.venice.exceptions.VeniceNoStoreException;
 import com.linkedin.venice.helix.HelixCustomizedViewOfflinePushRepository;
@@ -259,11 +260,11 @@ public abstract class AbstractPushMonitor
 
   @Override
   public void stopMonitorOfflinePush(String kafkaTopic, boolean deletePushStatus, boolean isForcedDelete) {
-    LOGGER.info("Stopping monitoring push on topic:{}", kafkaTopic);
+    LOGGER.info("Stopping monitoring push on topic: {}", kafkaTopic);
     String storeName = Version.parseStoreFromKafkaTopicName(kafkaTopic);
     try (AutoCloseableLock ignore = clusterLockManager.createStoreWriteLock(storeName)) {
       if (!topicToPushMap.containsKey(kafkaTopic)) {
-        LOGGER.warn("Push status does not exist for topic:{} in cluster:{}", kafkaTopic, clusterName);
+        LOGGER.warn("Push status does not exist for topic: {} in cluster: {}", kafkaTopic, clusterName);
         return;
       }
       OfflinePushStatus pushStatus = getOfflinePush(kafkaTopic);
@@ -311,7 +312,7 @@ public abstract class AbstractPushMonitor
     if (topicToPushMap.containsKey(topic)) {
       return topicToPushMap.get(topic);
     } else {
-      throw new VeniceException("Can not find offline push status for topic:" + topic);
+      throw new StoreVersionNotFoundException("Can not find offline push status for topic:" + topic);
     }
   }
 

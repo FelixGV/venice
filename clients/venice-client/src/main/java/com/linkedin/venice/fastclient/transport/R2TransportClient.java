@@ -14,6 +14,7 @@ import com.linkedin.venice.compression.CompressionStrategy;
 import com.linkedin.venice.schema.SchemaData;
 import java.io.IOException;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import org.apache.commons.httpclient.HttpStatus;
 import org.apache.logging.log4j.LogManager;
@@ -30,7 +31,7 @@ public class R2TransportClient extends InternalTransportClient {
   private final Client r2Client;
 
   public R2TransportClient(Client r2Client) {
-    this.r2Client = r2Client;
+    this.r2Client = Objects.requireNonNull(r2Client);
   }
 
   @Override

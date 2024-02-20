@@ -15,13 +15,13 @@ import com.linkedin.venice.compression.CompressorFactory;
 import com.linkedin.venice.compression.VeniceCompressor;
 import com.linkedin.venice.controllerapi.ControllerClient;
 import com.linkedin.venice.controllerapi.ControllerResponse;
+import com.linkedin.venice.controllerapi.NewStoreResponse;
 import com.linkedin.venice.controllerapi.UpdateStoreQueryParams;
 import com.linkedin.venice.controllerapi.VersionCreationResponse;
 import com.linkedin.venice.exceptions.VeniceException;
 import com.linkedin.venice.helix.HelixReadOnlySchemaRepository;
 import com.linkedin.venice.integration.utils.ServiceFactory;
 import com.linkedin.venice.integration.utils.VeniceClusterWrapper;
-import com.linkedin.venice.meta.Version;
 import com.linkedin.venice.pubsub.PubSubProducerAdapterFactory;
 import com.linkedin.venice.pushmonitor.ExecutionStatus;
 import com.linkedin.venice.serialization.DefaultSerializer;
@@ -123,8 +123,9 @@ public class StorageNodeComputeTest {
     String keySchema = "\"string\"";
 
     // Create test store
-    VersionCreationResponse creationResponse = veniceCluster.getNewStoreVersion(keySchema, VALUE_SCHEMA_FOR_COMPUTE);
-    storeName = Version.parseStoreFromKafkaTopicName(creationResponse.getKafkaTopic());
+    NewStoreResponse creationResponse = veniceCluster
+        .getNewStore(Utils.getUniqueString("storeForStorageNodeComputeTest"), keySchema, VALUE_SCHEMA_FOR_COMPUTE);
+    storeName = creationResponse.getName();
     valueSchemaId = HelixReadOnlySchemaRepository.VALUE_SCHEMA_STARTING_ID;
 
     // TODO: Make serializers parameterized so we test them all.

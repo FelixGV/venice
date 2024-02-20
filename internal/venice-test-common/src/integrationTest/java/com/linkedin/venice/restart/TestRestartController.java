@@ -22,7 +22,7 @@ import org.testng.annotations.Test;
 
 @Test(singleThreaded = true)
 public class TestRestartController {
-  private static final int OPERATION_TIMEOUT_MS = 3 * Time.MS_PER_SECOND;
+  private static final int OPERATION_TIMEOUT_MS = 10 * Time.MS_PER_SECOND;
   private VeniceClusterWrapper cluster;
 
   @BeforeMethod
@@ -117,7 +117,14 @@ public class TestRestartController {
 
     // As we have not push any data, the job status should be hanged on STARTED.
     String topicNameV3 = responseV3.getKafkaTopic();
-    Assert.assertEquals(controllerClient.queryJobStatus(topicNameV3).getStatus(), ExecutionStatus.STARTED.toString());
+    TestUtils.waitForNonDeterministicAssertion(
+        OPERATION_TIMEOUT_MS,
+        TimeUnit.MILLISECONDS,
+        false,
+        true,
+        () -> Assert.assertEquals(
+            controllerClient.queryJobStatus(topicNameV3).getStatus(),
+            ExecutionStatus.STARTED.toString()));
 
     // Broadcast end of push and verify it completes
     veniceWriter = cluster.getVeniceWriter(topicNameV3);

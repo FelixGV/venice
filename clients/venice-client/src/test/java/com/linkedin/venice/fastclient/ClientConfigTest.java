@@ -28,7 +28,7 @@ public class ClientConfigTest {
     new ClientConfig.ClientConfigBuilder<>().setStoreName("").build();
   }
 
-  @Test(expectedExceptions = VeniceClientException.class, expectedExceptionsMessageRegExp = "r2Client param shouldn't be null")
+  @Test(expectedExceptions = NullPointerException.class, expectedExceptionsMessageRegExp = "r2Client param shouldn't be null")
   public void testClientWithoutR2Client() {
     new ClientConfig.ClientConfigBuilder<>().setStoreName("test_store").build();
   }
