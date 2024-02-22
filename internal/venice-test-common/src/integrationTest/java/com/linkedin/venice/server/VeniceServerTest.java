@@ -3,15 +3,16 @@ package com.linkedin.venice.server;
 import static com.linkedin.venice.ConfigKeys.CONTROLLER_ZK_SHARED_META_SYSTEM_SCHEMA_STORE_AUTO_CREATION_ENABLED;
 import static com.linkedin.venice.integration.utils.VeniceServerWrapper.SERVER_ENABLE_SERVER_ALLOW_LIST;
 import static com.linkedin.venice.integration.utils.VeniceServerWrapper.SERVER_IS_AUTO_JOIN;
+import static org.testng.Assert.assertEquals;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linkedin.avroutil1.compatibility.AvroCompatibilityHelper;
 import com.linkedin.d2.balancer.D2Client;
 import com.linkedin.davinci.listener.response.ServerCurrentVersionResponse;
-import com.linkedin.davinci.storage.StorageEngineRepository;
 import com.linkedin.r2.message.rest.RestRequest;
 import com.linkedin.r2.message.rest.RestRequestBuilder;
 import com.linkedin.r2.message.rest.RestResponse;
+import com.linkedin.venice.common.VeniceSystemStoreUtils;
 import com.linkedin.venice.controllerapi.ControllerClient;
 import com.linkedin.venice.controllerapi.MultiSchemaResponse;
 import com.linkedin.venice.controllerapi.StoreResponse;
@@ -108,13 +109,27 @@ public class VeniceServerTest {
     }
   }
 
+  private long getStorageCountExcludingParticipantStore(VeniceServerWrapper server, String participantStoreName) {
+    return server.getVeniceServer()
+        .getStorageService()
+        .getStorageEngineRepository()
+        .getAllLocalStorageEngines()
+        .stream()
+        /** N.B.: We want to filter out the participant store */
+        .filter(storage -> !storage.getStoreName().equals(participantStoreName))
+        .count();
+  }
+
   @Test
   public void testCheckBeforeJoinCluster() {
     try (VeniceClusterWrapper cluster = ServiceFactory.getVeniceCluster(1, 1, 0)) {
       VeniceServerWrapper server = cluster.getVeniceServers().get(0);
-      StorageEngineRepository repository = server.getVeniceServer().getStorageService().getStorageEngineRepository();
-      Assert
-          .assertTrue(repository.getAllLocalStorageEngines().isEmpty(), "New node should not have any storage engine.");
+      String participantStoreVersionName = Version
+          .composeKafkaTopic(VeniceSystemStoreUtils.getParticipantStoreNameForCluster(cluster.getClusterName()), 1);
+      assertEquals(
+          getStorageCountExcludingParticipantStore(server, participantStoreVersionName),
+          0,
+          "New node should not have any storage engine.");
 
       // Create a storage engine.
       String storeName = Version.composeKafkaTopic(Utils.getUniqueString("testCheckBeforeJoinCluster"), 1);
@@ -124,8 +139,8 @@ public class VeniceServerTest {
               server.getVeniceServer().getConfigLoader().getStoreConfig(storeName),
               1,
               () -> null);
-      Assert.assertEquals(
-          repository.getAllLocalStorageEngines().size(),
+      assertEquals(
+          getStorageCountExcludingParticipantStore(server, participantStoreVersionName),
           1,
           "We have created one storage engine for store: " + storeName);
 
@@ -134,9 +149,10 @@ public class VeniceServerTest {
       // once the server join again.
       cluster.stopVeniceServer(server.getPort());
       cluster.restartVeniceServer(server.getPort());
-      repository = server.getVeniceServer().getStorageService().getStorageEngineRepository();
-      // N.B.: We have 2 here because of the participant store.
-      Assert.assertEquals(repository.getAllLocalStorageEngines().size(), 2, "We should not cleanup the local storage");
+      assertEquals(
+          getStorageCountExcludingParticipantStore(server, participantStoreVersionName),
+          1,
+          "We should not cleanup the local storage");
 
       // Stop server, remove it from the cluster then restart. We expect that all local storage would be deleted. Once
       // the server join again.
@@ -147,12 +163,9 @@ public class VeniceServerTest {
       }
 
       cluster.restartVeniceServer(server.getPort());
-      Assert.assertTrue(
-          server.getVeniceServer()
-              .getStorageService()
-              .getStorageEngineRepository()
-              .getAllLocalStorageEngines()
-              .isEmpty(),
+      assertEquals(
+          getStorageCountExcludingParticipantStore(server, participantStoreVersionName),
+          0,
           "After removing the node from cluster, local storage should be cleaned up once the server join the cluster again.");
     }
   }
