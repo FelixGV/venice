@@ -376,7 +376,9 @@ public abstract class AbstractDataWriterSparkJob extends DataWriterComputeJob {
   @Override
   public void kill() {
     super.kill();
-    sparkSession.sparkContext().cancelJobGroup(jobGroupId);
+    if (this.sparkSession != null) {
+      this.sparkSession.sparkContext().cancelJobGroup(jobGroupId);
+    }
   }
 
   @Override
