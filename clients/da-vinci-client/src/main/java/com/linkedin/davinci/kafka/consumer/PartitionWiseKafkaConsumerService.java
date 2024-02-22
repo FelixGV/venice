@@ -84,7 +84,8 @@ public class PartitionWiseKafkaConsumerService extends KafkaConsumerService {
   @Override
   protected synchronized SharedKafkaConsumer pickConsumerForPartition(
       PubSubTopic versionTopic,
-      PubSubTopicPartition topicPartition) {
+      PubSubTopicPartition topicPartition,
+      boolean isHybrid) {
     // Basic case, round-robin search to find next consumer for this partition.
     boolean seekNewConsumer = true;
     int consumerIndex = -1;

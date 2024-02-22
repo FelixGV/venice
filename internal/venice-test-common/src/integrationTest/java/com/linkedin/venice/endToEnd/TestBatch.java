@@ -42,6 +42,7 @@ import static com.linkedin.venice.utils.TestWriteUtils.writeSimpleAvroFileWithAS
 import static com.linkedin.venice.utils.TestWriteUtils.writeSimpleAvroFileWithCustomSize;
 import static com.linkedin.venice.utils.TestWriteUtils.writeSimpleAvroFileWithDuplicateKey;
 import static com.linkedin.venice.utils.TestWriteUtils.writeSimpleAvroFileWithStringToStringSchema2;
+import static org.testng.Assert.assertNotNull;
 
 import com.linkedin.avroutil1.compatibility.AvroCompatibilityHelper;
 import com.linkedin.venice.client.exceptions.VeniceClientException;
@@ -300,12 +301,11 @@ public abstract class TestBatch {
   static VPJValidator getSimpleFileWithUserSchemaValidatorForZstd() {
     return (avroClient, vsonClient, metricsRepository) -> {
       // Wait for the first get to succeed. After the first one, the following gets must succeed without retry.
-      TestUtils.waitForNonDeterministicAssertion(
-          10,
-          TimeUnit.SECONDS,
-          true,
-          true,
-          () -> Assert.assertEquals(avroClient.get(Integer.toString(1)).get().toString(), "test_name_1"));
+      TestUtils.waitForNonDeterministicAssertion(10, TimeUnit.SECONDS, true, true, () -> {
+        Object value = avroClient.get(Integer.toString(1)).get();
+        assertNotNull(value);
+        Assert.assertEquals(value.toString(), "test_name_1");
+      });
 
       // test single get, starting from i = 2.
       for (int i = 2; i <= 100; i++) {

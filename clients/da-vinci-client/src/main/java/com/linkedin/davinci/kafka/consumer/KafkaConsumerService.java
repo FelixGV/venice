@@ -60,10 +60,10 @@ import org.apache.logging.log4j.Logger;
  *    c) {@link ConsumerSubscriptionCleaner}
  * 2. Receive various calls to interrogate or mutate consumer state, and delegate them to the correct unit, by
  *    maintaining a mapping of which unit belongs to which version-topic and subscribed topic-partition. Notably,
- *    the {@link #startConsumptionIntoDataReceiver(PubSubTopicPartition, long, ConsumedDataReceiver)} function allows the
+ *    the {@link AbstractKafkaConsumerService#startConsumptionIntoDataReceiver(PubSubTopicPartition, long, ConsumedDataReceiver, boolean)} function allows the
  *    caller to start funneling consumed data into a receiver (i.e. into another task).
  * 3. Provide a single abstract function that must be overridden by subclasses in order to implement a consumption
- *    load balancing strategy: {@link #pickConsumerForPartition(PubSubTopic, PubSubTopicPartition)}
+ *    load balancing strategy: {@link #pickConsumerForPartition(PubSubTopic, PubSubTopicPartition, boolean)}
  *
  * @see AggKafkaConsumerService which wraps one instance of this class per Kafka cluster.
  */
@@ -191,16 +191,20 @@ public abstract class KafkaConsumerService extends AbstractKafkaConsumerService 
    * Must be idempotent and thus return previously a assigned consumer (for the same params) if any exists.
    */
   @Override
-  public SharedKafkaConsumer assignConsumerFor(PubSubTopic versionTopic, PubSubTopicPartition topicPartition) {
+  public SharedKafkaConsumer assignConsumerFor(
+      PubSubTopic versionTopic,
+      PubSubTopicPartition topicPartition,
+      boolean isHybrid) {
     Map<PubSubTopicPartition, SharedKafkaConsumer> topicPartitionToConsumerMap =
         versionTopicToTopicPartitionToConsumer.computeIfAbsent(versionTopic, k -> new VeniceConcurrentHashMap<>());
     return topicPartitionToConsumerMap
-        .computeIfAbsent(topicPartition, k -> pickConsumerForPartition(versionTopic, topicPartition));
+        .computeIfAbsent(topicPartition, k -> pickConsumerForPartition(versionTopic, topicPartition, isHybrid));
   }
 
   protected abstract SharedKafkaConsumer pickConsumerForPartition(
       PubSubTopic versionTopic,
-      PubSubTopicPartition topicPartition);
+      PubSubTopicPartition topicPartition,
+      boolean isHybrid);
 
   protected void removeTopicPartitionFromConsumptionTask(
       PubSubConsumerAdapter consumer,
@@ -369,9 +373,10 @@ public abstract class KafkaConsumerService extends AbstractKafkaConsumerService 
   public void startConsumptionIntoDataReceiver(
       PubSubTopicPartition topicPartition,
       long lastReadOffset,
-      ConsumedDataReceiver<List<PubSubMessage<KafkaKey, KafkaMessageEnvelope, Long>>> consumedDataReceiver) {
+      ConsumedDataReceiver<List<PubSubMessage<KafkaKey, KafkaMessageEnvelope, Long>>> consumedDataReceiver,
+      boolean isHybrid) {
     PubSubTopic versionTopic = consumedDataReceiver.destinationIdentifier();
-    SharedKafkaConsumer consumer = assignConsumerFor(versionTopic, topicPartition);
+    SharedKafkaConsumer consumer = assignConsumerFor(versionTopic, topicPartition, isHybrid);
 
     if (consumer == null) {
       // Defensive code. Shouldn't happen except in case of a regression.

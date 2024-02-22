@@ -222,9 +222,9 @@ public class KafkaConsumerServiceDelegatorTest {
     PubSubTopic rtTopic = TOPIC_REPOSITORY.getTopic(RT_TOPIC_NAME);
     PubSubTopicPartition topicPartitionForRT = new PubSubTopicPartitionImpl(rtTopic, PARTITION_ID);
 
-    delegator.assignConsumerFor(versionTopic, topicPartitionForRT);
-    verify(mockDefaultConsumerService).assignConsumerFor(versionTopic, topicPartitionForRT);
-    verify(mockDedicatedConsumerService, never()).assignConsumerFor(versionTopic, topicPartitionForRT);
+    delegator.assignConsumerFor(versionTopic, topicPartitionForRT, true);
+    verify(mockDefaultConsumerService).assignConsumerFor(versionTopic, topicPartitionForRT, true);
+    verify(mockDedicatedConsumerService, never()).assignConsumerFor(versionTopic, topicPartitionForRT, true);
 
     reset(mockDefaultConsumerService);
     reset(mockDedicatedConsumerService);
@@ -256,16 +256,17 @@ public class KafkaConsumerServiceDelegatorTest {
     ConsumedDataReceiver dataReceiver = mock(ConsumedDataReceiver.class);
     doReturn(versionTopic).when(dataReceiver).destinationIdentifier();
 
-    delegator.startConsumptionIntoDataReceiver(topicPartitionForVT, 0, dataReceiver);
-    verify(mockDefaultConsumerService).startConsumptionIntoDataReceiver(topicPartitionForVT, 0, dataReceiver);
+    delegator.startConsumptionIntoDataReceiver(topicPartitionForVT, 0, dataReceiver, true);
+    verify(mockDefaultConsumerService).startConsumptionIntoDataReceiver(topicPartitionForVT, 0, dataReceiver, true);
     verify(mockDedicatedConsumerService, never())
-        .startConsumptionIntoDataReceiver(topicPartitionForVT, 0, dataReceiver);
+        .startConsumptionIntoDataReceiver(topicPartitionForVT, 0, dataReceiver, true);
 
     reset(mockDefaultConsumerService);
     reset(mockDedicatedConsumerService);
-    delegator.startConsumptionIntoDataReceiver(topicPartitionForRT, 0, dataReceiver);
-    verify(mockDefaultConsumerService, never()).startConsumptionIntoDataReceiver(topicPartitionForRT, 0, dataReceiver);
-    verify(mockDedicatedConsumerService).startConsumptionIntoDataReceiver(topicPartitionForRT, 0, dataReceiver);
+    delegator.startConsumptionIntoDataReceiver(topicPartitionForRT, 0, dataReceiver, true);
+    verify(mockDefaultConsumerService, never())
+        .startConsumptionIntoDataReceiver(topicPartitionForRT, 0, dataReceiver, true);
+    verify(mockDedicatedConsumerService).startConsumptionIntoDataReceiver(topicPartitionForRT, 0, dataReceiver, true);
 
     // Test non-AA/WC cases
     isAAWCStoreFunc = vt -> false;
@@ -273,16 +274,16 @@ public class KafkaConsumerServiceDelegatorTest {
 
     reset(mockDefaultConsumerService);
     reset(mockDedicatedConsumerService);
-    delegator.startConsumptionIntoDataReceiver(topicPartitionForVT, 0, dataReceiver);
-    verify(mockDefaultConsumerService).startConsumptionIntoDataReceiver(topicPartitionForVT, 0, dataReceiver);
+    delegator.startConsumptionIntoDataReceiver(topicPartitionForVT, 0, dataReceiver, true);
+    verify(mockDefaultConsumerService).startConsumptionIntoDataReceiver(topicPartitionForVT, 0, dataReceiver, true);
     verify(mockDedicatedConsumerService, never())
-        .startConsumptionIntoDataReceiver(topicPartitionForVT, 0, dataReceiver);
+        .startConsumptionIntoDataReceiver(topicPartitionForVT, 0, dataReceiver, true);
 
     reset(mockDefaultConsumerService);
     reset(mockDedicatedConsumerService);
-    delegator.startConsumptionIntoDataReceiver(topicPartitionForRT, 0, dataReceiver);
-    verify(mockDefaultConsumerService).startConsumptionIntoDataReceiver(topicPartitionForRT, 0, dataReceiver);
+    delegator.startConsumptionIntoDataReceiver(topicPartitionForRT, 0, dataReceiver, true);
+    verify(mockDefaultConsumerService).startConsumptionIntoDataReceiver(topicPartitionForRT, 0, dataReceiver, true);
     verify(mockDedicatedConsumerService, never())
-        .startConsumptionIntoDataReceiver(topicPartitionForRT, 0, dataReceiver);
+        .startConsumptionIntoDataReceiver(topicPartitionForRT, 0, dataReceiver, true);
   }
 }

@@ -1028,7 +1028,7 @@ public abstract class StoreIngestionTaskTest {
       }
       StorePartitionDataReceiver dataReceiver =
           new StorePartitionDataReceiver(storeIngestionTask, topicPartition, kafkaUrl, kafkaClusterId);
-      kafkaConsumerService.startConsumptionIntoDataReceiver(topicPartition, offset, dataReceiver);
+      kafkaConsumerService.startConsumptionIntoDataReceiver(topicPartition, offset, dataReceiver, true);
 
       if (local) {
         localConsumedDataReceiver = dataReceiver;

@@ -17,7 +17,10 @@ public abstract class AbstractKafkaConsumerService extends AbstractVeniceService
       PubSubTopic versionTopic,
       PubSubTopicPartition topicPartition);
 
-  public abstract SharedKafkaConsumer assignConsumerFor(PubSubTopic versionTopic, PubSubTopicPartition topicPartition);
+  public abstract SharedKafkaConsumer assignConsumerFor(
+      PubSubTopic versionTopic,
+      PubSubTopicPartition topicPartition,
+      boolean isHybrid);
 
   public abstract void unsubscribeAll(PubSubTopic versionTopic);
 
@@ -32,7 +35,8 @@ public abstract class AbstractKafkaConsumerService extends AbstractVeniceService
   public abstract void startConsumptionIntoDataReceiver(
       PubSubTopicPartition topicPartition,
       long lastReadOffset,
-      ConsumedDataReceiver<List<PubSubMessage<KafkaKey, KafkaMessageEnvelope, Long>>> consumedDataReceiver);
+      ConsumedDataReceiver<List<PubSubMessage<KafkaKey, KafkaMessageEnvelope, Long>>> consumedDataReceiver,
+      boolean isHybrid);
 
   public abstract long getOffsetLagBasedOnMetrics(PubSubTopic versionTopic, PubSubTopicPartition pubSubTopicPartition);
 

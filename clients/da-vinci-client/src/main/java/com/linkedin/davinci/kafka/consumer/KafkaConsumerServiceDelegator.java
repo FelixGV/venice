@@ -77,8 +77,12 @@ public class KafkaConsumerServiceDelegator extends AbstractKafkaConsumerService 
   }
 
   @Override
-  public SharedKafkaConsumer assignConsumerFor(PubSubTopic versionTopic, PubSubTopicPartition topicPartition) {
-    return getKafkaConsumerService(versionTopic, topicPartition).assignConsumerFor(versionTopic, topicPartition);
+  public SharedKafkaConsumer assignConsumerFor(
+      PubSubTopic versionTopic,
+      PubSubTopicPartition topicPartition,
+      boolean isHybrid) {
+    return getKafkaConsumerService(versionTopic, topicPartition)
+        .assignConsumerFor(versionTopic, topicPartition, isHybrid);
   }
 
   @Override
@@ -122,10 +126,11 @@ public class KafkaConsumerServiceDelegator extends AbstractKafkaConsumerService 
   public void startConsumptionIntoDataReceiver(
       PubSubTopicPartition topicPartition,
       long lastReadOffset,
-      ConsumedDataReceiver<List<PubSubMessage<KafkaKey, KafkaMessageEnvelope, Long>>> consumedDataReceiver) {
+      ConsumedDataReceiver<List<PubSubMessage<KafkaKey, KafkaMessageEnvelope, Long>>> consumedDataReceiver,
+      boolean isHybrid) {
     PubSubTopic versionTopic = consumedDataReceiver.destinationIdentifier();
     getKafkaConsumerService(versionTopic, topicPartition)
-        .startConsumptionIntoDataReceiver(topicPartition, lastReadOffset, consumedDataReceiver);
+        .startConsumptionIntoDataReceiver(topicPartition, lastReadOffset, consumedDataReceiver, isHybrid);
   }
 
   @Override

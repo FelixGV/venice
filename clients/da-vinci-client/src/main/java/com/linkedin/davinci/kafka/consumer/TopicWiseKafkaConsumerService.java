@@ -87,7 +87,8 @@ public class TopicWiseKafkaConsumerService extends KafkaConsumerService {
   @Override
   protected synchronized SharedKafkaConsumer pickConsumerForPartition(
       PubSubTopic versionTopic,
-      PubSubTopicPartition topicPartition) {
+      PubSubTopicPartition topicPartition,
+      boolean isHybrid) {
     // Check whether this version topic has been subscribed before or not.
     SharedKafkaConsumer chosenConsumer = versionTopicToConsumerMap.get(versionTopic);
     if (chosenConsumer != null) {
@@ -100,12 +101,19 @@ public class TopicWiseKafkaConsumerService extends KafkaConsumerService {
       int minAssignmentPerConsumer = Integer.MAX_VALUE;
       for (SharedKafkaConsumer consumer: consumerToConsumptionTask.keySet()) {
         /**
-         * A Venice server host may consume from 2 version topics that belongs to the same store because each store has 2
-         * versions. We need to make sure multiple store versions won't share the same consumer. Because for Hybrid stores,
-         * both the store versions will consume the same RT topic with different offset.
-         * To simplify the logic here, we ensure that one consumer consumes from only one version topic of a specific store.
+         * A Venice server host may consume from 2 version topics that belong to the same store because each store has 2
+         * versions. We need to make sure multiple store-versions won't share the same consumer if any store-version is
+         * hybrid, because we don't want multiple {@link StoreIngestionTask} subscribing to the same RT topic with
+         * different offsets. For a batch-only store-version, that does not matter, hence we allow co-locating on the
+         * same consumer. In practice, allowing co-location should not make a difference in normal production workloads,
+         * but in integration tests which generate a lot of store-versions in the span of seconds, there is a chance
+         * that the old store-versions aren't cleared fast enough, thus leading to all consumers being taken up, and
+         * eventually resulting in throwing the {@link IllegalStateException} below. Since co-location is actually
+         * correct for batch-only store-versions, we therefore allow it as a minor optimization. Note that the
+         * {@link PartitionWiseKafkaConsumerService} also does the same relaxed check, though in that case it is on a
+         * per-partition basis, and not a per-store-version basis.
          */
-        if (checkWhetherConsumerHasSubscribedSameStore(consumer, versionTopic)) {
+        if (isHybrid && checkWhetherConsumerHasSubscribedSameStore(consumer, versionTopic)) {
           LOGGER.info(
               "Current consumer has already subscribed the same store as the new topic: {}, will skip it and try next consumer in consumer pool",
               versionTopic);
@@ -177,7 +185,7 @@ public class TopicWiseKafkaConsumerService extends KafkaConsumerService {
 
   /**
    * This function will check a consumer is assigned topic or not. Since we may not have too many consumers and this
-   * function will be only called when {@link #pickConsumerForPartition(PubSubTopic, PubSubTopicPartition)} is called the first
+   * function will be only called when {@link KafkaConsumerService#pickConsumerForPartition(PubSubTopic, PubSubTopicPartition, boolean)} is called the first
    * time.
    */
   private boolean isConsumerAssignedTopic(SharedKafkaConsumer consumer) {

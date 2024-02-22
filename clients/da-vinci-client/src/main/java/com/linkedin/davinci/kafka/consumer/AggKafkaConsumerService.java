@@ -398,7 +398,11 @@ public class AggKafkaConsumerService extends AbstractVeniceService {
             kafkaClusterUrlToIdMap.getOrDefault(kafkaURL, -1));
 
     versionTopicStoreIngestionTaskMapping.put(storeIngestionTask.getVersionTopic().getName(), storeIngestionTask);
-    consumerService.startConsumptionIntoDataReceiver(pubSubTopicPartition, lastOffset, dataReceiver);
+    consumerService.startConsumptionIntoDataReceiver(
+        pubSubTopicPartition,
+        lastOffset,
+        dataReceiver,
+        storeIngestionTask.isHybridMode());
     TopicManager topicManager = storeIngestionTask.getTopicManager(kafkaURL);
 
     /*
