@@ -30,7 +30,7 @@ public class AvroSerializer<K> implements RecordSerializer<K> {
 
   private static class ReusableObjects {
     public final ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-    public final BinaryEncoder binaryEncoder = AvroCompatibilityHelper.newBinaryEncoder(outputStream, true, null);
+    public BinaryEncoder binaryEncoder = AvroCompatibilityHelper.newBinaryEncoder(outputStream, true, null);
   }
 
   static {
@@ -68,6 +68,15 @@ public class AvroSerializer<K> implements RecordSerializer<K> {
       write(object, encoder);
       encoder.flush();
     } catch (IOException e) {
+      /**
+       * If we caught an exception, then the {@link BinaryEncoder} is possibly left in an unclean state, and even
+       * calling {@link AvroCompatibilityHelper#newBinaryEncoder(OutputStream, boolean, BinaryEncoder)} does not
+       * seem to guarantee that it's in a clean state. We therefore set it to null here so that the next invocation
+       * will create a brand new one.
+       */
+      LOGGER.error(
+          "Got an IOException when serializing. Will reset the BinaryEncoder to avoid contaminating future serializations.");
+      reusableObjects.binaryEncoder = null;
       throw new VeniceException("Unable to serialize object", e);
     }
     return reusableObjects.outputStream.toByteArray();
