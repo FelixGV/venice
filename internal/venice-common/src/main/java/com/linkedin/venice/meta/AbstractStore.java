@@ -85,18 +85,6 @@ public abstract class AbstractStore implements Store {
   }
 
   @Override
-  public void setBufferReplayForHybridForVersion(int versionNum, boolean enabled) {
-    for (int i = storeVersionsSupplier.getForUpdate().size() - 1; i >= 0; i--) {
-      Version version = new VersionImpl(storeVersionsSupplier.getForUpdate().get(i));
-      if (version.getNumber() == versionNum) {
-        version.setBufferReplayEnabledForHybrid(enabled);
-        return;
-      }
-    }
-    throw new VeniceException("Unknown version: " + versionNum + " in store: " + getName());
-  }
-
-  @Override
   public void addVersion(Version version) {
     addVersion(version, true, false);
   }

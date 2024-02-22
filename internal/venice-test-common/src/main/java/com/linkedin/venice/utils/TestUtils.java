@@ -12,6 +12,7 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
 import static org.testng.Assert.assertEquals;
+import static org.testng.Assert.assertFalse;
 import static org.testng.Assert.assertNotNull;
 import static org.testng.Assert.assertTrue;
 
@@ -37,6 +38,7 @@ import com.linkedin.venice.controller.VeniceControllerMultiClusterConfig;
 import com.linkedin.venice.controllerapi.ControllerClient;
 import com.linkedin.venice.controllerapi.ControllerResponse;
 import com.linkedin.venice.controllerapi.JobStatusQueryResponse;
+import com.linkedin.venice.controllerapi.NodeStatusResponse;
 import com.linkedin.venice.controllerapi.StoreResponse;
 import com.linkedin.venice.controllerapi.UpdateStoreQueryParams;
 import com.linkedin.venice.controllerapi.VersionCreationResponse;
@@ -627,6 +629,14 @@ public class TestUtils {
   public static <T extends ControllerResponse> T assertCommand(T response, String assertionErrorMessage) {
     Assert.assertFalse(response.isError(), assertionErrorMessage + ": " + response.getError());
     return response;
+  }
+
+  public static void assertNodeIsRemovable(NodeStatusResponse response) {
+    assertTrue(response.isRemovable(), "Node is not removable but it should be! Details: " + response.getDetails());
+  }
+
+  public static void assertNodeIsNotRemovable(NodeStatusResponse response) {
+    assertFalse(response.isRemovable(), "Node is removable but it should not be! Details: " + response.getDetails());
   }
 
   public static void preventSystemExit() {

@@ -5514,6 +5514,10 @@ public class VeniceHelixAdmin implements Admin, StoreCleaner {
     }
     PushMonitor monitor = getHelixVeniceClusterResources(clusterName).getPushMonitor();
     String storeName = Version.parseStoreFromKafkaTopicName(kafkaTopic);
+    if (storeName.isEmpty()) {
+      throw new IllegalArgumentException(
+          "The topic name is invalid and no store name can be extracted from it: " + kafkaTopic);
+    }
     Store store = getStore(clusterName, storeName);
     if (store == null) {
       throw new VeniceNoStoreException(storeName);

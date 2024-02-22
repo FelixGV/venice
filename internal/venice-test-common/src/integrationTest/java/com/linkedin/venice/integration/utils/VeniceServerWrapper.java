@@ -380,6 +380,10 @@ public class VeniceServerWrapper extends ProcessWrapper implements MetricsAware 
     return serverProps.getInt(LISTENER_PORT);
   }
 
+  public String getHelixNodeId() {
+    return Utils.getHelixNodeIdentifier(getHost(), getPort());
+  }
+
   /**
    * @return the value of the {@value com.linkedin.venice.ConfigKeys#ADMIN_PORT} config
    */

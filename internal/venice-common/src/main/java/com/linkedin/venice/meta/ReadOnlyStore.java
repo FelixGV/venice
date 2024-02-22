@@ -1217,11 +1217,6 @@ public class ReadOnlyStore implements Store {
   }
 
   @Override
-  public void setBufferReplayForHybridForVersion(int versionNum, boolean enabled) {
-    throw new UnsupportedOperationException();
-  }
-
-  @Override
   public void addVersion(Version version) {
     throw new UnsupportedOperationException();
   }

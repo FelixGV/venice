@@ -174,10 +174,6 @@ public interface Store {
     return true;
   }
 
-  @Deprecated
-  default void setLeaderFollowerModelEnabled(boolean leaderFollowerModelEnabled) {
-  }
-
   String getPushStreamSourceAddress();
 
   void setPushStreamSourceAddress(String sourceAddress);
@@ -261,8 +257,6 @@ public interface Store {
   void setVersions(List<Version> versions);
 
   Optional<CompressionStrategy> getVersionCompressionStrategy(int versionNumber);
-
-  void setBufferReplayForHybridForVersion(int versionNum, boolean enabled);
 
   void addVersion(Version version);
 

@@ -272,7 +272,7 @@ public class MetaDataHandler extends SimpleChannelInboundHandler<HttpRequest> {
       MultiSchemaResponse responseObject = new MultiSchemaResponse();
       responseObject.setCluster(clusterName);
       responseObject.setName(storeName);
-      int superSetSchemaId = storeRepository.getStore(storeName).getLatestSuperSetValueSchemaId();
+      int superSetSchemaId = storeRepository.getStoreOrThrow(storeName).getLatestSuperSetValueSchemaId();
       if (superSetSchemaId != SchemaData.INVALID_VALUE_SCHEMA_ID) {
         responseObject.setSuperSetSchemaId(superSetSchemaId);
       }
