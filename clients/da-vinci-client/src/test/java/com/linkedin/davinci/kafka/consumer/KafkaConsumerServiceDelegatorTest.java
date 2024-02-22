@@ -34,8 +34,8 @@ public class KafkaConsumerServiceDelegatorTest {
 
   @DataProvider(name = "Method-List")
   public static Object[][] methodList() {
-    return new Object[][] { { "getConsumerAssignedToVersionTopicPartition" }, { "assignConsumerFor" },
-        { "unSubscribe" }, { "getOffsetLagBasedOnMetrics" }, { "getLatestOffsetBasedOnMetrics" } };
+    return new Object[][] { { "getConsumerAssignedToVersionTopicPartition" }, { "unSubscribe" },
+        { "getOffsetLagBasedOnMetrics" }, { "getLatestOffsetBasedOnMetrics" } };
   }
 
   @Test(dataProvider = "Method-List")
@@ -85,6 +85,56 @@ public class KafkaConsumerServiceDelegatorTest {
     testMethod.invoke(delegator, versionTopic, topicPartitionForRT);
     verifyMethod.invoke(verify(mockDefaultConsumerService), versionTopic, topicPartitionForRT);
     verifyMethod.invoke(verify(mockDedicatedConsumerService, never()), versionTopic, topicPartitionForRT);
+  }
+
+  @Test
+  public void chooseConsumerServiceTestForAssignConsumerFor()
+      throws NoSuchMethodException, InvocationTargetException, IllegalAccessException {
+    String methodName = "assignConsumerFor";
+    KafkaConsumerService mockDefaultConsumerService = mock(KafkaConsumerService.class);
+    KafkaConsumerService mockDedicatedConsumerService = mock(KafkaConsumerService.class);
+    VeniceServerConfig mockConfig = mock(VeniceServerConfig.class);
+    doReturn(true).when(mockConfig).isDedicatedConsumerPoolForAAWCLeaderEnabled();
+
+    Function<String, Boolean> isAAWCStoreFunc = vt -> true;
+    BiFunction<Integer, String, KafkaConsumerService> consumerServiceConstructor =
+        (ignored, statSuffix) -> statSuffix.isEmpty() ? mockDefaultConsumerService : mockDedicatedConsumerService;
+
+    KafkaConsumerServiceDelegator delegator =
+        new KafkaConsumerServiceDelegator(mockConfig, consumerServiceConstructor, isAAWCStoreFunc);
+
+    PubSubTopic versionTopic = TOPIC_REPOSITORY.getTopic(VERSION_TOPIC_NAME);
+    PubSubTopic rtTopic = TOPIC_REPOSITORY.getTopic(RT_TOPIC_NAME);
+    PubSubTopicPartition topicPartitionForVT = new PubSubTopicPartitionImpl(versionTopic, PARTITION_ID);
+    PubSubTopicPartition topicPartitionForRT = new PubSubTopicPartitionImpl(rtTopic, PARTITION_ID);
+
+    Method testMethod = KafkaConsumerServiceDelegator.class
+        .getMethod(methodName, PubSubTopic.class, PubSubTopicPartition.class, boolean.class);
+    Method verifyMethod =
+        KafkaConsumerService.class.getMethod(methodName, PubSubTopic.class, PubSubTopicPartition.class, boolean.class);
+
+    testMethod.invoke(delegator, versionTopic, topicPartitionForVT, true);
+    verifyMethod.invoke(verify(mockDefaultConsumerService), versionTopic, topicPartitionForVT, true);
+    verifyMethod.invoke(verify(mockDedicatedConsumerService, never()), versionTopic, topicPartitionForVT, true);
+    reset(mockDefaultConsumerService);
+    reset(mockDedicatedConsumerService);
+    testMethod.invoke(delegator, versionTopic, topicPartitionForRT, true);
+    verifyMethod.invoke(verify(mockDedicatedConsumerService), versionTopic, topicPartitionForRT, true);
+    verifyMethod.invoke(verify(mockDefaultConsumerService, never()), versionTopic, topicPartitionForRT, true);
+    reset(mockDefaultConsumerService);
+    reset(mockDedicatedConsumerService);
+
+    isAAWCStoreFunc = vt -> false;
+    delegator = new KafkaConsumerServiceDelegator(mockConfig, consumerServiceConstructor, isAAWCStoreFunc);
+
+    testMethod.invoke(delegator, versionTopic, topicPartitionForVT, true);
+    verifyMethod.invoke(verify(mockDefaultConsumerService), versionTopic, topicPartitionForVT, true);
+    verifyMethod.invoke(verify(mockDedicatedConsumerService, never()), versionTopic, topicPartitionForVT, true);
+    reset(mockDefaultConsumerService);
+    reset(mockDedicatedConsumerService);
+    testMethod.invoke(delegator, versionTopic, topicPartitionForRT, true);
+    verifyMethod.invoke(verify(mockDefaultConsumerService), versionTopic, topicPartitionForRT, true);
+    verifyMethod.invoke(verify(mockDedicatedConsumerService, never()), versionTopic, topicPartitionForRT, true);
   }
 
   @Test

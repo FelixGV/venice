@@ -83,7 +83,7 @@ public abstract class TestRestartServerDuringIngestion {
 
   @AfterClass(alwaysRun = true)
   public void cleanUp() {
-    cluster.close();
+    Utils.closeQuietlyWithErrorLogged(cluster);
   }
 
   @Test(timeOut = 90 * Time.MS_PER_SECOND)
