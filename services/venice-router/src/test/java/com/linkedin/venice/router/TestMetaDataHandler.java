@@ -109,6 +109,7 @@ public class TestMetaDataHandler {
     Store store = TestUtils.createTestStore("testStore", "test", System.currentTimeMillis());
     store.setCurrentVersion(1);
     HelixReadOnlyStoreRepository helixReadOnlyStoreRepository = Mockito.mock(HelixReadOnlyStoreRepository.class);
+    Mockito.doReturn(store).when(helixReadOnlyStoreRepository).getStoreOrThrow(Mockito.anyString());
     Mockito.doReturn(store).when(helixReadOnlyStoreRepository).getStore(Mockito.anyString());
     return passRequestToMetadataHandler(
         requestUri,
