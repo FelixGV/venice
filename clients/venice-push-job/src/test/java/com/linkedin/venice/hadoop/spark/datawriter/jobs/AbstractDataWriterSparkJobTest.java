@@ -74,6 +74,9 @@ public class AbstractDataWriterSparkJobTest {
 
       // Properties with SPARK_DATA_WRITER_CONF_PREFIX should get applied after stripping the prefix
       Assert.assertEquals(jobConf.get(dummyConfig), dummyConfigValue);
+
+      // Kill should not throw an exception...
+      dataWriterSparkJob.kill();
     }
   }
 
@@ -105,6 +108,14 @@ public class AbstractDataWriterSparkJobTest {
 
     try (DataWriterComputeJob computeJob = new SchemaWithRestrictedFieldDataWriterSparkJob()) {
       Assert.assertThrows(VeniceException.class, () -> computeJob.configure(new VeniceProperties(properties), setting));
+    }
+  }
+
+  @Test
+  public void testKill() throws IOException {
+    try (DataWriterComputeJob computeJob = new DataWriterSparkJob()) {
+      // We used to throw a NPE when killing a job that had not gotten configured yet...
+      computeJob.kill();
     }
   }
 
