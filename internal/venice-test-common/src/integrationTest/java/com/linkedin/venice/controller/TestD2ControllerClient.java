@@ -1,6 +1,7 @@
 package com.linkedin.venice.controller;
 
 import static com.linkedin.venice.integration.utils.VeniceClusterWrapperConstants.STANDALONE_REGION_NAME;
+import static com.linkedin.venice.utils.TestUtils.assertCommand;
 
 import com.linkedin.d2.balancer.D2Client;
 import com.linkedin.venice.D2.D2ClientUtils;
@@ -62,7 +63,7 @@ public class TestD2ControllerClient {
 
         // Test cluster discovery
         D2ServiceDiscoveryResponse discoveryResponse =
-            D2ControllerClient.discoverCluster(d2Client, d2ServiceName, storeName);
+            assertCommand(D2ControllerClient.discoverCluster(d2Client, d2ServiceName, storeName));
         Assert.assertEquals(discoveryResponse.getD2Service(), clusterD2Service);
       }
     } finally {

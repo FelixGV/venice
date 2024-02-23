@@ -88,9 +88,7 @@ public class KafkaConsumerServiceDelegatorTest {
   }
 
   @Test
-  public void chooseConsumerServiceTestForAssignConsumerFor()
-      throws NoSuchMethodException, InvocationTargetException, IllegalAccessException {
-    String methodName = "assignConsumerFor";
+  public void chooseConsumerServiceTestForAssignConsumerFor() {
     KafkaConsumerService mockDefaultConsumerService = mock(KafkaConsumerService.class);
     KafkaConsumerService mockDedicatedConsumerService = mock(KafkaConsumerService.class);
     VeniceServerConfig mockConfig = mock(VeniceServerConfig.class);
@@ -108,33 +106,28 @@ public class KafkaConsumerServiceDelegatorTest {
     PubSubTopicPartition topicPartitionForVT = new PubSubTopicPartitionImpl(versionTopic, PARTITION_ID);
     PubSubTopicPartition topicPartitionForRT = new PubSubTopicPartitionImpl(rtTopic, PARTITION_ID);
 
-    Method testMethod = KafkaConsumerServiceDelegator.class
-        .getMethod(methodName, PubSubTopic.class, PubSubTopicPartition.class, boolean.class);
-    Method verifyMethod =
-        KafkaConsumerService.class.getMethod(methodName, PubSubTopic.class, PubSubTopicPartition.class, boolean.class);
-
-    testMethod.invoke(delegator, versionTopic, topicPartitionForVT, true);
-    verifyMethod.invoke(verify(mockDefaultConsumerService), versionTopic, topicPartitionForVT, true);
-    verifyMethod.invoke(verify(mockDedicatedConsumerService, never()), versionTopic, topicPartitionForVT, true);
+    delegator.assignConsumerFor(versionTopic, topicPartitionForVT, true);
+    verify(mockDefaultConsumerService).assignConsumerFor(versionTopic, topicPartitionForVT, true);
+    verify(mockDedicatedConsumerService, never()).assignConsumerFor(versionTopic, topicPartitionForVT, true);
     reset(mockDefaultConsumerService);
     reset(mockDedicatedConsumerService);
-    testMethod.invoke(delegator, versionTopic, topicPartitionForRT, true);
-    verifyMethod.invoke(verify(mockDedicatedConsumerService), versionTopic, topicPartitionForRT, true);
-    verifyMethod.invoke(verify(mockDefaultConsumerService, never()), versionTopic, topicPartitionForRT, true);
+    delegator.assignConsumerFor(versionTopic, topicPartitionForRT, true);
+    verify(mockDedicatedConsumerService).assignConsumerFor(versionTopic, topicPartitionForRT, true);
+    verify(mockDefaultConsumerService, never()).assignConsumerFor(versionTopic, topicPartitionForRT, true);
     reset(mockDefaultConsumerService);
     reset(mockDedicatedConsumerService);
 
     isAAWCStoreFunc = vt -> false;
     delegator = new KafkaConsumerServiceDelegator(mockConfig, consumerServiceConstructor, isAAWCStoreFunc);
 
-    testMethod.invoke(delegator, versionTopic, topicPartitionForVT, true);
-    verifyMethod.invoke(verify(mockDefaultConsumerService), versionTopic, topicPartitionForVT, true);
-    verifyMethod.invoke(verify(mockDedicatedConsumerService, never()), versionTopic, topicPartitionForVT, true);
+    delegator.assignConsumerFor(versionTopic, topicPartitionForVT, true);
+    verify(mockDefaultConsumerService).assignConsumerFor(versionTopic, topicPartitionForVT, true);
+    verify(mockDedicatedConsumerService, never()).assignConsumerFor(versionTopic, topicPartitionForVT, true);
     reset(mockDefaultConsumerService);
     reset(mockDedicatedConsumerService);
-    testMethod.invoke(delegator, versionTopic, topicPartitionForRT, true);
-    verifyMethod.invoke(verify(mockDefaultConsumerService), versionTopic, topicPartitionForRT, true);
-    verifyMethod.invoke(verify(mockDedicatedConsumerService, never()), versionTopic, topicPartitionForRT, true);
+    delegator.assignConsumerFor(versionTopic, topicPartitionForRT, true);
+    verify(mockDefaultConsumerService).assignConsumerFor(versionTopic, topicPartitionForRT, true);
+    verify(mockDedicatedConsumerService, never()).assignConsumerFor(versionTopic, topicPartitionForRT, true);
   }
 
   @Test
