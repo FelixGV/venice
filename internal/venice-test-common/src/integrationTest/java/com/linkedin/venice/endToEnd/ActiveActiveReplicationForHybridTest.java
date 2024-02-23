@@ -116,6 +116,8 @@ public class ActiveActiveReplicationForHybridTest {
       IntStream.range(0, NUMBER_OF_CLUSTERS).mapToObj(i -> "venice-cluster" + i).toArray(String[]::new);
   // ["venice-cluster0", "venice-cluster1", ...];
 
+  private static final boolean DELETE_STORES_AT_END_OF_TESTS = false;
+
   protected List<VeniceMultiClusterWrapper> childDatacenters;
   protected List<VeniceControllerWrapper> parentControllers;
   protected VeniceTwoLayerMultiRegionMultiClusterWrapper multiRegionMultiClusterWrapper;
@@ -840,14 +842,16 @@ public class ActiveActiveReplicationForHybridTest {
   }
 
   private void deleteStores(String... storeNames) {
-    CompletableFuture.runAsync(() -> {
-      try {
-        for (String storeName: storeNames) {
-          parentControllerClient.disableAndDeleteStore(storeName);
+    if (DELETE_STORES_AT_END_OF_TESTS) {
+      CompletableFuture.runAsync(() -> {
+        try {
+          for (String storeName: storeNames) {
+            parentControllerClient.disableAndDeleteStore(storeName);
+          }
+        } catch (Exception e) {
+          // ignore... this is just best-effort.
         }
-      } catch (Exception e) {
-        // ignore... this is just best-effort.
-      }
-    });
+      });
+    }
   }
 }
