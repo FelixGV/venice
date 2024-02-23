@@ -6,10 +6,10 @@ import com.linkedin.venice.exceptions.VeniceException;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.Queue;
-import java.util.concurrent.LinkedBlockingQueue;
 import org.apache.avro.Schema;
+import org.apache.avro.UnresolvedUnionException;
 import org.apache.avro.generic.DeterministicMapOrderGenericDatumWriter;
+import org.apache.avro.generic.GenericContainer;
 import org.apache.avro.io.BinaryEncoder;
 import org.apache.avro.io.DatumWriter;
 import org.apache.avro.io.Encoder;
@@ -33,7 +33,6 @@ public class AvroSerializer<K> implements RecordSerializer<K> {
   public static class ReusableObjects {
     public final ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
     public BinaryEncoder binaryEncoder = AvroCompatibilityHelper.newBinaryEncoder(outputStream, true, null);
-    public Queue<Throwable> lastUsageSites = new LinkedBlockingQueue<>(10);
   }
 
   static {
@@ -64,18 +63,13 @@ public class AvroSerializer<K> implements RecordSerializer<K> {
   @Override
   public byte[] serialize(K object) throws VeniceException {
     ReusableObjects reusableObjects = REUSABLE_OBJECTS.get();
-    Throwable usageSite = new Throwable();
-    if (!reusableObjects.lastUsageSites.offer(usageSite)) {
-      reusableObjects.lastUsageSites.remove();
-      reusableObjects.lastUsageSites.offer(usageSite);
-    }
     reusableObjects.outputStream.reset();
     Encoder encoder =
         AvroCompatibilityHelper.newBinaryEncoder(reusableObjects.outputStream, buffered, reusableObjects.binaryEncoder);
     try {
       write(object, encoder);
       encoder.flush();
-    } catch (IOException e) {
+    } catch (Throwable e) {
       /**
        * If we caught an exception, then the {@link BinaryEncoder} is possibly left in an unclean state, and even
        * calling {@link AvroCompatibilityHelper#newBinaryEncoder(OutputStream, boolean, BinaryEncoder)} does not
@@ -83,9 +77,17 @@ public class AvroSerializer<K> implements RecordSerializer<K> {
        * will create a brand new one.
        */
       LOGGER.error(
-          "Got an IOException when serializing. Will reset the BinaryEncoder to avoid contaminating future serializations.");
+          "Caught a {} when serializing. Will reset the BinaryEncoder to avoid contaminating future serializations.",
+          e.getClass().getSimpleName());
       reusableObjects.binaryEncoder = null;
-      throw new VeniceException("Unable to serialize object", e);
+      if (e instanceof UnresolvedUnionException) {
+        UnresolvedUnionException serializationException = (UnresolvedUnionException) e;
+        String datumDescription = datumDescription(serializationException.getUnresolvedDatum());
+        throw new VeniceSerializationException(
+            "The following type does not conform to any branch of the union: " + datumDescription,
+            serializationException);
+      }
+      throw new VeniceSerializationException("Unable to serialize object", e);
     }
     return reusableObjects.outputStream.toByteArray();
   }
@@ -162,6 +164,16 @@ public class AvroSerializer<K> implements RecordSerializer<K> {
             e);
       }
       throw e;
+    }
+  }
+
+  private String datumDescription(Object unresolvedDatum) {
+    if (unresolvedDatum instanceof GenericContainer) {
+      return ((GenericContainer) unresolvedDatum).getSchema().toString();
+    } else if (unresolvedDatum == null) {
+      return "null";
+    } else {
+      return unresolvedDatum.getClass().getSimpleName();
     }
   }
 }
