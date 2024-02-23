@@ -6,6 +6,8 @@ import com.linkedin.venice.exceptions.VeniceException;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Queue;
+import java.util.concurrent.LinkedBlockingQueue;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.DeterministicMapOrderGenericDatumWriter;
 import org.apache.avro.io.BinaryEncoder;
@@ -22,15 +24,16 @@ import org.apache.logging.log4j.Logger;
  */
 public class AvroSerializer<K> implements RecordSerializer<K> {
   private static final Logger LOGGER = LogManager.getLogger(AvroSerializer.class);
-  private static final ThreadLocal<ReusableObjects> REUSABLE_OBJECTS = ThreadLocal.withInitial(ReusableObjects::new);
+  public static final ThreadLocal<ReusableObjects> REUSABLE_OBJECTS = ThreadLocal.withInitial(ReusableObjects::new);
 
   private final DatumWriter<K> genericDatumWriter;
   private final DatumWriter<K> specificDatumWriter;
   private final boolean buffered;
 
-  private static class ReusableObjects {
+  public static class ReusableObjects {
     public final ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
     public BinaryEncoder binaryEncoder = AvroCompatibilityHelper.newBinaryEncoder(outputStream, true, null);
+    public Queue<Throwable> lastUsageSites = new LinkedBlockingQueue<>(10);
   }
 
   static {
@@ -61,6 +64,11 @@ public class AvroSerializer<K> implements RecordSerializer<K> {
   @Override
   public byte[] serialize(K object) throws VeniceException {
     ReusableObjects reusableObjects = REUSABLE_OBJECTS.get();
+    Throwable usageSite = new Throwable();
+    if (!reusableObjects.lastUsageSites.offer(usageSite)) {
+      reusableObjects.lastUsageSites.remove();
+      reusableObjects.lastUsageSites.offer(usageSite);
+    }
     reusableObjects.outputStream.reset();
     Encoder encoder =
         AvroCompatibilityHelper.newBinaryEncoder(reusableObjects.outputStream, buffered, reusableObjects.binaryEncoder);
