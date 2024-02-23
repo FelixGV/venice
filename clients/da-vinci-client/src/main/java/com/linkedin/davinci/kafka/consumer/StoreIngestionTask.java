@@ -95,6 +95,7 @@ import com.linkedin.venice.utils.LatencyUtils;
 import com.linkedin.venice.utils.PartitionUtils;
 import com.linkedin.venice.utils.RedundantExceptionFilter;
 import com.linkedin.venice.utils.SparseConcurrentList;
+import com.linkedin.venice.utils.Time;
 import com.linkedin.venice.utils.Timer;
 import com.linkedin.venice.utils.VeniceProperties;
 import com.linkedin.venice.utils.concurrent.VeniceConcurrentHashMap;
@@ -1345,11 +1346,34 @@ public abstract class StoreIngestionTask implements Runnable, Closeable {
       LOGGER.info("Running {}", ingestionTaskName);
       versionedIngestionStats.resetIngestionTaskPushTimeoutGauge(storeName, versionNumber);
 
+      int storeNotFoundCounter = 0;
+      long runLoopStartTime = System.currentTimeMillis();
       while (isRunning()) {
-        Store store = storeRepository.getStoreOrThrow(storeName);
-        processConsumerActions(store);
-        checkLongRunningTaskState();
-        checkIngestionProgress(store);
+        Store store = storeRepository.getStore(storeName);
+        if (store == null) {
+          /**
+           * The store object may not be available yet if there are ZK notification delays. We will try getting
+           * the store again as long as the {@link #isRunning} is true.
+           *
+           * Normally, sleeping happens in {@link #checkIngestionProgress(Store)} but since we did not get a
+           * store, we cannot call that function, but we still don't want this to become a tight loop, so we
+           * sleep here instead.
+           */
+          storeNotFoundCounter++;
+          long timeSinceStartInSeconds =
+              Math.round((System.currentTimeMillis() - runLoopStartTime) / Time.MS_PER_SECOND);
+          LOGGER.warn(
+              "Store '{}' was not found ({} time(s) so far). {} seconds elapsed since the SIT was launched. Will sleep {} ms and try again.",
+              storeName,
+              storeNotFoundCounter,
+              timeSinceStartInSeconds,
+              readCycleDelayMs);
+          Thread.sleep(readCycleDelayMs);
+        } else {
+          processConsumerActions(store);
+          checkLongRunningTaskState();
+          checkIngestionProgress(store);
+        }
         maybeSendIngestionHeartbeat();
       }
 

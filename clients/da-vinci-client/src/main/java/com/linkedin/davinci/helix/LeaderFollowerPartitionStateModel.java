@@ -161,7 +161,8 @@ public class LeaderFollowerPartitionStateModel extends AbstractPartitionStateMod
         int version = Version.parseVersionFromKafkaTopicName(resourceName);
         isCurrentVersion = getStoreRepo().getStoreOrThrow(storeName).getCurrentVersion() == version;
       } catch (VeniceNoStoreException e) {
-        logger.warn("Failed to determine if the resource is current version", e);
+        logger.warn(
+            "Failed to determine if the resource is current version due to a VeniceNoStoreException. Will assume it is not a current version and proceed to drop it immediately.");
       }
       if (isCurrentVersion) {
         // Only do graceful drop for current version resources that are being queried
