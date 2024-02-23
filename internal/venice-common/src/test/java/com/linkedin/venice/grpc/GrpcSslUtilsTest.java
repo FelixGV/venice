@@ -15,7 +15,7 @@ public class GrpcSslUtilsTest {
   private static SSLFactory sslFactory;
 
   @BeforeTest
-  public static void setup() {
+  public static void setUp() {
     sslFactory = SslUtils.getVeniceLocalSslFactory();
   }
 
