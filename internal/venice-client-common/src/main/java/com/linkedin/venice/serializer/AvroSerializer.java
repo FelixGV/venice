@@ -3,13 +3,12 @@ package com.linkedin.venice.serializer;
 import com.linkedin.avroutil1.compatibility.AvroCompatibilityHelper;
 import com.linkedin.avroutil1.compatibility.AvroCompatibilityHelperCommon;
 import com.linkedin.venice.exceptions.VeniceException;
+import com.linkedin.venice.utils.AvroSchemaUtils;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import org.apache.avro.Schema;
-import org.apache.avro.UnresolvedUnionException;
 import org.apache.avro.generic.DeterministicMapOrderGenericDatumWriter;
-import org.apache.avro.generic.GenericContainer;
 import org.apache.avro.io.BinaryEncoder;
 import org.apache.avro.io.DatumWriter;
 import org.apache.avro.io.Encoder;
@@ -24,7 +23,7 @@ import org.apache.logging.log4j.Logger;
  */
 public class AvroSerializer<K> implements RecordSerializer<K> {
   private static final Logger LOGGER = LogManager.getLogger(AvroSerializer.class);
-  public static final ThreadLocal<ReusableObjects> REUSABLE_OBJECTS = ThreadLocal.withInitial(ReusableObjects::new);
+  private static final ThreadLocal<ReusableObjects> REUSABLE_OBJECTS = ThreadLocal.withInitial(ReusableObjects::new);
 
   private final DatumWriter<K> genericDatumWriter;
   private final DatumWriter<K> specificDatumWriter;
@@ -69,7 +68,7 @@ public class AvroSerializer<K> implements RecordSerializer<K> {
     try {
       write(object, encoder);
       encoder.flush();
-    } catch (Throwable e) {
+    } catch (Throwable t) {
       /**
        * If we caught an exception, then the {@link BinaryEncoder} is possibly left in an unclean state, and even
        * calling {@link AvroCompatibilityHelper#newBinaryEncoder(OutputStream, boolean, BinaryEncoder)} does not
@@ -78,16 +77,12 @@ public class AvroSerializer<K> implements RecordSerializer<K> {
        */
       LOGGER.error(
           "Caught a {} when serializing. Will reset the BinaryEncoder to avoid contaminating future serializations.",
-          e.getClass().getSimpleName());
+          t.getClass().getSimpleName());
       reusableObjects.binaryEncoder = null;
-      if (e instanceof UnresolvedUnionException) {
-        UnresolvedUnionException serializationException = (UnresolvedUnionException) e;
-        String datumDescription = datumDescription(serializationException.getUnresolvedDatum());
-        throw new VeniceSerializationException(
-            "The following type does not conform to any branch of the union: " + datumDescription,
-            serializationException);
+      if (AvroSchemaUtils.isUnresolvedUnionException(t)) {
+        UnresolvedUnionUtil.handleUnresolvedUnion(t);
       }
-      throw new VeniceSerializationException("Unable to serialize object", e);
+      throw new VeniceSerializationException("Unable to serialize object", t);
     }
     return reusableObjects.outputStream.toByteArray();
   }
@@ -164,16 +159,6 @@ public class AvroSerializer<K> implements RecordSerializer<K> {
             e);
       }
       throw e;
-    }
-  }
-
-  private String datumDescription(Object unresolvedDatum) {
-    if (unresolvedDatum instanceof GenericContainer) {
-      return ((GenericContainer) unresolvedDatum).getSchema().toString();
-    } else if (unresolvedDatum == null) {
-      return "null";
-    } else {
-      return unresolvedDatum.getClass().getSimpleName();
     }
   }
 }

@@ -36,6 +36,7 @@ public class AvroSchemaUtils {
   }
 
   private static final String NAMESPACE_FIELD = "namespace";
+  private static final String UNRESOLVED_UNION_EXCEPTION_FQCN = "org.apache.avro.UnresolvedUnionException";
 
   /**
    * Filter the given schemas using the referenceSchema and AvroCompatibilityHelper. The helper compares the
@@ -471,4 +472,14 @@ public class AvroSchemaUtils {
     }
   }
 
+  /**
+   * IMPORTANT: We must not reference the actual class of this exception here, since it is not available in older
+   * Avro versions, and we do not want the class loader to attempt to load it if it is not present in the classpath.
+   * That is why we instead do the fully-qualified class name comparison.
+   *
+   * @return true if the passed in Throwable is an Avro UnresolvedUnionException
+   */
+  public static boolean isUnresolvedUnionException(Throwable t) {
+    return t.getClass().getName().equals(UNRESOLVED_UNION_EXCEPTION_FQCN);
+  }
 }
