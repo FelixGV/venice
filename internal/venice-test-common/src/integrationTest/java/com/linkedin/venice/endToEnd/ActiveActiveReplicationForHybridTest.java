@@ -662,6 +662,9 @@ public class ActiveActiveReplicationForHybridTest {
             key2,
             useLogicalTimestamp ? new VeniceObjectWithTimestamp(value1, mockTime.getMilliseconds()) : value1);
         producerInDC0.send(storeName, envelope3);
+
+        // In theory the flush should happen automatically as part of the close, but just in case...
+        producerInDC0.flush("");
       }
 
       // Verify data in dc-0
@@ -736,6 +739,9 @@ public class ActiveActiveReplicationForHybridTest {
             key3,
             useLogicalTimestamp ? new VeniceObjectWithTimestamp(value1, mockTime.getMilliseconds()) : value1);
         producerInDC1.send(storeName, envelope5);
+
+        // In theory the flush should happen automatically as part of the close, but just in case...
+        producerInDC1.flush("");
       }
 
       // Verify data in dc-0
