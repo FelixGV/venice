@@ -405,6 +405,14 @@ public class ActiveActiveReplicationForHybridTest {
           }
         }
 
+        Runnable flushAllProducers = () -> {
+          for (VeniceSystemProducer veniceProducer: childDatacenterToSystemProducer.values()) {
+            veniceProducer.flush("");
+          }
+        };
+
+        flushAllProducers.run();
+
         // Server in dc-0 data center should serve real-time data from all different regions
         VeniceMultiClusterWrapper childDataCenter = childDatacenters.get(0);
         String routerUrl = childDataCenter.getClusters().get(clusterName).getRandomRouterURL();
@@ -434,15 +442,13 @@ public class ActiveActiveReplicationForHybridTest {
           // Send DELETE from all child datacenter for existing and new records
           for (int dataCenterIndex = 0; dataCenterIndex < NUMBER_OF_CHILD_DATACENTERS; dataCenterIndex++) {
             String keyPrefix = "dc-" + dataCenterIndex + "_key_";
-            sendStreamingDeleteRecord(
-                childDatacenterToSystemProducer.get(childDatacenters.get(dataCenterIndex)),
-                storeName,
-                keyPrefix + (streamingRecordCount - 1));
-            sendStreamingDeleteRecord(
-                childDatacenterToSystemProducer.get(childDatacenters.get(dataCenterIndex)),
-                storeName,
-                keyPrefix + streamingRecordCount);
+            VeniceSystemProducer veniceProducer =
+                childDatacenterToSystemProducer.get(childDatacenters.get(dataCenterIndex));
+            sendStreamingDeleteRecord(veniceProducer, storeName, keyPrefix + (streamingRecordCount - 1));
+            sendStreamingDeleteRecord(veniceProducer, storeName, keyPrefix + streamingRecordCount);
           }
+
+          flushAllProducers.run();
 
           // Verify both DELETEs can be processed
           waitForNonDeterministicAssertion(30, TimeUnit.SECONDS, true, () -> {
@@ -467,6 +473,8 @@ public class ActiveActiveReplicationForHybridTest {
                 keyPrefix,
                 streamingRecordCount);
           }
+
+          flushAllProducers.run();
 
           waitForNonDeterministicAssertion(30, TimeUnit.SECONDS, true, () -> {
             for (int dataCenterIndex = 0; dataCenterIndex < NUMBER_OF_CHILD_DATACENTERS; dataCenterIndex++) {
