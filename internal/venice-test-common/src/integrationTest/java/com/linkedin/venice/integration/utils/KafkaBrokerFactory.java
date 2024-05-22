@@ -13,23 +13,26 @@ import com.linkedin.venice.utils.TestMockTime;
 import com.linkedin.venice.utils.TestUtils;
 import com.linkedin.venice.utils.Utils;
 import java.io.File;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
-import kafka.metrics.KafkaMetricsReporter;
 import kafka.server.KafkaConfig;
 import kafka.server.KafkaServer;
+import kafka.server.NoOpKafkaActions$;
 import org.apache.kafka.common.utils.SystemTime;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import scala.Option;
-import scala.collection.JavaConverters;
 import scala.collection.Seq;
+import scala.collection.Seq$;
 
 
 class KafkaBrokerFactory implements PubSubBrokerFactory<KafkaBrokerFactory.KafkaBrokerWrapper> {
   private static final Logger LOGGER = LogManager.getLogger(ServiceFactory.class);
+  /**
+   * Starting with 3.0, Kafka has removed the `port` and `host.name` configs, which have been replaced by `listeners`.
+   */
+  private static final boolean KAFKA_3_0_CONFIGS = true;
   // Class-level state and APIs
   public static final String SERVICE_NAME = "Kafka";
   private static final int OFFSET_TOPIC_PARTITIONS = 1;
@@ -62,8 +65,15 @@ class KafkaBrokerFactory implements PubSubBrokerFactory<KafkaBrokerFactory.Kafka
 
       // Essential configs
       configMap.put(KafkaConfig.ZkConnectProp(), zkServerWrapper.getAddress());
-      configMap.put(KafkaConfig.PortProp(), port);
-      configMap.put(KafkaConfig.HostNameProp(), DEFAULT_HOST_NAME);
+      String hostName = DEFAULT_HOST_NAME;
+      if (KAFKA_3_0_CONFIGS) {
+        /** N.B.: We hard code the strings here because the KafkaConfig functions are not available in all versions */
+        configMap.put("listeners", hostName + ":" + port);
+      } else {
+        /** N.B.: We hard code the strings here because the KafkaConfig functions are not available in all versions */
+        configMap.put("port", port);
+        configMap.put("host.name", hostName);
+      }
       configMap.put(KafkaConfig.LogDirProp(), dir.getAbsolutePath());
       configMap.put(KafkaConfig.AutoCreateTopicsEnableProp(), false);
       configMap.put(KafkaConfig.DeleteTopicEnableProp(), true);
@@ -89,12 +99,8 @@ class KafkaBrokerFactory implements PubSubBrokerFactory<KafkaBrokerFactory.Kafka
       });
 
       KafkaConfig kafkaConfig = new KafkaConfig(configMap, true);
-      KafkaServer kafkaServer = KafkaBrokerWrapper.instantiateNewKafkaServer(kafkaConfig, configs.getMockTime());
-      LOGGER.info(
-          "KafkaBroker for region:{} url: {}:{}",
-          configs.getRegionName(),
-          kafkaServer.config().hostName(),
-          kafkaServer.config().port());
+      KafkaServer kafkaServer = KafkaBrokerWrapper.instantiateNewKafkaServer(kafkaConfig, port, configs.getMockTime());
+      LOGGER.info("KafkaBroker for region:{} url: {}:{}", configs.getRegionName(), hostName, port);
       return new KafkaBrokerWrapper(
           kafkaConfig,
           kafkaServer,
@@ -105,6 +111,8 @@ class KafkaBrokerFactory implements PubSubBrokerFactory<KafkaBrokerFactory.Kafka
           shouldCloseZkServer,
           configs.getMockTime(),
           tlsConfiguration,
+          hostName,
+          port,
           sslPort);
     };
   }
@@ -125,6 +133,8 @@ class KafkaBrokerFactory implements PubSubBrokerFactory<KafkaBrokerFactory.Kafka
    */
   protected static class KafkaBrokerWrapper extends PubSubBrokerWrapper {
     private static final Logger LOGGER = LogManager.getLogger(KafkaBrokerWrapper.class);
+    private final String hostName;
+    private final int port;
     private final int sslPort;
     // Instance-level state and APIs
     private KafkaServer kafkaServer;
@@ -153,12 +163,16 @@ class KafkaBrokerFactory implements PubSubBrokerFactory<KafkaBrokerFactory.Kafka
         boolean shouldCloseZkServer,
         TestMockTime mockTime,
         VeniceTlsConfiguration tlsConfiguration,
+        String hostName,
+        int port,
         int sslPort) {
       super(SERVICE_NAME + "-" + regionName, dataDirectory);
       this.kafkaConfig = kafkaConfig;
       this.kafkaServer = kafkaServer;
       this.mockTime = mockTime;
       this.tlsConfiguration = tlsConfiguration;
+      this.hostName = hostName;
+      this.port = port;
       this.sslPort = sslPort;
       this.zkServerWrapper = zkServerWrapper;
       this.shouldCloseZkServer = shouldCloseZkServer;
@@ -172,12 +186,12 @@ class KafkaBrokerFactory implements PubSubBrokerFactory<KafkaBrokerFactory.Kafka
 
     @Override
     public String getHost() {
-      return kafkaServer.config().hostName();
+      return this.hostName;
     }
 
     @Override
     public int getPort() {
-      return kafkaServer.config().port();
+      return this.port;
     }
 
     @Override
@@ -219,7 +233,7 @@ class KafkaBrokerFactory implements PubSubBrokerFactory<KafkaBrokerFactory.Kafka
 
     @Override
     protected void newProcess() {
-      kafkaServer = instantiateNewKafkaServer(kafkaConfig, mockTime);
+      kafkaServer = instantiateNewKafkaServer(kafkaConfig, port, mockTime);
     }
 
     @Override
@@ -230,17 +244,16 @@ class KafkaBrokerFactory implements PubSubBrokerFactory<KafkaBrokerFactory.Kafka
     /**
      * This function encapsulates all the Scala weirdness required to interop with the {@link KafkaServer}.
      */
-    private static KafkaServer instantiateNewKafkaServer(KafkaConfig kafkaConfig, TestMockTime mockTime) {
+    private static KafkaServer instantiateNewKafkaServer(KafkaConfig kafkaConfig, int port, TestMockTime mockTime) {
       // We cannot get a kafka.utils.Time out of an Optional<TestMockTime>, even though TestMockTime implements it.
       org.apache.kafka.common.utils.Time time =
           mockTime == null ? SystemTime.SYSTEM : new KafkaMockTimeWrapper(mockTime);
-      int port = kafkaConfig.getInt(KafkaConfig.PortProp());
       // Scala's Some (i.e.: the non-empty Optional) needs to be instantiated via Some's object (i.e.: static companion
       // class)
-      Option<String> threadNamePrefix = scala.Some$.MODULE$.apply("kafka-broker-port-" + port);
+      Option threadNamePrefix = scala.Some$.MODULE$.apply("kafka-broker-port-" + port);
       // This needs to be a Scala List
-      Seq<KafkaMetricsReporter> metricsReporterSeq = JavaConverters.asScalaBuffer(new ArrayList<>());
-      return new KafkaServer(kafkaConfig, time, threadNamePrefix, metricsReporterSeq);
+      Seq metricsReporterSeq = Seq$.MODULE$.empty();
+      return new KafkaServer(kafkaConfig, time, threadNamePrefix, metricsReporterSeq, NoOpKafkaActions$.MODULE$);
     }
 
     @Override
