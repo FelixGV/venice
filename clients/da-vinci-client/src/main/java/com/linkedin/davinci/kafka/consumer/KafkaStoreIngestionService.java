@@ -115,7 +115,7 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import org.apache.avro.Schema;
 import org.apache.kafka.clients.CommonClientConfigs;
-import org.apache.kafka.common.protocol.SecurityProtocol;
+import org.apache.kafka.common.security.auth.SecurityProtocol;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 

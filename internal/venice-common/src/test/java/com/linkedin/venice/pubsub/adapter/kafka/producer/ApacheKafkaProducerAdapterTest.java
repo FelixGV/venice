@@ -1,7 +1,6 @@
 package com.linkedin.venice.pubsub.adapter.kafka.producer;
 
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
@@ -33,7 +32,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
 import org.apache.kafka.clients.producer.Callback;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerRecord;
@@ -140,10 +138,10 @@ public class ApacheKafkaProducerAdapterTest {
 
   @Test
   public void testCloseInvokesProducerFlushAndClose() {
-    doNothing().when(kafkaProducerMock).flush(anyLong(), any(TimeUnit.class));
+    doNothing().when(kafkaProducerMock).flush();
     ApacheKafkaProducerAdapter producerAdapter = new ApacheKafkaProducerAdapter(producerConfigMock, kafkaProducerMock);
     producerAdapter.close(10, true);
-    verify(kafkaProducerMock, times(1)).flush(anyLong(), any(TimeUnit.class));
+    verify(kafkaProducerMock, times(1)).flush();
     verify(kafkaProducerMock, times(1)).close(any(Duration.class));
   }
 
