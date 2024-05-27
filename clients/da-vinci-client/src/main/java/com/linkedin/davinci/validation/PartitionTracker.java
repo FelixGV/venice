@@ -289,7 +289,7 @@ public class PartitionTracker {
         StartOfSegment startOfSegment = (StartOfSegment) controlMessage.getControlMessageUnion();
         checkSumType = CheckSumType.valueOf(startOfSegment.getChecksumType());
         debugInfo = CollectionUtils.substituteEmptyMap(controlMessage.getDebugInfo());
-        if (startOfSegment.getUpcomingAggregates() != null && !startOfSegment.getUpcomingAggregates().isEmpty()) {
+        if (!CollectionUtils.isEmpty(startOfSegment.getUpcomingAggregates())) {
           aggregates = new HashMap<>(startOfSegment.getUpcomingAggregates().size());
           for (CharSequence name: startOfSegment.getUpcomingAggregates()) {
             aggregates.put(name, 0L);
@@ -338,7 +338,12 @@ public class PartitionTracker {
       String errorMsgIdentifier = consumerRecord.getTopicPartition().getPubSubTopic().getName() + "-"
           + consumerRecord.getTopicPartition().getPartitionNumber() + "-" + DataFaultType.UNREGISTERED_PRODUCER;
       if (!REDUNDANT_LOGGING_FILTER.isRedundantException(errorMsgIdentifier)) {
-        logger.warn("Will {}, endOfPushReceived=true, tolerateAnyMessageType=true", scenario);
+        logger.warn(
+            "Will {}, endOfPushReceived=true, tolerateAnyMessageType=true, producerGuid={}, topic={}, partition={}",
+            scenario,
+            GuidUtils.getHexFromGuid(consumerRecord.getValue().getProducerMetadata().getProducerGUID()),
+            this.topicName,
+            this.partition);
       }
     } else {
       throw DataFaultType.UNREGISTERED_PRODUCER.getNewException(
@@ -750,14 +755,26 @@ public class PartitionTracker {
       if (consumerRecord.getValue().leaderMetadataFooter != null) {
         sb.append("; leader metadata's upstream offset: ")
             .append(consumerRecord.getValue().leaderMetadataFooter.upstreamOffset)
-            .append("; leader metadata's host name: ")
+            /**
+             * N.B.: Although this field is part of the "leader metadata", its content does not actually relate to
+             * leaders specifically. It is systematically populated. This goes against the original design, but a
+             * later refactor made it so. For now, we'll log "producer" rather than "leader" to reduce confusion
+             * when reading the logs.
+             *
+             * TODO: Consider if we should go back to the original design of only populating this field from leaders
+             */
+            .append("; producer's host name: ")
             .append(consumerRecord.getValue().leaderMetadataFooter.hostName);
       }
       if (segment != null) {
-        sb.append("; aggregates: ");
-        printMap(segment.getAggregates(), sb);
-        sb.append("; debugInfo: ");
-        printMap(segment.getDebugInfo(), sb);
+        if (!CollectionUtils.isEmpty(segment.getAggregates())) {
+          sb.append("; aggregates: ");
+          printMap(segment.getAggregates(), sb);
+        }
+        if (!CollectionUtils.isEmpty(segment.getDebugInfo())) {
+          sb.append("; debugInfo: ");
+          printMap(segment.getDebugInfo(), sb);
+        }
       }
       if (extraInfo != null) {
         sb.append("; extra info: ").append(extraInfo);

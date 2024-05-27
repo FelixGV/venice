@@ -1910,6 +1910,15 @@ public class VeniceWriter<K, V, U> extends AbstractVeniceWriter<K, V, U> {
     producerMetadata.messageTimestamp = time.getMilliseconds();
     producerMetadata.logicalTimestamp = logicalTs;
     kafkaValue.producerMetadata = producerMetadata;
+
+    /**
+     * It is confusing to systematically populate this field, since its naming implies that it should be written by
+     * leaders only. Some refactoring deviated from the original intent of the design. Nowadays, it is being used on
+     * every message, and represents just the producer. In which case, the information here should be added to the
+     * {@link ProducerMetadata} rather than having it in a separate nested record...
+     *
+     * TODO: Consider how to untangle this mess...
+     */
     kafkaValue.leaderMetadataFooter = new LeaderMetadata();
     kafkaValue.leaderMetadataFooter.hostName = writerId;
     kafkaValue.leaderMetadataFooter.upstreamOffset = leaderMetadataWrapper.getUpstreamOffset();

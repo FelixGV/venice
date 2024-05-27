@@ -110,6 +110,22 @@ public class CollectionUtils {
    * @return a non-null map with the same content (though not necessarily the same identity) as the input map
    */
   public static <K, V> Map<K, V> substituteEmptyMap(Map<K, V> map) {
-    return map == null || map.isEmpty() ? Collections.emptyMap() : map;
+    return isEmpty(map) ? Collections.emptyMap() : map;
+  }
+
+  /**
+   * @param collection to check
+   * @return true if the collection is null or empty, false otherwise
+   */
+  public static boolean isEmpty(Collection collection) {
+    return collection == null || collection.isEmpty();
+  }
+
+  /**
+   * @param collection to check
+   * @return true if the collection is null or empty, false otherwise
+   */
+  public static boolean isEmpty(Map collection) {
+    return collection == null || collection.isEmpty();
   }
 }

@@ -3,15 +3,16 @@ package com.linkedin.venice.utils;
 import static org.apache.avro.Schema.Type;
 import static org.apache.avro.Schema.create;
 import static org.apache.avro.Schema.createArray;
-import static org.testng.Assert.assertEquals;
-import static org.testng.Assert.assertNotEquals;
-import static org.testng.Assert.assertTrue;
+import static org.testng.Assert.*;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.apache.avro.generic.GenericData;
 import org.testng.Assert;
 import org.testng.annotations.Test;
@@ -105,6 +106,25 @@ public class CollectionUtilsTest {
     Map populatedMap = new HashMap();
     populatedMap.put("foo", "bar");
     assertNotEquals(CollectionUtils.substituteEmptyMap(populatedMap), Collections.emptyMap());
+  }
+
+  @Test
+  public void testIsEmpty() {
+    assertTrue(CollectionUtils.isEmpty((Map) null));
+    assertTrue(CollectionUtils.isEmpty((Collection) null));
+    assertTrue(CollectionUtils.isEmpty(Collections.emptyMap()));
+    assertTrue(CollectionUtils.isEmpty(Collections.emptyNavigableMap()));
+    assertTrue(CollectionUtils.isEmpty(Collections.emptyList()));
+    assertTrue(CollectionUtils.isEmpty(Collections.emptySet()));
+    assertTrue(CollectionUtils.isEmpty(Collections.emptyNavigableSet()));
+
+    Map<Object, Object> populatedMap = new HashMap<>();
+    populatedMap.put(new Object(), new Object());
+    assertFalse(CollectionUtils.isEmpty(populatedMap));
+
+    Set<Object> populatedSet = new HashSet<>();
+    populatedSet.add(new Object());
+    assertFalse(CollectionUtils.isEmpty(populatedSet));
   }
 
   private void populateIntegerList(List<Integer> list) {
