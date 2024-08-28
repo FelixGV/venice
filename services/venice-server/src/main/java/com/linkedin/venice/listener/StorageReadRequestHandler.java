@@ -6,6 +6,7 @@ import com.linkedin.davinci.config.VeniceServerConfig;
 import com.linkedin.davinci.listener.response.AdminResponse;
 import com.linkedin.davinci.listener.response.MetadataResponse;
 import com.linkedin.davinci.listener.response.ReadResponse;
+import com.linkedin.davinci.listener.response.ReadResponseStats;
 import com.linkedin.davinci.listener.response.ServerCurrentVersionResponse;
 import com.linkedin.davinci.listener.response.TopicPartitionIngestionContextResponse;
 import com.linkedin.davinci.storage.DiskHealthCheckService;
@@ -42,12 +43,14 @@ import com.linkedin.venice.listener.response.BinaryResponse;
 import com.linkedin.venice.listener.response.ComputeResponseWrapper;
 import com.linkedin.venice.listener.response.HttpShortcutResponse;
 import com.linkedin.venice.listener.response.MultiGetResponseWrapper;
-import com.linkedin.venice.listener.response.StorageResponseObject;
+import com.linkedin.venice.listener.response.ParallelMultiKeyResponseWrapper;
+import com.linkedin.venice.listener.response.SingleGetResponseWrapper;
+import com.linkedin.venice.listener.response.stats.ComputeResponseStatsWithSizeProfiling;
+import com.linkedin.venice.listener.response.stats.MultiGetResponseStatsWithSizeProfiling;
 import com.linkedin.venice.meta.ReadOnlySchemaRepository;
 import com.linkedin.venice.meta.ReadOnlyStoreRepository;
 import com.linkedin.venice.meta.Store;
 import com.linkedin.venice.meta.Version;
-import com.linkedin.venice.read.RequestType;
 import com.linkedin.venice.read.protocol.request.router.MultiGetRouterRequestKeyV1;
 import com.linkedin.venice.read.protocol.response.MultiGetResponseRecordV1;
 import com.linkedin.venice.schema.SchemaData;
@@ -69,21 +72,17 @@ import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.handler.codec.http.HttpResponseStatus;
-import it.unimi.dsi.fastutil.ints.IntArrayList;
-import it.unimi.dsi.fastutil.ints.IntList;
-import it.unimi.dsi.fastutil.ints.IntLists;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.IntFunction;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecord;
@@ -114,15 +113,22 @@ public class StorageReadRequestHandler extends ChannelInboundHandlerAdapter {
   private final Map<Utf8, Schema> computeResultSchemaCache;
   private final boolean fastAvroEnabled;
   private final Function<Schema, RecordSerializer<GenericRecord>> genericSerializerGetter;
-  private final boolean parallelBatchGetEnabled;
   private final int parallelBatchGetChunkSize;
-  private final boolean keyValueProfilingEnabled;
   private final VeniceServerConfig serverConfig;
   private final Map<String, PerStoreVersionState> perStoreVersionStateMap = new VeniceConcurrentHashMap<>();
   private final Map<String, StoreDeserializerCache<GenericRecord>> storeDeserializerCacheMap =
       new VeniceConcurrentHashMap<>();
   private final StorageEngineBackedCompressorFactory compressorFactory;
-  private final Optional<ResourceReadUsageTracker> resourceReadUsageTracker;
+  private final Consumer<String> resourceReadUsageTracker;
+
+  /**
+   * The function handles below are used to drive the K/V size profiling, which is enabled (or not) by an immutable
+   * config determined at the time we construct the {@link StorageReadRequestHandler}. This way, we don't need to
+   * evaluate the config flag during every request.
+   */
+  private final IntFunction<MultiGetResponseWrapper> multiGetResponseProvider;
+  private final IntFunction<ComputeResponseWrapper> computeResponseProvider;
+  private final Function<MultiGetRouterRequestWrapper, CompletableFuture<ReadResponse>> multiGetHandler;
 
   private static class PerStoreVersionState {
     final StoreDeserializerCache<GenericRecord> storeDeserializerCache;
@@ -187,7 +193,7 @@ public class StorageReadRequestHandler extends ChannelInboundHandlerAdapter {
       int parallelBatchGetChunkSize,
       VeniceServerConfig serverConfig,
       StorageEngineBackedCompressorFactory compressorFactory,
-      Optional<ResourceReadUsageTracker> resourceReadUsageTracker) {
+      Optional<ResourceReadUsageTracker> optionalResourceReadUsageTracker) {
     this.executor = executor;
     this.computeExecutor = computeExecutor;
     this.storageEngineRepository = storageEngineRepository;
@@ -201,139 +207,94 @@ public class StorageReadRequestHandler extends ChannelInboundHandlerAdapter {
         ? FastSerializerDeserializerFactory::getFastAvroGenericSerializer
         : SerializerDeserializerFactory::getAvroGenericSerializer;
     this.computeResultSchemaCache = new VeniceConcurrentHashMap<>();
-    this.parallelBatchGetEnabled = parallelBatchGetEnabled;
     this.parallelBatchGetChunkSize = parallelBatchGetChunkSize;
-    this.keyValueProfilingEnabled = serverConfig.isKeyValueProfilingEnabled();
+    if (parallelBatchGetEnabled) {
+      this.multiGetHandler = this::handleMultiGetRequestInParallel;
+    } else {
+      this.multiGetHandler = this::handleMultiGetRequest;
+    }
+    boolean keyValueProfilingEnabled = serverConfig.isKeyValueProfilingEnabled();
+    if (keyValueProfilingEnabled) {
+      this.multiGetResponseProvider =
+          s -> new MultiGetResponseWrapper(s, new MultiGetResponseStatsWithSizeProfiling(s));
+      this.computeResponseProvider = s -> new ComputeResponseWrapper(s, new ComputeResponseStatsWithSizeProfiling(s));
+    } else {
+      this.multiGetResponseProvider = MultiGetResponseWrapper::new;
+      this.computeResponseProvider = ComputeResponseWrapper::new;
+    }
     this.serverConfig = serverConfig;
     this.compressorFactory = compressorFactory;
-    this.resourceReadUsageTracker = resourceReadUsageTracker;
+    if (optionalResourceReadUsageTracker.isPresent()) {
+      ResourceReadUsageTracker tracker = optionalResourceReadUsageTracker.get();
+      this.resourceReadUsageTracker = tracker::recordReadUsage;
+    } else {
+      this.resourceReadUsageTracker = ignored -> {};
+    }
   }
 
   @Override
   public void channelRead(ChannelHandlerContext context, Object message) throws Exception {
-    final long preSubmissionTimeNs = System.nanoTime();
-
-    /**
-     * N.B.: This is the only place in the entire class where we submit things into the {@link executor}.
-     *
-     * The reason for this is two-fold:
-     *
-     * 1. We want to make the {@link StorageReadRequestHandler} fully non-blocking as far as Netty (which
-     *    is the one calling this function) is concerned. Therefore, it is beneficial to fork off the
-     *    work into the executor from the very beginning.
-     * 2. By making the execution asynchronous from the beginning, we can simplify the rest of the class
-     *    by making every other function a blocking one. If there is a desire to introduce additional
-     *    concurrency in the rest of the class (i.e.: to make batch gets or large value re-assembly
-     *    parallel), then it would be good to carefully consider whether this is a premature optimization,
-     *    and if not, whether these additional operations should be performed in the same executor or in
-     *    a secondary one, so as to not starve the primary requests. Furthermore, it should be considered
-     *    whether it might be more beneficial to do streaming of these large response use cases, rather
-     *    than parallel operations gated behind a synchronization barrier before any of the response can
-     *    be sent out.
-     */
-
     if (message instanceof RouterRequest) {
       RouterRequest request = (RouterRequest) message;
-      resourceReadUsageTracker.ifPresent(tracker -> tracker.recordReadUsage(request.getResourceName()));
+      this.resourceReadUsageTracker.accept(request.getResourceName());
       // Check before putting the request to the intermediate queue
       if (request.shouldRequestBeTerminatedEarly()) {
         // Try to make the response short
-        VeniceRequestEarlyTerminationException earlyTerminationException =
-            new VeniceRequestEarlyTerminationException(request.getStoreName());
         context.writeAndFlush(
             new HttpShortcutResponse(
-                earlyTerminationException.getMessage(),
-                earlyTerminationException.getHttpResponseStatus()));
-        return;
-      }
-      /**
-       * For now, we are evaluating whether parallel lookup is good overall or not.
-       * Eventually, we either pick up the new parallel implementation or keep the original one, so it is fine
-       * to have some duplicate code for the time-being.
-       */
-      if (parallelBatchGetEnabled && request.getRequestType().equals(RequestType.MULTI_GET)) {
-        handleMultiGetRequestInParallel((MultiGetRouterRequestWrapper) request, parallelBatchGetChunkSize)
-            .whenComplete((v, e) -> {
-              if (e != null) {
-                if (e instanceof VeniceRequestEarlyTerminationException) {
-                  VeniceRequestEarlyTerminationException earlyTerminationException =
-                      (VeniceRequestEarlyTerminationException) e;
-                  context.writeAndFlush(
-                      new HttpShortcutResponse(
-                          earlyTerminationException.getMessage(),
-                          earlyTerminationException.getHttpResponseStatus()));
-                } else if (e instanceof VeniceNoStoreException) {
-                  HttpResponseStatus status = getHttpResponseStatus((VeniceNoStoreException) e);
-                  context.writeAndFlush(
-                      new HttpShortcutResponse(
-                          "No storage exists for: " + ((VeniceNoStoreException) e).getStoreName(),
-                          status));
-                } else {
-                  LOGGER.error("Exception thrown in parallel batch get for {}", request.getResourceName(), e);
-                  HttpShortcutResponse shortcutResponse =
-                      new HttpShortcutResponse(e.getMessage(), HttpResponseStatus.INTERNAL_SERVER_ERROR);
-                  shortcutResponse.setMisroutedStoreVersion(checkMisroutedStoreVersionRequest(request));
-                  context.writeAndFlush(shortcutResponse);
-                }
-              } else {
-                context.writeAndFlush(v);
-              }
-            });
+                VeniceRequestEarlyTerminationException.getMessage(request.getStoreName()),
+                VeniceRequestEarlyTerminationException.getHttpResponseStatus()));
         return;
       }
 
-      final ThreadPoolExecutor executor = getExecutor(request.getRequestType());
-      executor.submit(() -> {
-        try {
-          if (request.shouldRequestBeTerminatedEarly()) {
-            throw new VeniceRequestEarlyTerminationException(request.getStoreName());
-          }
-          double submissionWaitTime = LatencyUtils.getElapsedTimeFromNSToMS(preSubmissionTimeNs);
-          int queueLen = executor.getQueue().size();
-          ReadResponse response;
-          switch (request.getRequestType()) {
-            case SINGLE_GET:
-              response = handleSingleGetRequest((GetRouterRequest) request);
-              break;
-            case MULTI_GET:
-              response = handleMultiGetRequest((MultiGetRouterRequestWrapper) request);
-              break;
-            case COMPUTE:
-              response = handleComputeRequest((ComputeRouterRequestWrapper) message);
-              break;
-            default:
-              throw new VeniceException("Unknown request type: " + request.getRequestType());
-          }
-          response.setStorageExecutionSubmissionWaitTime(submissionWaitTime);
-          response.setStorageExecutionQueueLen(queueLen);
+      CompletableFuture<ReadResponse> responseFuture;
+      switch (request.getRequestType()) {
+        case SINGLE_GET:
+          responseFuture = handleSingleGetRequest((GetRouterRequest) request);
+          break;
+        case MULTI_GET:
+          responseFuture = this.multiGetHandler.apply((MultiGetRouterRequestWrapper) request);
+          break;
+        case COMPUTE:
+          responseFuture = handleComputeRequest((ComputeRouterRequestWrapper) message);
+          break;
+        default:
+          throw new VeniceException("Unknown request type: " + request.getRequestType());
+      }
+
+      responseFuture.whenComplete((response, throwable) -> {
+        if (throwable == null) {
           response.setRCU(ReadQuotaEnforcementHandler.getRcu(request));
           if (request.isStreamingRequest()) {
             response.setStreamingResponse();
           }
           context.writeAndFlush(response);
-        } catch (VeniceNoStoreException e) {
+        } else if (throwable instanceof VeniceNoStoreException) {
+          VeniceNoStoreException e = (VeniceNoStoreException) throwable;
           String msg = "No storage exists for store: " + e.getStoreName();
           if (!REDUNDANT_LOGGING_FILTER.isRedundantException(msg)) {
             LOGGER.error(msg, e);
           }
           HttpResponseStatus status = getHttpResponseStatus(e);
           context.writeAndFlush(new HttpShortcutResponse("No storage exists for: " + e.getStoreName(), status));
-        } catch (VeniceRequestEarlyTerminationException e) {
+        } else if (throwable instanceof VeniceRequestEarlyTerminationException) {
+          VeniceRequestEarlyTerminationException e = (VeniceRequestEarlyTerminationException) throwable;
           String msg = "Request timed out for store: " + e.getStoreName();
           if (!REDUNDANT_LOGGING_FILTER.isRedundantException(msg)) {
             LOGGER.error(msg, e);
           }
           context.writeAndFlush(new HttpShortcutResponse(e.getMessage(), HttpResponseStatus.REQUEST_TIMEOUT));
-        } catch (OperationNotAllowedException e) {
+        } else if (throwable instanceof OperationNotAllowedException) {
+          OperationNotAllowedException e = (OperationNotAllowedException) throwable;
           String msg = "METHOD_NOT_ALLOWED: " + e.getMessage();
           if (!REDUNDANT_LOGGING_FILTER.isRedundantException(msg)) {
             LOGGER.error(msg, e);
           }
           context.writeAndFlush(new HttpShortcutResponse(e.getMessage(), HttpResponseStatus.METHOD_NOT_ALLOWED));
-        } catch (Exception e) {
-          LOGGER.error("Exception thrown for {}", request.getResourceName(), e);
+        } else {
+          LOGGER.error("Exception thrown for {}", request.getResourceName(), throwable);
           HttpShortcutResponse shortcutResponse =
-              new HttpShortcutResponse(e.getMessage(), HttpResponseStatus.INTERNAL_SERVER_ERROR);
+              new HttpShortcutResponse(throwable.getMessage(), HttpResponseStatus.INTERNAL_SERVER_ERROR);
           shortcutResponse.setMisroutedStoreVersion(checkMisroutedStoreVersionRequest(request));
           context.writeAndFlush(shortcutResponse);
         }
@@ -411,18 +372,6 @@ public class StorageReadRequestHandler extends ChannelInboundHandlerAdapter {
     return misrouted;
   }
 
-  private ThreadPoolExecutor getExecutor(RequestType requestType) {
-    switch (requestType) {
-      case SINGLE_GET:
-      case MULTI_GET:
-        return executor;
-      case COMPUTE:
-        return computeExecutor;
-      default:
-        throw new VeniceException("Request type " + requestType + " is not supported.");
-    }
-  }
-
   private PerStoreVersionState getPerStoreVersionState(String storeVersion) {
     PerStoreVersionState s = perStoreVersionStateMap.computeIfAbsent(storeVersion, this::generatePerStoreVersionState);
     if (s.storageEngine.isClosed()) {
@@ -454,129 +403,106 @@ public class StorageReadRequestHandler extends ChannelInboundHandlerAdapter {
     return storageEngine;
   }
 
-  public ReadResponse handleSingleGetRequest(GetRouterRequest request) {
-    String topic = request.getResourceName();
-    PerStoreVersionState perStoreVersionState = getPerStoreVersionState(topic);
-    byte[] key = request.getKeyBytes();
+  public CompletableFuture<ReadResponse> handleSingleGetRequest(GetRouterRequest request) {
+    final int queueLen = this.executor.getQueue().size();
+    final long preSubmissionTimeNs = System.nanoTime();
+    return CompletableFuture.supplyAsync(() -> {
+      if (request.shouldRequestBeTerminatedEarly()) {
+        throw new VeniceRequestEarlyTerminationException(request.getStoreName());
+      }
 
-    AbstractStorageEngine storageEngine = perStoreVersionState.storageEngine;
-    boolean isChunked = storageEngine.isChunked();
-    StorageResponseObject response = new StorageResponseObject();
-    response.setCompressionStrategy(storageEngine.getCompressionStrategy());
-    response.setDatabaseLookupLatency(0);
+      double submissionWaitTime = LatencyUtils.getElapsedTimeFromNSToMS(preSubmissionTimeNs);
 
-    ValueRecord valueRecord =
-        SingleGetChunkingAdapter.get(storageEngine, request.getPartition(), key, isChunked, response);
-    response.setValueRecord(valueRecord);
+      String topic = request.getResourceName();
+      PerStoreVersionState perStoreVersionState = getPerStoreVersionState(topic);
+      byte[] key = request.getKeyBytes();
 
-    if (keyValueProfilingEnabled) {
-      response.setKeySizeList(IntLists.singleton(key.length));
-      response.setValueSizeList(IntLists.singleton(response.isFound() ? valueRecord.getDataSize() : -1));
-    }
+      AbstractStorageEngine storageEngine = perStoreVersionState.storageEngine;
+      boolean isChunked = storageEngine.isChunked();
+      SingleGetResponseWrapper response = new SingleGetResponseWrapper();
+      response.setCompressionStrategy(storageEngine.getCompressionStrategy());
 
-    return response;
+      ValueRecord valueRecord =
+          SingleGetChunkingAdapter.get(storageEngine, request.getPartition(), key, isChunked, response.getStats());
+      response.setValueRecord(valueRecord);
+
+      response.getStats().addKeySize(key.length);
+      response.getStats().setStorageExecutionSubmissionWaitTime(submissionWaitTime);
+      response.getStats().setStorageExecutionQueueLen(queueLen);
+
+      return response;
+    });
   }
 
-  private CompletableFuture<ReadResponse> handleMultiGetRequestInParallel(
-      MultiGetRouterRequestWrapper request,
-      int parallelChunkSize) {
-    String topic = request.getResourceName();
-    Iterable<MultiGetRouterRequestKeyV1> keys = request.getKeys();
-    PerStoreVersionState perStoreVersionState = getPerStoreVersionState(topic);
+  private CompletableFuture<ReadResponse> handleMultiGetRequestInParallel(MultiGetRouterRequestWrapper request) {
+    List<MultiGetRouterRequestKeyV1> keys = request.getKeys();
+    PerStoreVersionState perStoreVersionState = getPerStoreVersionState(request.getResourceName());
     AbstractStorageEngine storageEngine = perStoreVersionState.storageEngine;
 
-    MultiGetResponseWrapper responseWrapper = new MultiGetResponseWrapper(request.getKeyCount());
-    responseWrapper.setCompressionStrategy(storageEngine.getCompressionStrategy());
-    responseWrapper.setDatabaseLookupLatency(0);
     boolean isChunked = storageEngine.isChunked();
 
-    ExecutorService executorService = getExecutor(RequestType.MULTI_GET);
-    if (!(keys instanceof ArrayList)) {
-      throw new VeniceException("'keys' in MultiGetResponseWrapper should be an ArrayList");
-    }
-    final ArrayList<MultiGetRouterRequestKeyV1> keyList = (ArrayList<MultiGetRouterRequestKeyV1>) keys;
-    int totalKeyNum = keyList.size();
-    int splitSize = (int) Math.ceil((double) totalKeyNum / parallelChunkSize);
+    int totalKeyNum = keys.size();
+    int chunkCount = (int) Math.ceil((double) totalKeyNum / this.parallelBatchGetChunkSize);
+    ParallelMultiKeyResponseWrapper<MultiGetResponseWrapper> responseWrapper = ParallelMultiKeyResponseWrapper
+        .multiGet(chunkCount, this.parallelBatchGetChunkSize, this.multiGetResponseProvider);
+    responseWrapper.setCompressionStrategy(storageEngine.getCompressionStrategy());
 
-    ReentrantLock requestLock = new ReentrantLock();
-    CompletableFuture[] chunkFutures = new CompletableFuture[splitSize];
+    CompletableFuture<Void>[] chunkFutures = new CompletableFuture[chunkCount];
 
-    IntList responseKeySizeList = keyValueProfilingEnabled ? new IntArrayList(totalKeyNum) : null;
-    IntList responseValueSizeList = keyValueProfilingEnabled ? new IntArrayList(totalKeyNum) : null;
-
-    for (int cur = 0; cur < splitSize; ++cur) {
+    final int queueLen = this.executor.getQueue().size();
+    final long preSubmissionTimeNs = System.nanoTime();
+    for (int cur = 0; cur < chunkCount; ++cur) {
       final int finalCur = cur;
       chunkFutures[cur] = CompletableFuture.runAsync(() -> {
+        double submissionWaitTime = LatencyUtils.getElapsedTimeFromNSToMS(preSubmissionTimeNs);
+
         if (request.shouldRequestBeTerminatedEarly()) {
           throw new VeniceRequestEarlyTerminationException(request.getStoreName());
         }
-        int startPos = finalCur * parallelChunkSize;
-        int endPos = Math.min((finalCur + 1) * parallelChunkSize, totalKeyNum);
-        for (int subChunkCur = startPos; subChunkCur < endPos; ++subChunkCur) {
-          final MultiGetRouterRequestKeyV1 key = keyList.get(subChunkCur);
-          if (responseKeySizeList != null) {
-            responseKeySizeList.set(subChunkCur, key.keyBytes.remaining());
-          }
-          MultiGetResponseRecordV1 record =
-              BatchGetChunkingAdapter.get(storageEngine, key.partitionId, key.keyBytes, isChunked, responseWrapper);
-          if (record == null) {
-            if (request.isStreamingRequest()) {
-              // For streaming, we would like to send back non-existing keys since the end-user won't know the status of
-              // non-existing keys in the response if the response is partial.
-              record = new MultiGetResponseRecordV1();
-              // Negative key index to indicate the non-existing keys
-              record.keyIndex = Math.negateExact(key.keyIndex);
-              record.schemaId = StreamingConstants.NON_EXISTING_KEY_SCHEMA_ID;
-              record.value = StreamingUtils.EMPTY_BYTE_BUFFER;
-            }
-          } else {
-            record.keyIndex = key.keyIndex;
-          }
 
-          if (record != null) {
-            if (responseValueSizeList != null) {
-              responseValueSizeList.set(subChunkCur, record.value.remaining());
-            }
-            // TODO: streaming support in storage node
-            requestLock.lock();
-            try {
-              responseWrapper.addRecord(record);
-            } finally {
-              requestLock.unlock();
-            }
-          } else {
-            if (responseValueSizeList != null) {
-              responseValueSizeList.set(subChunkCur, -1);
-            }
-          }
-        }
-      }, executorService);
+        int startPos = finalCur * this.parallelBatchGetChunkSize;
+        int endPos = Math.min((finalCur + 1) * this.parallelBatchGetChunkSize, totalKeyNum);
+        MultiGetResponseWrapper chunkOfResponse = responseWrapper.getChunk(finalCur);
+        processMultiGet(
+            startPos,
+            endPos,
+            keys,
+            storageEngine,
+            isChunked,
+            chunkOfResponse,
+            request.isStreamingRequest());
+
+        chunkOfResponse.getStats().setStorageExecutionSubmissionWaitTime(submissionWaitTime);
+      }, executor);
     }
 
     return CompletableFuture.allOf(chunkFutures).handle((v, e) -> {
       if (e != null) {
         throw new VeniceException(e);
       }
-      responseWrapper.setKeySizeList(responseKeySizeList);
-      responseWrapper.setValueSizeList(responseValueSizeList);
+
+      responseWrapper.getChunk(0).getStats().setStorageExecutionQueueLen(queueLen);
       return responseWrapper;
     });
   }
 
-  public ReadResponse handleMultiGetRequest(MultiGetRouterRequestWrapper request) {
-    Iterable<MultiGetRouterRequestKeyV1> keys = request.getKeys();
-    PerStoreVersionState perStoreVersionState = getPerStoreVersionState(request.getResourceName());
-    AbstractStorageEngine storageEngine = perStoreVersionState.storageEngine;
-
-    MultiGetResponseWrapper responseWrapper = new MultiGetResponseWrapper(request.getKeyCount());
-    responseWrapper.setCompressionStrategy(storageEngine.getCompressionStrategy());
-    responseWrapper.setDatabaseLookupLatency(0);
-    boolean isChunked = storageEngine.isChunked();
-    for (MultiGetRouterRequestKeyV1 key: keys) {
-      MultiGetResponseRecordV1 record =
-          BatchGetChunkingAdapter.get(storageEngine, key.partitionId, key.keyBytes, isChunked, responseWrapper);
+  private void processMultiGet(
+      int startPos,
+      int endPos,
+      List<MultiGetRouterRequestKeyV1> keys,
+      AbstractStorageEngine storageEngine,
+      boolean isChunked,
+      MultiGetResponseWrapper responseWrapper,
+      boolean isStreaming) {
+    MultiGetResponseRecordV1 record;
+    MultiGetRouterRequestKeyV1 key;
+    for (int subChunkCur = startPos; subChunkCur < endPos; ++subChunkCur) {
+      key = keys.get(subChunkCur);
+      responseWrapper.getStats().addKeySize(key.getKeyBytes().remaining());
+      record = BatchGetChunkingAdapter
+          .get(storageEngine, key.partitionId, key.keyBytes, isChunked, responseWrapper.getStats());
       if (record == null) {
-        if (request.isStreamingRequest()) {
+        if (isStreaming) {
           // For streaming, we would like to send back non-existing keys since the end-user won't know the status of
           // non-existing keys in the response if the response is partial.
           record = new MultiGetResponseRecordV1();
@@ -584,63 +510,109 @@ public class StorageReadRequestHandler extends ChannelInboundHandlerAdapter {
           record.keyIndex = Math.negateExact(key.keyIndex);
           record.schemaId = StreamingConstants.NON_EXISTING_KEY_SCHEMA_ID;
           record.value = StreamingUtils.EMPTY_BYTE_BUFFER;
+          responseWrapper.addRecord(record);
         }
       } else {
         record.keyIndex = key.keyIndex;
-      }
-
-      if (record != null) {
-        // TODO: streaming support in storage node
         responseWrapper.addRecord(record);
       }
     }
-    return responseWrapper;
+
+    // Trigger serialization
+    responseWrapper.getResponseBody();
   }
 
-  private ReadResponse handleComputeRequest(ComputeRouterRequestWrapper request) {
-    if (!metadataRepository.isReadComputationEnabled(request.getStoreName())) {
-      throw new OperationNotAllowedException(
-          "Read compute is not enabled for the store. Please contact Venice team to enable the feature.");
-    }
-    SchemaEntry superSetOrLatestValueSchema = schemaRepository.getSupersetOrLatestValueSchema(request.getStoreName());
-    SchemaEntry valueSchemaEntry = getComputeValueSchema(request, superSetOrLatestValueSchema);
-    Schema resultSchema = getComputeResultSchema(request.getComputeRequest(), valueSchemaEntry.getSchema());
-    RecordSerializer<GenericRecord> resultSerializer = genericSerializerGetter.apply(resultSchema);
-    PerStoreVersionState storeVersion = getPerStoreVersionState(request.getResourceName());
-    VeniceCompressor compressor =
-        compressorFactory.getCompressor(storeVersion.storageEngine.getCompressionStrategy(), request.getResourceName());
+  public CompletableFuture<ReadResponse> handleMultiGetRequest(MultiGetRouterRequestWrapper request) {
+    final int queueLen = this.executor.getQueue().size();
+    final long preSubmissionTimeNs = System.nanoTime();
+    return CompletableFuture.supplyAsync(() -> {
+      double submissionWaitTime = LatencyUtils.getElapsedTimeFromNSToMS(preSubmissionTimeNs);
 
-    // Reuse the same value record and result record instances for all values
-    ReusableObjects reusableObjects = threadLocalReusableObjects.get();
-    GenericRecord reusableValueRecord =
-        reusableObjects.valueRecordMap.computeIfAbsent(valueSchemaEntry.getSchema(), GenericData.Record::new);
-    GenericRecord reusableResultRecord =
-        reusableObjects.resultRecordMap.computeIfAbsent(resultSchema, GenericData.Record::new);
-    reusableObjects.computeContext.clear();
-
-    ComputeResponseWrapper response = new ComputeResponseWrapper(request.getKeyCount());
-    List<ComputeOperation> operations = request.getComputeRequest().getOperations();
-    List<Schema.Field> operationResultFields = ComputeUtils.getOperationResultFields(operations, resultSchema);
-    int hits = 0;
-    for (ComputeRouterRequestKeyV1 key: request.getKeys()) {
-      AvroRecordUtils.clearRecord(reusableResultRecord);
-      GenericRecord result = computeResult(
-          operations,
-          operationResultFields,
-          storeVersion,
-          key,
-          reusableValueRecord,
-          valueSchemaEntry.getId(),
-          compressor,
-          response,
-          reusableObjects,
-          reusableResultRecord);
-      if (addComputationResult(response, key, result, resultSerializer, request.isStreamingRequest())) {
-        hits++;
+      if (request.shouldRequestBeTerminatedEarly()) {
+        throw new VeniceRequestEarlyTerminationException(request.getStoreName());
       }
+
+      List<MultiGetRouterRequestKeyV1> keys = request.getKeys();
+      PerStoreVersionState perStoreVersionState = getPerStoreVersionState(request.getResourceName());
+      AbstractStorageEngine storageEngine = perStoreVersionState.storageEngine;
+      MultiGetResponseWrapper responseWrapper = this.multiGetResponseProvider.apply(request.getKeyCount());
+      responseWrapper.setCompressionStrategy(storageEngine.getCompressionStrategy());
+      boolean isChunked = storageEngine.isChunked();
+      processMultiGet(
+          0,
+          request.getKeyCount(),
+          keys,
+          storageEngine,
+          isChunked,
+          responseWrapper,
+          request.isStreamingRequest());
+
+      responseWrapper.getStats().setStorageExecutionSubmissionWaitTime(submissionWaitTime);
+      responseWrapper.getStats().setStorageExecutionQueueLen(queueLen);
+      return responseWrapper;
+    }, executor);
+  }
+
+  private CompletableFuture<ReadResponse> handleComputeRequest(ComputeRouterRequestWrapper request) {
+    if (!metadataRepository.isReadComputationEnabled(request.getStoreName())) {
+      CompletableFuture failFast = new CompletableFuture();
+      failFast.completeExceptionally(
+          new OperationNotAllowedException(
+              "Read compute is not enabled for the store. Please contact Venice team to enable the feature."));
+      return failFast;
     }
-    incrementOperatorCounters(response, operations, hits);
-    return response;
+
+    final int queueLen = this.computeExecutor.getQueue().size();
+    final long preSubmissionTimeNs = System.nanoTime();
+    return CompletableFuture.supplyAsync(() -> {
+      if (request.shouldRequestBeTerminatedEarly()) {
+        throw new VeniceRequestEarlyTerminationException(request.getStoreName());
+      }
+
+      double submissionWaitTime = LatencyUtils.getElapsedTimeFromNSToMS(preSubmissionTimeNs);
+
+      SchemaEntry superSetOrLatestValueSchema = schemaRepository.getSupersetOrLatestValueSchema(request.getStoreName());
+      SchemaEntry valueSchemaEntry = getComputeValueSchema(request, superSetOrLatestValueSchema);
+      Schema resultSchema = getComputeResultSchema(request.getComputeRequest(), valueSchemaEntry.getSchema());
+      RecordSerializer<GenericRecord> resultSerializer = genericSerializerGetter.apply(resultSchema);
+      PerStoreVersionState storeVersion = getPerStoreVersionState(request.getResourceName());
+      VeniceCompressor compressor = compressorFactory
+          .getCompressor(storeVersion.storageEngine.getCompressionStrategy(), request.getResourceName());
+
+      // Reuse the same value record and result record instances for all values
+      ReusableObjects reusableObjects = threadLocalReusableObjects.get();
+      GenericRecord reusableValueRecord =
+          reusableObjects.valueRecordMap.computeIfAbsent(valueSchemaEntry.getSchema(), GenericData.Record::new);
+      GenericRecord reusableResultRecord =
+          reusableObjects.resultRecordMap.computeIfAbsent(resultSchema, GenericData.Record::new);
+      reusableObjects.computeContext.clear();
+
+      ComputeResponseWrapper response = computeResponseProvider.apply(request.getKeyCount());
+      List<ComputeOperation> operations = request.getComputeRequest().getOperations();
+      List<Schema.Field> operationResultFields = ComputeUtils.getOperationResultFields(operations, resultSchema);
+      int hits = 0;
+      for (ComputeRouterRequestKeyV1 key: request.getKeys()) {
+        AvroRecordUtils.clearRecord(reusableResultRecord);
+        GenericRecord result = computeResult(
+            operations,
+            operationResultFields,
+            storeVersion,
+            key,
+            reusableValueRecord,
+            valueSchemaEntry.getId(),
+            compressor,
+            response.getStats(),
+            reusableObjects,
+            reusableResultRecord);
+        if (addComputationResult(response, key, result, resultSerializer, request.isStreamingRequest())) {
+          hits++;
+        }
+      }
+      incrementOperatorCounters(response.getStats(), operations, hits);
+      response.getStats().setStorageExecutionSubmissionWaitTime(submissionWaitTime);
+      response.getStats().setStorageExecutionQueueLen(queueLen);
+      return response;
+    }, computeExecutor);
   }
 
   private BinaryResponse handleDictionaryFetchRequest(DictionaryFetchRequest request) {
@@ -690,8 +662,9 @@ public class StorageReadRequestHandler extends ChannelInboundHandlerAdapter {
       ComputeResponseRecordV1 record = new ComputeResponseRecordV1();
       record.keyIndex = key.getKeyIndex();
       record.value = ByteBuffer.wrap(resultSerializer.serialize(result));
-      response.addReadComputeSerializationLatency(LatencyUtils.getElapsedTimeFromNSToMS(serializeStartTimeInNS));
-      response.addReadComputeOutputSize(record.value.remaining());
+      response.getStats()
+          .addReadComputeSerializationLatency(LatencyUtils.getElapsedTimeFromNSToMS(serializeStartTimeInNS));
+      response.getStats().addReadComputeOutputSize(record.value.remaining());
       response.addRecord(record);
       return true;
     } else if (isStreaming) {
@@ -713,7 +686,7 @@ public class StorageReadRequestHandler extends ChannelInboundHandlerAdapter {
       GenericRecord reusableValueRecord,
       int readerSchemaId,
       VeniceCompressor compressor,
-      ComputeResponseWrapper response,
+      ReadResponseStats response,
       ReusableObjects reusableObjects,
       GenericRecord reusableResultRecord) {
     reusableValueRecord =
@@ -738,7 +711,7 @@ public class StorageReadRequestHandler extends ChannelInboundHandlerAdapter {
       PerStoreVersionState storeVersion,
       int readerSchemaId,
       VeniceCompressor compressor,
-      ReadResponse response,
+      ReadResponseStats response,
       ReusableObjects reusableObjects,
       GenericRecord reusableValueRecord) {
     return GenericRecordChunkingAdapter.INSTANCE.get(
@@ -756,7 +729,7 @@ public class StorageReadRequestHandler extends ChannelInboundHandlerAdapter {
   }
 
   private static void incrementOperatorCounters(
-      ComputeResponseWrapper response,
+      ReadResponseStats response,
       Iterable<ComputeOperation> operations,
       int hits) {
     for (ComputeOperation operation: operations) {

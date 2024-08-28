@@ -1,5 +1,6 @@
 package com.linkedin.venice.listener.response;
 
+import com.linkedin.venice.listener.response.stats.MultiKeyResponseStats;
 import com.linkedin.venice.read.protocol.response.MultiGetResponseRecordV1;
 import com.linkedin.venice.schema.avro.ReadAvroProtocolDefinition;
 import com.linkedin.venice.serializer.FastSerializerDeserializerFactory;
@@ -11,12 +12,11 @@ public class MultiGetResponseWrapper extends MultiKeyResponseWrapper<MultiGetRes
       FastSerializerDeserializerFactory.getFastAvroGenericSerializer(MultiGetResponseRecordV1.getClassSchema());
 
   public MultiGetResponseWrapper(int maxKeyCount) {
-    super(maxKeyCount);
+    this(maxKeyCount, new MultiKeyResponseStats());
   }
 
-  @Override
-  protected RecordSerializer<MultiGetResponseRecordV1> getResponseSerializer() {
-    return SERIALIZER;
+  public MultiGetResponseWrapper(int maxKeyCount, MultiKeyResponseStats responseStats) {
+    super(maxKeyCount, responseStats, SERIALIZER);
   }
 
   @Override

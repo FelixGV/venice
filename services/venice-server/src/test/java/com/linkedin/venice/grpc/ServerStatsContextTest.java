@@ -116,20 +116,11 @@ public class ServerStatsContextTest {
     context.setStoreName("testStore");
 
     context.setRequestType(RequestType.MULTI_GET);
-    context.setDatabaseLookupLatency(10.5);
-    context.setStorageExecutionHandlerSubmissionWaitTime(20.5);
-    context.setMultiChunkLargeValueCount(10);
+
     context.setRequestKeyCount(105);
-    context.setSuccessRequestKeyCount(100);
     context.setRequestSize(1000);
-    context.setRequestPartCount(11);
-    context.setReadComputeLatency(1000);
-    context.setReadComputeDeserializationLatency(100);
-    context.setReadComputeSerializationLatency(200);
-    context.setDotProductCount(300);
-    context.setCosineSimilarityCount(13);
-    context.setHadamardProductCount(132);
-    context.setCountOperatorCount(432);
+    context.incrementRequestPartCount();
+    context.incrementRequestPartCount();
 
     context.recordBasicMetrics(stats);
 
