@@ -64,6 +64,7 @@ public class D2ClientUtils {
   public static void shutdownClient(D2Client client, long timeoutInMs) {
     if (client == null) {
       LOGGER.info("shutdownClient called on a null instance. Skipping.");
+      return;
     }
 
     long startTime = System.currentTimeMillis();

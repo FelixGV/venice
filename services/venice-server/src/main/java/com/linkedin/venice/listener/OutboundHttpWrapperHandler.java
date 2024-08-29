@@ -62,7 +62,8 @@ public class OutboundHttpWrapperHandler extends ChannelOutboundHandlerAdapter {
         if (obj.isFound()) {
           body = obj.getResponseBody();
           schemaIdHeader = obj.getResponseSchemaIdHeader();
-          statsContext.setResponseSize(body.readableBytes()); // TODO: Check if this needs to be fixed for CompositeByteBuf...
+          /** TODO: Check if this needs to be fixed for {@link io.netty.buffer.CompositeByteBuf} */
+          statsContext.setResponseSize(body.readableBytes());
         } else {
           body = Unpooled.EMPTY_BUFFER;
           responseStatus = NOT_FOUND;
