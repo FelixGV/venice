@@ -709,7 +709,7 @@ public class StorageReadRequestHandler extends ChannelInboundHandlerAdapter {
         serializeStartTimeInNS = System.nanoTime(); // N.B. This clock call is also used as the end of the compute time
         record = new ComputeResponseRecordV1();
         record.keyIndex = key.getKeyIndex();
-        record.value = ByteBuffer.wrap(requestContext.resultSerializer.serialize(reusableValueRecord));
+        record.value = ByteBuffer.wrap(requestContext.resultSerializer.serialize(reusableResultRecord));
 
         response.getStats()
             .addReadComputeSerializationLatency(LatencyUtils.getElapsedTimeFromNSToMS(serializeStartTimeInNS));
