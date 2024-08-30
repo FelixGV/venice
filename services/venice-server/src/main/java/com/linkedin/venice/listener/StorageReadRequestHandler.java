@@ -82,6 +82,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -275,7 +276,12 @@ public class StorageReadRequestHandler extends ChannelInboundHandlerAdapter {
             response.setStreamingResponse();
           }
           context.writeAndFlush(response);
-        } else if (throwable instanceof VeniceNoStoreException) {
+          return;
+        }
+        if (throwable instanceof CompletionException && throwable.getCause() != null) {
+          throwable = throwable.getCause();
+        }
+        if (throwable instanceof VeniceNoStoreException) {
           VeniceNoStoreException e = (VeniceNoStoreException) throwable;
           String msg = "No storage exists for store: " + e.getStoreName();
           if (!REDUNDANT_LOGGING_FILTER.isRedundantException(msg)) {
