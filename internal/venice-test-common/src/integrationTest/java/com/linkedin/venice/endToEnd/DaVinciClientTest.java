@@ -167,8 +167,8 @@ public class DaVinciClientTest {
 
   @Test(timeOut = TEST_TIMEOUT)
   public void testConcurrentGetAndStart() throws Exception {
-    String storeName1 = createStoreWithMetaSystemStore(KEY_COUNT);
-    String storeName2 = createStoreWithMetaSystemStore(KEY_COUNT);
+    String s1 = createStoreWithMetaSystemStore(KEY_COUNT);
+    String s2 = createStoreWithMetaSystemStore(KEY_COUNT);
 
     String baseDataPath = Utils.getTempDataDirectory().getAbsolutePath();
     VeniceProperties backendConfig = new PropertyBuilder().put(CLIENT_USE_SYSTEM_STORE_REPOSITORY, true)
@@ -186,27 +186,24 @@ public class DaVinciClientTest {
           VeniceRouterWrapper.CLUSTER_DISCOVERY_D2_SERVICE_NAME,
           metricsRepository,
           backendConfig)) {
-        DaVinciConfig vanillaConfig = new DaVinciConfig();
-        DaVinciConfig isolatedConfig = new DaVinciConfig().setIsolated(true);
-        BiFunction<String, DaVinciConfig, CompletableFuture<Void>> starter = (storeName, daVinciConfig) -> {
-          try {
-            return CompletableFuture.runAsync(() -> factory.getGenericAvroClient(storeName, daVinciConfig).start());
-          } catch (Exception e) {
-            LOGGER.warn(
-                "Caught exception while trying to start DVC in iteration {}/{} for store '{}' with config: {}",
-                iteration,
-                totalIterations,
-                storeName,
-                daVinciConfig);
-            throw e;
-          }
-        };
+        DaVinciConfig c1 = new DaVinciConfig();
+        DaVinciConfig c2 = new DaVinciConfig().setIsolated(true);
+        BiFunction<String, DaVinciConfig, CompletableFuture<Void>> starter =
+            (storeName, daVinciConfig) -> CompletableFuture.runAsync(() -> {
+              try {
+                factory.getGenericAvroClient(storeName, daVinciConfig).start();
+              } catch (Exception e) {
+                LOGGER.warn(
+                    "Caught exception while trying to start DVC in iteration {}/{} for store '{}' with config: {}",
+                    iteration,
+                    totalIterations,
+                    storeName,
+                    daVinciConfig);
+                throw e;
+              }
+            });
         CompletableFuture
-            .allOf(
-                starter.apply(storeName1, vanillaConfig),
-                starter.apply(storeName2, vanillaConfig),
-                starter.apply(storeName1, isolatedConfig),
-                starter.apply(storeName2, isolatedConfig))
+            .allOf(starter.apply(s1, c1), starter.apply(s2, c1), starter.apply(s1, c2), starter.apply(s2, c2))
             .get();
       } catch (Exception e) {
         throw new VeniceException("Failed to instantiate DVCs in iteration " + iteration + "/" + totalIterations, e);
@@ -224,8 +221,8 @@ public class DaVinciClientTest {
         VeniceRouterWrapper.CLUSTER_DISCOVERY_D2_SERVICE_NAME,
         metricsRepository,
         backendConfig)) {
-      factory.getAndStartGenericAvroClient(storeName1, daVinciConfig);
-      factory.getAndStartGenericAvroClient(storeName1, daVinciConfig);
+      factory.getAndStartGenericAvroClient(s1, daVinciConfig);
+      factory.getAndStartGenericAvroClient(s1, daVinciConfig);
     }
   }
 
