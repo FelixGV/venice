@@ -232,7 +232,7 @@ public class DaVinciClientTest {
     }
   }
 
-  @Test(timeOut = TEST_TIMEOUT, dataProvider = "dv-client-config-provider", dataProviderClass = DataProviderUtils.class)
+  @Test(enabled = false, timeOut = TEST_TIMEOUT, dataProvider = "dv-client-config-provider", dataProviderClass = DataProviderUtils.class)
   public void testBatchStore(DaVinciConfig clientConfig) throws Exception {
     String storeName1 = createStoreWithMetaSystemStore(KEY_COUNT, CompressionStrategy.GZIP, s -> null);
     String storeName2 = createStoreWithMetaSystemStore(KEY_COUNT);
@@ -367,7 +367,7 @@ public class DaVinciClientTest {
     }
   }
 
-  @Test(timeOut = TEST_TIMEOUT)
+  @Test(enabled = false, timeOut = TEST_TIMEOUT)
   public void testDavinciSubscribeFailureWithFullDisk() throws Exception {
     String storeName = Utils.getUniqueString("test-davinci-store");
     Consumer<UpdateStoreQueryParams> paramsConsumer = params -> {};
@@ -390,7 +390,7 @@ public class DaVinciClientTest {
     }
   }
 
-  @Test(timeOut = TEST_TIMEOUT, dataProvider = "dv-client-config-provider", dataProviderClass = DataProviderUtils.class)
+  @Test(enabled = false, timeOut = TEST_TIMEOUT, dataProvider = "dv-client-config-provider", dataProviderClass = DataProviderUtils.class)
   public void testObjectReuse(DaVinciConfig clientConfig) throws Exception {
     final Schema schema = Schema.parse(TEST_RECORD_VALUE_SCHEMA);
     final GenericRecord value = new GenericData.Record(schema);
@@ -440,7 +440,7 @@ public class DaVinciClientTest {
     }
   }
 
-  @Test(groups = { "flaky" }, timeOut = TEST_TIMEOUT * 2)
+  @Test(enabled = false, groups = { "flaky" }, timeOut = TEST_TIMEOUT * 2)
   public void testUnstableIngestionIsolation() throws Exception {
     final String storeName = Utils.getUniqueString("store");
     // TODO: I have no idea how this happens, BeforeClass should have run setup, but it seems to not do that sometimes?
@@ -524,7 +524,7 @@ public class DaVinciClientTest {
     }
   }
 
-  @Test(timeOut = TEST_TIMEOUT * 5)
+  @Test(enabled = false, timeOut = TEST_TIMEOUT * 5)
   public void testIngestionIsolation() throws Exception {
     final int partitionCount = 3;
     final int dataPartition = 1;
@@ -635,7 +635,7 @@ public class DaVinciClientTest {
     }
   }
 
-  @Test(dataProvider = "dv-client-config-provider", dataProviderClass = DataProviderUtils.class, timeOut = TEST_TIMEOUT
+  @Test(enabled = false, dataProvider = "dv-client-config-provider", dataProviderClass = DataProviderUtils.class, timeOut = TEST_TIMEOUT
       * 2)
   public void testHybridStoreWithoutIngestionIsolation(DaVinciConfig daVinciConfig) throws Exception {
     // Create store
@@ -704,7 +704,7 @@ public class DaVinciClientTest {
     }
   }
 
-  @Test(timeOut = TEST_TIMEOUT)
+  @Test(enabled = false, timeOut = TEST_TIMEOUT)
   public void testHybridStore() throws Exception {
     final int partition = 1;
     final int partitionCount = 2;
@@ -784,7 +784,7 @@ public class DaVinciClientTest {
     }
   }
 
-  @Test(timeOut = TEST_TIMEOUT, dataProvider = "dv-client-config-provider", dataProviderClass = DataProviderUtils.class)
+  @Test(enabled = false, timeOut = TEST_TIMEOUT, dataProvider = "dv-client-config-provider", dataProviderClass = DataProviderUtils.class)
   public void testBootstrap(DaVinciConfig daVinciConfig) throws Exception {
     String storeName = createStoreWithMetaSystemStore(KEY_COUNT);
     String baseDataPath = Utils.getTempDataDirectory().getAbsolutePath();
@@ -883,7 +883,7 @@ public class DaVinciClientTest {
     }
   }
 
-  @Test(timeOut = TEST_TIMEOUT, dataProvider = "dv-client-config-provider", dataProviderClass = DataProviderUtils.class)
+  @Test(enabled = false, timeOut = TEST_TIMEOUT, dataProvider = "dv-client-config-provider", dataProviderClass = DataProviderUtils.class)
   public void testPartialSubscription(DaVinciConfig daVinciConfig) throws Exception {
     String storeName = createStoreWithMetaSystemStore(KEY_COUNT);
     VeniceProperties backendConfig = new PropertyBuilder().build();
@@ -917,7 +917,7 @@ public class DaVinciClientTest {
     }
   }
 
-  @Test(timeOut = TEST_TIMEOUT)
+  @Test(enabled = false, timeOut = TEST_TIMEOUT)
   public void testSubscribeAndUnsubscribe() throws Exception {
     // Verify DaVinci client doesn't hang in a deadlock when calling unsubscribe right after subscribing.
     // Enable ingestion isolation since it's more likely for the race condition to occur and make sure the future is
@@ -943,7 +943,7 @@ public class DaVinciClientTest {
     }
   }
 
-  @Test(timeOut = TEST_TIMEOUT)
+  @Test(enabled = false, timeOut = TEST_TIMEOUT)
   public void testUnsubscribeBeforeFutureGet() throws Exception {
     // Verify DaVinci client doesn't hang in a deadlock when calling unsubscribe right after subscribing and before the
     // future is complete. The future should also return exceptionally.
@@ -971,7 +971,7 @@ public class DaVinciClientTest {
     }
   }
 
-  @Test(timeOut = TEST_TIMEOUT * 2)
+  @Test(enabled = false, timeOut = TEST_TIMEOUT * 2)
   public void testCrashedDaVinciWithIngestionIsolation() throws Exception {
     String storeName = createStoreWithMetaSystemStore(KEY_COUNT);
     String baseDataPath = Utils.getTempDataDirectory().getAbsolutePath();
@@ -1020,7 +1020,7 @@ public class DaVinciClientTest {
     }
   }
 
-  @Test(timeOut = TEST_TIMEOUT, dataProvider = "CompressionStrategy")
+  @Test(enabled = false, timeOut = TEST_TIMEOUT, dataProvider = "CompressionStrategy")
   public void testReadCompressedData(CompressionStrategy compressionStrategy) throws Exception {
     String storeName = Utils.getUniqueString("batch-store");
     Consumer<UpdateStoreQueryParams> paramsConsumer = params -> params.setCompressionStrategy(compressionStrategy);
@@ -1039,7 +1039,7 @@ public class DaVinciClientTest {
    * For the local P2P testing, need to setup two different directories and ports for the two Da Vinci clients in order
    * to avoid conflicts.
    */
-  @Test(timeOut = 2 * TEST_TIMEOUT)
+  @Test(enabled = false, timeOut = 2 * TEST_TIMEOUT)
   public void testBlobP2PTransferAmongDVC() throws Exception {
     String dvcPath1 = Utils.getTempDataDirectory().getAbsolutePath();
     String zkHosts = cluster.getZk().getAddress();

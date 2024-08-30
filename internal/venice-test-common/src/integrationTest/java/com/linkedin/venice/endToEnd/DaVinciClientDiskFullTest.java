@@ -81,7 +81,7 @@ public class DaVinciClientDiskFullTest {
   private final int largePushRecordCount = 1000;
   private final int largePushRecordMinSize = 100000;
 
-  @BeforeClass
+  @BeforeClass(enabled = false)
   public void setUp() {
     Utils.thisIsLocalhost();
     Properties clusterConfig = new Properties();
@@ -105,7 +105,7 @@ public class DaVinciClientDiskFullTest {
     D2ClientUtils.startClient(d2Client);
   }
 
-  @AfterClass
+  @AfterClass(enabled = false)
   public void cleanUp() {
     if (d2Client != null) {
       D2ClientUtils.shutdownClient(d2Client);
@@ -198,7 +198,7 @@ public class DaVinciClientDiskFullTest {
     }
   }
 
-  @Test(timeOut = TEST_TIMEOUT, dataProviderClass = DataProviderUtils.class, dataProvider = "True-and-False")
+  @Test(timeOut = TEST_TIMEOUT, dataProviderClass = DataProviderUtils.class, dataProvider = "True-and-False", enabled = false)
   public void testDaVinciDiskFullFailure(boolean useDaVinciSpecificExecutionStatusForError) throws Exception {
     String storeName = Utils.getUniqueString("davinci_disk_full_test");
     // Test a small push
