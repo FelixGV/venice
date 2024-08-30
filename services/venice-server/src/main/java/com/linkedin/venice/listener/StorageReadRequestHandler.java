@@ -518,18 +518,18 @@ public class StorageReadRequestHandler extends ChannelInboundHandlerAdapter {
       int endPos,
       List<MultiGetRouterRequestKeyV1> keys,
       RequestContext requestContext,
-      MultiGetResponseWrapper responseWrapper) {
-    MultiGetResponseRecordV1 record;
+      MultiGetResponseWrapper response) {
     MultiGetRouterRequestKeyV1 key;
+    MultiGetResponseRecordV1 record;
     for (int subChunkCur = startPos; subChunkCur < endPos; ++subChunkCur) {
       key = keys.get(subChunkCur);
-      responseWrapper.getStats().addKeySize(key.getKeyBytes().remaining());
+      response.getStats().addKeySize(key.getKeyBytes().remaining());
       record = BatchGetChunkingAdapter.get(
           requestContext.storeVersion.storageEngine,
           key.partitionId,
           key.keyBytes,
           requestContext.isChunked,
-          responseWrapper.getStats());
+          response.getStats());
       if (record == null) {
         if (requestContext.isStreaming) {
           // For streaming, we would like to send back non-existing keys since the end-user won't know the status of
@@ -539,11 +539,11 @@ public class StorageReadRequestHandler extends ChannelInboundHandlerAdapter {
           record.keyIndex = Math.negateExact(key.keyIndex);
           record.schemaId = StreamingConstants.NON_EXISTING_KEY_SCHEMA_ID;
           record.value = StreamingUtils.EMPTY_BYTE_BUFFER;
-          responseWrapper.addRecord(record);
+          response.addRecord(record);
         }
       } else {
         record.keyIndex = key.keyIndex;
-        responseWrapper.addRecord(record);
+        response.addRecord(record);
       }
     }
   }
@@ -683,6 +683,7 @@ public class StorageReadRequestHandler extends ChannelInboundHandlerAdapter {
     ComputeResponseRecordV1 record;
     for (int subChunkCur = startPos; subChunkCur < endPos; ++subChunkCur) {
       key = keys.get(subChunkCur);
+      response.getStats().addKeySize(key.getKeyBytes().remaining());
       AvroRecordUtils.clearRecord(reusableResultRecord);
       reusableValueRecord = GenericRecordChunkingAdapter.INSTANCE.get(
           requestContext.storeVersion.storageEngine,
