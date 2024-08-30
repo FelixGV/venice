@@ -442,11 +442,11 @@ public class StorageReadRequestHandler extends ChannelInboundHandlerAdapter {
 
   private CompletableFuture<ReadResponse> handleMultiGetRequestInParallel(MultiGetRouterRequestWrapper request) {
     List<MultiGetRouterRequestKeyV1> keys = request.getKeys();
-    MultiGetRequestContext requestContext = new MultiGetRequestContext(request);
+    RequestContext requestContext = new RequestContext(request, this);
 
     return processBatchInParallel(
         keys,
-        requestContext.storageEngine.getCompressionStrategy(),
+        requestContext.storeVersion.storageEngine.getCompressionStrategy(),
         request,
         ParallelMultiKeyResponseWrapper::multiGet,
         this.multiGetResponseProvider,
@@ -496,6 +496,9 @@ public class StorageReadRequestHandler extends ChannelInboundHandlerAdapter {
         R chunkOfResponse = responseWrapper.getChunk(finalCur);
         batchProcessor.process(startPos, endPos, keys, requestContext, chunkOfResponse);
 
+        // Trigger serialization
+        chunkOfResponse.getResponseBody();
+
         chunkOfResponse.getStats().setStorageExecutionSubmissionWaitTime(submissionWaitTime);
       }, threadPoolExecutor);
     }
@@ -514,22 +517,21 @@ public class StorageReadRequestHandler extends ChannelInboundHandlerAdapter {
       int startPos,
       int endPos,
       List<MultiGetRouterRequestKeyV1> keys,
-      MultiGetRequestContext requestContext,
+      RequestContext requestContext,
       MultiGetResponseWrapper responseWrapper) {
-    boolean isStreaming = requestContext.request.isStreamingRequest();
     MultiGetResponseRecordV1 record;
     MultiGetRouterRequestKeyV1 key;
     for (int subChunkCur = startPos; subChunkCur < endPos; ++subChunkCur) {
       key = keys.get(subChunkCur);
       responseWrapper.getStats().addKeySize(key.getKeyBytes().remaining());
       record = BatchGetChunkingAdapter.get(
-          requestContext.storageEngine,
+          requestContext.storeVersion.storageEngine,
           key.partitionId,
           key.keyBytes,
           requestContext.isChunked,
           responseWrapper.getStats());
       if (record == null) {
-        if (isStreaming) {
+        if (requestContext.isStreaming) {
           // For streaming, we would like to send back non-existing keys since the end-user won't know the status of
           // non-existing keys in the response if the response is partial.
           record = new MultiGetResponseRecordV1();
@@ -544,9 +546,6 @@ public class StorageReadRequestHandler extends ChannelInboundHandlerAdapter {
         responseWrapper.addRecord(record);
       }
     }
-
-    // Trigger serialization
-    responseWrapper.getResponseBody();
   }
 
   public CompletableFuture<ReadResponse> handleMultiGetRequest(MultiGetRouterRequestWrapper request) {
@@ -561,8 +560,8 @@ public class StorageReadRequestHandler extends ChannelInboundHandlerAdapter {
 
       List<MultiGetRouterRequestKeyV1> keys = request.getKeys();
       MultiGetResponseWrapper responseWrapper = this.multiGetResponseProvider.apply(request.getKeyCount());
-      MultiGetRequestContext requestContext = new MultiGetRequestContext(request);
-      responseWrapper.setCompressionStrategy(requestContext.storageEngine.getCompressionStrategy());
+      RequestContext requestContext = new RequestContext(request, this);
+      responseWrapper.setCompressionStrategy(requestContext.storeVersion.storageEngine.getCompressionStrategy());
 
       processMultiGet(0, request.getKeyCount(), keys, requestContext, responseWrapper);
 
@@ -590,7 +589,7 @@ public class StorageReadRequestHandler extends ChannelInboundHandlerAdapter {
 
       double submissionWaitTime = LatencyUtils.getElapsedTimeFromNSToMS(preSubmissionTimeNs);
 
-      ComputeRequestContext computeRequestContext = new ComputeRequestContext(request);
+      ComputeRequestContext computeRequestContext = new ComputeRequestContext(request, this);
       int keyCount = request.getKeyCount();
       ComputeResponseWrapper response = this.computeResponseProvider.apply(keyCount);
 
@@ -612,7 +611,7 @@ public class StorageReadRequestHandler extends ChannelInboundHandlerAdapter {
     }
 
     List<ComputeRouterRequestKeyV1> keys = request.getKeys();
-    ComputeRequestContext requestContext = new ComputeRequestContext(request);
+    ComputeRequestContext requestContext = new ComputeRequestContext(request, this);
 
     return processBatchInParallel(
         keys,
@@ -625,38 +624,39 @@ public class StorageReadRequestHandler extends ChannelInboundHandlerAdapter {
         this::processCompute);
   }
 
-  interface RequestContext {
-  }
-
-  private class ComputeRequestContext implements RequestContext {
-    final ComputeRouterRequestWrapper request;
-    final SchemaEntry valueSchemaEntry;
-    final Schema resultSchema;
+  /**
+   * The request context holds state which the server needs to compute once per query, and which is safe to share across
+   * subtasks of the same query, as is the case when executing batch get and compute requests in parallel chunks.
+   */
+  private static class RequestContext {
     final PerStoreVersionState storeVersion;
-    final VeniceCompressor compressor;
-    final RecordSerializer<GenericRecord> resultSerializer;
+    final boolean isChunked;
+    final boolean isStreaming;
 
-    ComputeRequestContext(ComputeRouterRequestWrapper request) {
-      this.request = request;
-      this.valueSchemaEntry = getComputeValueSchema(request);
-      this.resultSchema = getComputeResultSchema(request.getComputeRequest(), valueSchemaEntry.getSchema());
-      this.storeVersion = getPerStoreVersionState(request.getResourceName());
-      this.resultSerializer = genericSerializerGetter.apply(resultSchema);
-      this.compressor = compressorFactory
-          .getCompressor(storeVersion.storageEngine.getCompressionStrategy(), request.getResourceName());
+    RequestContext(MultiKeyRouterRequestWrapper request, StorageReadRequestHandler handler) {
+      this.storeVersion = handler.getPerStoreVersionState(request.getResourceName());
+      this.isChunked = storeVersion.storageEngine.isChunked();
+      this.isStreaming = request.isStreamingRequest();
     }
   }
 
-  private class MultiGetRequestContext implements RequestContext {
-    final MultiGetRouterRequestWrapper request;
-    final AbstractStorageEngine storageEngine;
-    final boolean isChunked;
+  private static class ComputeRequestContext extends RequestContext {
+    final SchemaEntry valueSchemaEntry;
+    final Schema resultSchema;
+    final VeniceCompressor compressor;
+    final RecordSerializer<GenericRecord> resultSerializer;
+    final List<ComputeOperation> operations;
+    final List<Schema.Field> operationResultFields;
 
-    MultiGetRequestContext(MultiGetRouterRequestWrapper request) {
-      this.request = request;
-      PerStoreVersionState perStoreVersionState = getPerStoreVersionState(request.getResourceName());
-      this.storageEngine = perStoreVersionState.storageEngine;
-      this.isChunked = storageEngine.isChunked();
+    ComputeRequestContext(ComputeRouterRequestWrapper request, StorageReadRequestHandler handler) {
+      super(request, handler);
+      this.valueSchemaEntry = handler.getComputeValueSchema(request);
+      this.resultSchema = handler.getComputeResultSchema(request.getComputeRequest(), valueSchemaEntry.getSchema());
+      this.resultSerializer = handler.genericSerializerGetter.apply(resultSchema);
+      this.compressor = handler.compressorFactory
+          .getCompressor(storeVersion.storageEngine.getCompressionStrategy(), request.getResourceName());
+      this.operations = request.getComputeRequest().getOperations();
+      this.operationResultFields = ComputeUtils.getOperationResultFields(operations, resultSchema);
     }
   }
 
@@ -665,8 +665,11 @@ public class StorageReadRequestHandler extends ChannelInboundHandlerAdapter {
       int endPos,
       List<ComputeRouterRequestKeyV1> keys,
       ComputeRequestContext requestContext,
-      ComputeResponseWrapper responseWrapper) {
-    // Reuse the same value record and result record instances for all values
+      ComputeResponseWrapper response) {
+    /**
+     * Reuse the same value record and result record instances for all values. This cannot be part of the
+     * {@link ComputeRequestContext}, otherwise it could get contaminated across threads.
+     */
     ReusableObjects reusableObjects = threadLocalReusableObjects.get();
     GenericRecord reusableValueRecord = reusableObjects.valueRecordMap
         .computeIfAbsent(requestContext.valueSchemaEntry.getSchema(), GenericData.Record::new);
@@ -674,36 +677,57 @@ public class StorageReadRequestHandler extends ChannelInboundHandlerAdapter {
         reusableObjects.resultRecordMap.computeIfAbsent(requestContext.resultSchema, GenericData.Record::new);
     reusableObjects.computeContext.clear();
 
-    ComputeResponseWrapper response = computeResponseProvider.apply(requestContext.request.getKeyCount());
-    List<ComputeOperation> operations = requestContext.request.getComputeRequest().getOperations();
-    List<Schema.Field> operationResultFields =
-        ComputeUtils.getOperationResultFields(operations, requestContext.resultSchema);
-    boolean isStreaming = requestContext.request.isStreamingRequest();
     int hits = 0;
+    long serializeStartTimeInNS, computeStartTimeInNS;
     ComputeRouterRequestKeyV1 key;
-    GenericRecord result;
+    ComputeResponseRecordV1 record;
     for (int subChunkCur = startPos; subChunkCur < endPos; ++subChunkCur) {
       key = keys.get(subChunkCur);
       AvroRecordUtils.clearRecord(reusableResultRecord);
-      result = computeResult(
-          operations,
-          operationResultFields,
-          requestContext.storeVersion,
-          key,
+      reusableValueRecord = GenericRecordChunkingAdapter.INSTANCE.get(
+          requestContext.storeVersion.storageEngine,
+          key.getPartitionId(),
+          ByteUtils.extractByteArray(key.getKeyBytes()),
+          reusableObjects.byteBuffer,
           reusableValueRecord,
-          requestContext.valueSchemaEntry.getId(),
-          requestContext.compressor,
+          reusableObjects.binaryDecoder,
+          requestContext.isChunked,
           response.getStats(),
-          reusableObjects,
-          reusableResultRecord);
-      if (addComputationResult(response, key, result, requestContext.resultSerializer, isStreaming)) {
+          requestContext.valueSchemaEntry.getId(),
+          requestContext.storeVersion.storeDeserializerCache,
+          requestContext.compressor);
+      if (reusableValueRecord != null) {
+        computeStartTimeInNS = System.nanoTime();
+        reusableResultRecord = ComputeUtils.computeResult(
+            requestContext.operations,
+            requestContext.operationResultFields,
+            reusableObjects.computeContext,
+            reusableValueRecord,
+            reusableResultRecord);
+
+        serializeStartTimeInNS = System.nanoTime(); // N.B. This clock call is also used as the end of the compute time
+        record = new ComputeResponseRecordV1();
+        record.keyIndex = key.getKeyIndex();
+        record.value = ByteBuffer.wrap(requestContext.resultSerializer.serialize(reusableValueRecord));
+
+        response.getStats()
+            .addReadComputeSerializationLatency(LatencyUtils.getElapsedTimeFromNSToMS(serializeStartTimeInNS));
+        response.getStats()
+            .addReadComputeLatency(LatencyUtils.convertNSToMS(serializeStartTimeInNS - computeStartTimeInNS));
+        response.getStats().addReadComputeOutputSize(record.value.remaining());
+
+        response.addRecord(record);
         hits++;
+      } else if (requestContext.isStreaming) {
+        // For streaming, we need to send back non-existing keys
+        record = new ComputeResponseRecordV1();
+        // Negative key index to indicate non-existing key
+        record.keyIndex = Math.negateExact(key.getKeyIndex());
+        record.value = StreamingUtils.EMPTY_BYTE_BUFFER;
+        response.addRecord(record);
       }
     }
-    incrementOperatorCounters(response.getStats(), operations, hits);
-
-    // Trigger serialization
-    responseWrapper.getResponseBody();
+    incrementOperatorCounters(response.getStats(), requestContext.operations, hits);
   }
 
   private BinaryResponse handleDictionaryFetchRequest(DictionaryFetchRequest request) {
@@ -738,92 +762,12 @@ public class StorageReadRequestHandler extends ChannelInboundHandlerAdapter {
         : superSetOrLatestValueSchema;
   }
 
-  /**
-   * @return true if the result is not null, false otherwise
-   */
-  private boolean addComputationResult(
-      ComputeResponseWrapper response,
-      ComputeRouterRequestKeyV1 key,
-      GenericRecord result,
-      RecordSerializer<GenericRecord> resultSerializer,
-      boolean isStreaming) {
-    if (result != null) {
-      long serializeStartTimeInNS = System.nanoTime();
-      ComputeResponseRecordV1 record = new ComputeResponseRecordV1();
-      record.keyIndex = key.getKeyIndex();
-      record.value = ByteBuffer.wrap(resultSerializer.serialize(result));
-      response.getStats()
-          .addReadComputeSerializationLatency(LatencyUtils.getElapsedTimeFromNSToMS(serializeStartTimeInNS));
-      response.getStats().addReadComputeOutputSize(record.value.remaining());
-      response.addRecord(record);
-      return true;
-    } else if (isStreaming) {
-      // For streaming, we need to send back non-existing keys
-      ComputeResponseRecordV1 record = new ComputeResponseRecordV1();
-      // Negative key index to indicate non-existing key
-      record.keyIndex = Math.negateExact(key.getKeyIndex());
-      record.value = StreamingUtils.EMPTY_BYTE_BUFFER;
-      response.addRecord(record);
-    }
-    return false;
-  }
-
-  private GenericRecord computeResult(
-      List<ComputeOperation> operations,
-      List<Schema.Field> operationResultFields,
-      PerStoreVersionState storeVersion,
-      ComputeRouterRequestKeyV1 key,
-      GenericRecord reusableValueRecord,
-      int readerSchemaId,
-      VeniceCompressor compressor,
-      ReadResponseStats response,
-      ReusableObjects reusableObjects,
-      GenericRecord reusableResultRecord) {
-    reusableValueRecord =
-        readValueRecord(key, storeVersion, readerSchemaId, compressor, response, reusableObjects, reusableValueRecord);
-    if (reusableValueRecord == null) {
-      return null;
-    }
-
-    long computeStartTimeInNS = System.nanoTime();
-    reusableResultRecord = ComputeUtils.computeResult(
-        operations,
-        operationResultFields,
-        reusableObjects.computeContext,
-        reusableValueRecord,
-        reusableResultRecord);
-    response.addReadComputeLatency(LatencyUtils.getElapsedTimeFromNSToMS(computeStartTimeInNS));
-    return reusableResultRecord;
-  }
-
-  private GenericRecord readValueRecord(
-      ComputeRouterRequestKeyV1 key,
-      PerStoreVersionState storeVersion,
-      int readerSchemaId,
-      VeniceCompressor compressor,
-      ReadResponseStats response,
-      ReusableObjects reusableObjects,
-      GenericRecord reusableValueRecord) {
-    return GenericRecordChunkingAdapter.INSTANCE.get(
-        storeVersion.storageEngine,
-        key.getPartitionId(),
-        ByteUtils.extractByteArray(key.getKeyBytes()),
-        reusableObjects.byteBuffer,
-        reusableValueRecord,
-        reusableObjects.binaryDecoder,
-        storeVersion.storageEngine.isChunked(),
-        response,
-        readerSchemaId,
-        storeVersion.storeDeserializerCache,
-        compressor);
-  }
-
   private static void incrementOperatorCounters(
       ReadResponseStats response,
-      Iterable<ComputeOperation> operations,
+      List<ComputeOperation> operations,
       int hits) {
-    for (ComputeOperation operation: operations) {
-      switch (ComputeOperationType.valueOf(operation)) {
+    for (int i = 0; i < operations.size(); i++) {
+      switch (ComputeOperationType.valueOf(operations.get(i))) {
         case DOT_PRODUCT:
           response.incrementDotProductCount(hits);
           break;
