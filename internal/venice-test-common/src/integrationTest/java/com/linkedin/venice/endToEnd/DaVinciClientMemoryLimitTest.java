@@ -79,7 +79,7 @@ public class DaVinciClientMemoryLimitTest {
   private VeniceClusterWrapper venice;
   private D2Client d2Client;
 
-  @BeforeClass(enabled = false)
+  @BeforeClass
   public void setUp() {
     Utils.thisIsLocalhost();
     Properties clusterConfig = new Properties();
@@ -94,7 +94,7 @@ public class DaVinciClientMemoryLimitTest {
     D2ClientUtils.startClient(d2Client);
   }
 
-  @AfterClass(enabled = false)
+  @AfterClass
   public void cleanUp() {
     if (d2Client != null) {
       D2ClientUtils.shutdownClient(d2Client);
@@ -141,7 +141,7 @@ public class DaVinciClientMemoryLimitTest {
     return venicePropertyBuilder.build();
   }
 
-  @Test(timeOut = TEST_TIMEOUT, dataProviderClass = DataProviderUtils.class, dataProvider = "Two-True-and-False", enabled = false)
+  @Test(timeOut = TEST_TIMEOUT, dataProviderClass = DataProviderUtils.class, dataProvider = "Two-True-and-False")
   public void testDaVinciMemoryLimitShouldFailLargeDataPush(
       boolean ingestionIsolationEnabledInDaVinci,
       boolean useDaVinciSpecificExecutionStatusForError) throws Exception {
@@ -257,7 +257,7 @@ public class DaVinciClientMemoryLimitTest {
     }
   }
 
-  @Test(timeOut = TEST_TIMEOUT, dataProviderClass = DataProviderUtils.class, dataProvider = "Two-True-and-False", enabled = false)
+  @Test(timeOut = TEST_TIMEOUT, dataProviderClass = DataProviderUtils.class, dataProvider = "Two-True-and-False")
   public void testDaVinciMemoryLimitShouldFailLargeDataPushAndResumeHybridStore(
       boolean ingestionIsolationEnabledInDaVinci,
       boolean useDaVinciSpecificExecutionStatusForError) throws Exception {

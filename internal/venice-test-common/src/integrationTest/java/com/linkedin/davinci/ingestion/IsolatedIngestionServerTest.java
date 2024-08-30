@@ -36,17 +36,17 @@ public class IsolatedIngestionServerTest {
   private static final int TIMEOUT_MS = 1 * Time.MS_PER_MINUTE;
   private ZkServerWrapper zkServerWrapper;
 
-  @BeforeClass(enabled = false)
+  @BeforeClass
   public void setUp() {
     zkServerWrapper = ServiceFactory.getZkServer();
   }
 
-  @AfterClass(alwaysRun = true, enabled = false)
+  @AfterClass(alwaysRun = true)
   public void cleanUp() {
     Utils.closeQuietlyWithErrorLogged(zkServerWrapper);
   }
 
-  @Test(timeOut = TIMEOUT_MS, enabled = false)
+  @Test(timeOut = TIMEOUT_MS)
   public void testShutdownAfterHeartbeatTimeout() {
     int servicePort = TestUtils.getFreePort();
     VeniceConfigLoader configLoader = getConfigLoader(servicePort);
@@ -65,7 +65,7 @@ public class IsolatedIngestionServerTest {
     }
   }
 
-  @Test(timeOut = TIMEOUT_MS, enabled = false)
+  @Test(timeOut = TIMEOUT_MS)
   public void testReleaseTargetPortBinding() {
     int servicePort = TestUtils.getFreePort();
     VeniceConfigLoader configLoader = getConfigLoader(servicePort);
@@ -104,7 +104,7 @@ public class IsolatedIngestionServerTest {
     }
   }
 
-  @Test(enabled = false)
+  @Test
   public void testCustomizedConfigs() throws Exception {
     String testRegion = "ei-ltx1";
     // Set app region system property.
