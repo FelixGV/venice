@@ -187,7 +187,7 @@ public class DaVinciClientTest {
           metricsRepository,
           backendConfig)) {
         DaVinciConfig c1 = new DaVinciConfig();
-        DaVinciConfig c2 = new DaVinciConfig().setIsolated(true);
+        DaVinciConfig c2 = new DaVinciConfig(); // .setIsolated(true);
         BiFunction<String, DaVinciConfig, CompletableFuture<Void>> starter =
             (storeName, daVinciConfig) -> CompletableFuture.runAsync(() -> {
               try {
