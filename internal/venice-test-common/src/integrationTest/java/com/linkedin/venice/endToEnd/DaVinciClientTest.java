@@ -183,14 +183,14 @@ public class DaVinciClientTest {
           VeniceRouterWrapper.CLUSTER_DISCOVERY_D2_SERVICE_NAME,
           metricsRepository,
           backendConfig)) {
+        DaVinciConfig vanillaConfig = new DaVinciConfig();
+        DaVinciConfig isolatedConfig = new DaVinciConfig().setIsolated(true);
         CompletableFuture
             .allOf(
-                CompletableFuture.runAsync(() -> factory.getGenericAvroClient(storeName1, new DaVinciConfig()).start()),
-                CompletableFuture.runAsync(() -> factory.getGenericAvroClient(storeName2, new DaVinciConfig()).start()),
-                CompletableFuture.runAsync(
-                    () -> factory.getGenericAvroClient(storeName1, new DaVinciConfig().setIsolated(true)).start()),
-                CompletableFuture.runAsync(
-                    () -> factory.getGenericAvroClient(storeName2, new DaVinciConfig().setIsolated(true)).start()))
+                CompletableFuture.runAsync(() -> factory.getGenericAvroClient(storeName1, vanillaConfig).start()),
+                CompletableFuture.runAsync(() -> factory.getGenericAvroClient(storeName2, vanillaConfig).start()),
+                CompletableFuture.runAsync(() -> factory.getGenericAvroClient(storeName1, isolatedConfig).start()),
+                CompletableFuture.runAsync(() -> factory.getGenericAvroClient(storeName2, isolatedConfig).start()))
             .get();
       }
       assertThrows(NullPointerException.class, AvroGenericDaVinciClient::getBackend);
