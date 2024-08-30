@@ -192,6 +192,12 @@ public class DaVinciClientTest {
             (storeName, daVinciConfig) -> CompletableFuture.runAsync(() -> {
               try {
                 factory.getGenericAvroClient(storeName, daVinciConfig).start();
+                LOGGER.info(
+                    "Successfully started DVC in iteration {}/{} for store '{}' with config: {}",
+                    iteration,
+                    totalIterations,
+                    storeName,
+                    daVinciConfig);
               } catch (Exception e) {
                 LOGGER.warn(
                     "Caught exception while trying to start DVC in iteration {}/{} for store '{}' with config: {}",
