@@ -48,6 +48,10 @@ public class IsolatedIngestionUtilsTest {
     assertNotNull(nonExistingCommandResult);
     assertEquals(nonExistingCommandResult, "");
 
+    String failedCommandResult = IsolatedIngestionUtils.executeShellCommand("cp bogus1 bogus2");
+    assertNotNull(failedCommandResult);
+    assertEquals(failedCommandResult, "");
+
     assertThrows(VeniceException.class, () -> IsolatedIngestionUtils.executeShellCommand("kill xyz"));
   }
 }

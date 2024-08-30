@@ -346,10 +346,11 @@ public class IsolatedIngestionUtils {
       } else if (e.getMessage().contains("No such file or directory")) {
         // This is a common case, so we mute the full exception stacktrace.
         LOGGER.info("Command not found. Exception message: {}", e.getMessage());
+        return "";
       } else {
         LOGGER.info("Encounter exception when executing shell command: {}", command, e);
+        return "";
       }
-      return "";
     }
   }
 
