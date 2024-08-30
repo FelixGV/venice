@@ -11,13 +11,8 @@ import java.util.NoSuchElementException;
  * The null skipping is handled both in {@link #hasNext()} and {@link #next()}, so that various usages of
  * iterators work as expected.
  */
-abstract class AbstractNullSkippingIterator<E> implements Iterator<E>, Iterable<E> {
+abstract class AbstractNullSkippingIterator<E> implements Iterator<E> {
   private E nextElement = null;
-
-  @Override
-  public Iterator<E> iterator() {
-    return this;
-  }
 
   @Override
   public boolean hasNext() {
