@@ -52,6 +52,10 @@ public class IsolatedIngestionUtilsTest {
     assertNotNull(failedCommandResult);
     assertEquals(failedCommandResult, "");
 
+    String emptyCommandResult = IsolatedIngestionUtils.executeShellCommand("");
+    assertNotNull(emptyCommandResult);
+    assertEquals(emptyCommandResult, "");
+
     assertThrows(VeniceException.class, () -> IsolatedIngestionUtils.executeShellCommand("kill xyz"));
   }
 }
