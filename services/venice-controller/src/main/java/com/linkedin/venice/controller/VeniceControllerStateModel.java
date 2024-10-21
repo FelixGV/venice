@@ -133,7 +133,7 @@ public class VeniceControllerStateModel extends StateModel {
       String controllerName = message.getTgtName();
       LOGGER.info("{} becoming leader from standby for {}", controllerName, clusterName);
 
-      if (helixManagerInitialized()) {
+      if (helixManagerInitialized() && clusterResources != null) {
         // TODO: It seems like this should throw an exception. Otherwise the case would be you'd have an instance be
         // leader
         // in Helix that hadn't subscribed to any resource. This could happen if a state transition thread timed out and
