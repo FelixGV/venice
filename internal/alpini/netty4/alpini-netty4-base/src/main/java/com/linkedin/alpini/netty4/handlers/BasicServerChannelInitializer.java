@@ -8,7 +8,6 @@ import io.netty.channel.ChannelPipeline;
 import io.netty.handler.codec.http2.ActiveStreamsCountHandler;
 import io.netty.handler.codec.http2.Http2Settings;
 import io.netty.handler.timeout.ReadTimeoutHandler;
-import io.netty.util.Timer;
 import io.netty.util.concurrent.EventExecutorGroup;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
@@ -24,16 +23,13 @@ public class BasicServerChannelInitializer<C extends Channel, FACTORY extends Ba
   private final ConnectionLimitHandler _connectionLimit;
   protected final ActiveStreamsCountHandler _activeStreamsCountHandler;
   protected final Http2SettingsFrameLogger _http2SettingsFrameLogger;
-  private final Timer _idleTimer;
   private final BooleanSupplier _shutdownFlag;
-  private final BooleanSupplier _busyAutoReadDisable;
   private final AsyncFullHttpRequestHandler.RequestHandler _handler;
-  private int _maxInitialLineLength = 4096;
-  private int _maxHeaderSize = 8192;
+  private final int _maxInitialLineLength = 4096;
+  private final int _maxHeaderSize = 8192;
   private int _maxChunkSize = 8192;
-  private long _maxContentLength = 1024 * 1024;
+  private final long _maxContentLength = 1024 * 1024;
   private long _idleConnectionTimeoutMillis = 300000;
-  private long _handshakeConnectionTimeoutMillis = 300000;
   private final boolean _validateHeaders = false;
 
   /* HTTP/2 Settings */
@@ -57,34 +53,12 @@ public class BasicServerChannelInitializer<C extends Channel, FACTORY extends Ba
       @Nonnull ConnectionLimitHandler connectionLimit,
       @Nonnull ActiveStreamsCountHandler activeStreamsCountHandler,
       @Nonnull Http2SettingsFrameLogger http2SettingsFrameLogger,
-      @Nonnull Timer idleTimer,
       @Nonnull BooleanSupplier shutdownFlag,
-      @Nonnull AsyncFullHttpRequestHandler.RequestHandler handler) {
-    this(
-        connectionLimit,
-        activeStreamsCountHandler,
-        http2SettingsFrameLogger,
-        idleTimer,
-        shutdownFlag,
-        Boolean.FALSE::booleanValue,
-        handler);
-  }
-
-  public BasicServerChannelInitializer(
-      @Nonnull ConnectionLimitHandler connectionLimit,
-      @Nonnull ActiveStreamsCountHandler activeStreamsCountHandler,
-      @Nonnull Http2SettingsFrameLogger http2SettingsFrameLogger,
-      // @Nonnull ExecutionHandler executionHandler,
-      @Nonnull Timer idleTimer,
-      @Nonnull BooleanSupplier shutdownFlag,
-      @Nonnull BooleanSupplier busyAutoReadDisable,
       @Nonnull AsyncFullHttpRequestHandler.RequestHandler handler) {
     _connectionLimit = Objects.requireNonNull(connectionLimit, "connectionLimit");
     _activeStreamsCountHandler = Objects.requireNonNull(activeStreamsCountHandler, "activeStreamsHandler");
     _http2SettingsFrameLogger = Objects.requireNonNull(http2SettingsFrameLogger, "http2SettingsFrameLogger");
-    _idleTimer = Objects.requireNonNull(idleTimer, "idleTimer");
     _shutdownFlag = Objects.requireNonNull(shutdownFlag, "shutdownFlag");
-    _busyAutoReadDisable = Objects.requireNonNull(busyAutoReadDisable, "busyAutoReadDisable");
     _handler = Objects.requireNonNull(handler, "handler");
   }
 
@@ -93,35 +67,14 @@ public class BasicServerChannelInitializer<C extends Channel, FACTORY extends Ba
     return (FACTORY) this;
   }
 
-  public FACTORY maxInitialLineLength(int maxInitialLineLength) {
-    _maxInitialLineLength = Preconditions.notLessThan(maxInitialLineLength, 256, "maxInitialLineLength");
-    return factory();
-  }
-
-  public FACTORY maxHeaderSize(int maxHeaderSize) {
-    _maxHeaderSize = Preconditions.notLessThan(maxHeaderSize, 256, "maxHeaderSize");
-    return factory();
-  }
-
   public FACTORY maxChunkSize(int maxChunkSize) {
     _maxChunkSize = Preconditions.notLessThan(maxChunkSize, 256, "maxChunkSize");
-    return factory();
-  }
-
-  public FACTORY maxContentLength(long maxContentLength) {
-    _maxContentLength = Preconditions.notLessThan(maxContentLength, 0L, "maxContentLength");
     return factory();
   }
 
   public FACTORY idleConnectionTimeoutMillis(long idleConnectionTimeoutMillis) {
     _idleConnectionTimeoutMillis =
         Preconditions.notLessThan(idleConnectionTimeoutMillis, 1000L, "idleConnectionTimeoutMillis");
-    return factory();
-  }
-
-  public FACTORY handshakeConnectionTimeoutMillis(long idleConnectionTimeoutMillis) {
-    _handshakeConnectionTimeoutMillis =
-        Preconditions.notLessThan(idleConnectionTimeoutMillis, 1000L, "handshakeConnectionTimeoutMillis");
     return factory();
   }
 
@@ -270,10 +223,7 @@ public class BasicServerChannelInitializer<C extends Channel, FACTORY extends Ba
     beforeHttpRequestHandler(pipeline);
 
     // Dispatch handler
-    pipeline.addLast(
-        executorGroup,
-        "http-request-handler",
-        new AsyncFullHttpRequestHandler(_handler, _shutdownFlag, _busyAutoReadDisable));
+    pipeline.addLast(executorGroup, "http-request-handler", new AsyncFullHttpRequestHandler(_handler, _shutdownFlag));
   }
 
   protected void beforeHttpServerCodec(@Nonnull ChannelPipeline pipeline) {

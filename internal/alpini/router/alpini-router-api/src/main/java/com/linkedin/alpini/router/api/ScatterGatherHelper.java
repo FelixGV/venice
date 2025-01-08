@@ -6,10 +6,7 @@ import com.linkedin.alpini.base.concurrency.AsyncPromise;
 import com.linkedin.alpini.base.misc.BasicRequest;
 import com.linkedin.alpini.base.misc.Headers;
 import com.linkedin.alpini.base.misc.Metrics;
-import com.linkedin.alpini.base.misc.Pair;
 import com.linkedin.alpini.router.monitoring.ScatterGatherStats;
-import io.netty.channel.ChannelHandler;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
@@ -18,12 +15,9 @@ import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
-import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.IntPredicate;
 import java.util.function.LongSupplier;
-import java.util.function.Supplier;
-import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
@@ -43,19 +37,14 @@ public class ScatterGatherHelper<H, P extends ResourcePath<K>, K, R, BASIC_HTTP_
   private final @Nullable ResponseAggregatorFactory<BASIC_HTTP_REQUEST, HTTP_RESPONSE> _responseAggregatorFactory;
   private final @Nonnull Function<Headers, Long> _requestTimeout;
   private final @Nonnull LongTailRetrySupplier<P, K> _longTailRetrySupplier;
-  private final @Nonnull Function<BasicRequest, Metrics> _metricsProvider;
+  private final @Nonnull Function<BASIC_HTTP_REQUEST, Metrics> _metricsProvider;
   private final @Nonnull BiFunction<Headers, Metrics, Headers> _metricsDecorator;
-  private final @Nonnull Function<Headers, Metrics> _responseMetrics;
   private final @Nonnull Function<P, ScatterGatherStats> _scatterGatherStatsProvider;
-  private final @Nonnull List<Pair<String, Supplier<?>>> _beforeHttpServerCodec;
-  private final @Nonnull List<Pair<String, Supplier<?>>> _beforeChunkAggregator;
-  private final @Nonnull List<Pair<String, Supplier<?>>> _beforeIdleStateHandler;
-  private final @Nonnull List<Pair<String, Supplier<?>>> _beforeHttpRequestHandler;
   private final @Nonnull IntPredicate _successCodePredicate;
   private final @Nonnull RequestRetriableChecker<P, R, HTTP_RESPONSE_STATUS> _requestRetriableChecker;
-  private long _defaultTimeoutMillis;
-  private long _dispatchMinimumMillis;
-  private long _longTailMinimumMillis;
+  private final long _defaultTimeoutMillis;
+  private final long _dispatchMinimumMillis;
+  private final long _longTailMinimumMillis;
   private final boolean _enableStackTraceResponseForException;
   private final @Nonnull BooleanSupplier _enableRetryRequestAlwaysUseADifferentHost;
   private final @Nonnull BooleanSupplier _disableRetryOnTimeout;
@@ -73,17 +62,12 @@ public class ScatterGatherHelper<H, P extends ResourcePath<K>, K, R, BASIC_HTTP_
       @Nonnull Optional<ResponseAggregatorFactory<BASIC_HTTP_REQUEST, HTTP_RESPONSE>> responseAggregatorFactory,
       @Nonnull Function<Headers, Long> requestTimeout,
       @Nonnull LongTailRetrySupplier<P, K> longTailRetrySupplier,
-      @Nonnull Function<BasicRequest, Metrics> metricsProvider,
+      @Nonnull Function<BASIC_HTTP_REQUEST, Metrics> metricsProvider,
       @Nonnull BiFunction<Headers, Metrics, Headers> metricsDecorator,
-      @Nonnull Function<Headers, Metrics> responseMetrics,
       @Nonnull Function<P, ScatterGatherStats> scatterGatherStatsProvider,
       long defaultTimeoutMillis,
       long dispatchMinimumMillis,
       long longTailMinimumMillis,
-      @Nonnull List<Pair<String, Supplier<?>>> beforeHttpServerCodec,
-      @Nonnull List<Pair<String, Supplier<?>>> beforeChunkAggregator,
-      @Nonnull List<Pair<String, Supplier<?>>> beforeIdleStateHandler,
-      @Nonnull List<Pair<String, Supplier<?>>> beforeHttpRequestHandler,
       @Nonnull IntPredicate successCodePredicate,
       @Nonnull RequestRetriableChecker<P, R, HTTP_RESPONSE_STATUS> requestRetriableChecker,
       boolean enableStackTraceResponseForException,
@@ -103,7 +87,6 @@ public class ScatterGatherHelper<H, P extends ResourcePath<K>, K, R, BASIC_HTTP_
     _longTailRetrySupplier = Objects.requireNonNull(longTailRetrySupplier, "longTailRetrySupplier");
     _metricsProvider = Objects.requireNonNull(metricsProvider, "metricsProvider");
     _metricsDecorator = Objects.requireNonNull(metricsDecorator, "metricsDecorator");
-    _responseMetrics = Objects.requireNonNull(responseMetrics, "responseMetrics");
     _scatterGatherStatsProvider = Objects.requireNonNull(scatterGatherStatsProvider, "scatterGatherStatsProvider");
     _defaultTimeoutMillis = defaultTimeoutMillis > 0
         ? defaultTimeoutMillis
@@ -114,11 +97,6 @@ public class ScatterGatherHelper<H, P extends ResourcePath<K>, K, R, BASIC_HTTP_
     _longTailMinimumMillis = longTailMinimumMillis > 0
         ? longTailMinimumMillis
         : illegalArgumentException("longTailMinimumMillis must be more than 0");
-    _beforeHttpServerCodec = new ArrayList<>(Objects.requireNonNull(beforeHttpServerCodec, "beforeHttpServerCodec"));
-    _beforeChunkAggregator = new ArrayList<>(Objects.requireNonNull(beforeChunkAggregator, "beforeChunkAggregator"));
-    _beforeIdleStateHandler = new ArrayList<>(Objects.requireNonNull(beforeIdleStateHandler, "beforeIdleStateHandler"));
-    _beforeHttpRequestHandler =
-        new ArrayList<>(Objects.requireNonNull(beforeHttpRequestHandler, "beforeHttpRequestHandler"));
     _successCodePredicate = Objects.requireNonNull(successCodePredicate, "successCodePredicate");
     _requestRetriableChecker = Objects.requireNonNull(requestRetriableChecker, "requestRetriableChecker");
 
@@ -139,26 +117,6 @@ public class ScatterGatherHelper<H, P extends ResourcePath<K>, K, R, BASIC_HTTP_
         Objects.requireNonNull(isReqRedirectionAllowedForQuery, "isReqRedirectionAllowedForQuery");
   }
 
-  private Stream<Pair<String, ?>> streamOf(List<Pair<String, Supplier<?>>> list) {
-    return list.stream().map(p -> Pair.make(p.getFirst(), p.getSecond().get()));
-  }
-
-  public void forEachBeforeHttpServerCodec(@Nonnull Consumer<Pair<String, ?>> consumer) {
-    streamOf(_beforeHttpServerCodec).forEach(consumer);
-  }
-
-  public void forEachBeforeChunkAggregator(@Nonnull Consumer<Pair<String, ?>> consumer) {
-    streamOf(_beforeChunkAggregator).forEach(consumer);
-  }
-
-  public void forEachBeforeIdleStateHandler(@Nonnull Consumer<Pair<String, ?>> consumer) {
-    streamOf(_beforeIdleStateHandler).forEach(consumer);
-  }
-
-  public void forEachBeforeHttpRequestHandler(@Nonnull Consumer<Pair<String, ?>> consumer) {
-    streamOf(_beforeHttpRequestHandler).forEach(consumer);
-  }
-
   public final @Nonnull P parseResourceUri(@Nonnull String uri, @Nonnull BASIC_HTTP_REQUEST request)
       throws RouterException {
     return _pathParser.parseResourceUri(uri, request);
@@ -172,10 +130,6 @@ public class ScatterGatherHelper<H, P extends ResourcePath<K>, K, R, BASIC_HTTP_
    */
   public final boolean isHostHealthy(@Nonnull H hostName, @Nonnull String partitionName) {
     return _hostHealthMonitor.isHostHealthy(hostName, partitionName);
-  }
-
-  public final AsyncFuture<LongSupplier> getLongTailRetryMilliseconds(P path, String methodName) {
-    return _longTailRetrySupplier.getLongTailRetryMilliseconds(path, methodName);
   }
 
   public final AsyncFuture<LongSupplier> getLongTailRetryMilliseconds(P path, BasicRequest request) {
@@ -218,9 +172,7 @@ public class ScatterGatherHelper<H, P extends ResourcePath<K>, K, R, BASIC_HTTP_
       @Nonnull String requestMethod,
       @Nonnull P path,
       @Nonnull Headers headers,
-      @Nonnull HostHealthMonitor<H> hostHealthMonitor,
-      Metrics metrics,
-      String initialHost) throws RouterException {
+      @Nonnull HostHealthMonitor<H> hostHealthMonitor) throws RouterException {
     requestMethod = Objects.requireNonNull(requestMethod, "request");
     R roles = parseRoles(requestMethod, Objects.requireNonNull(headers, "headers"));
     Scatter<H, P, K> scatter = new Scatter<>(path, _pathParser, roles);
@@ -254,33 +206,12 @@ public class ScatterGatherHelper<H, P extends ResourcePath<K>, K, R, BASIC_HTTP_
     return _defaultTimeoutMillis;
   }
 
-  public void setDefaultTimeoutMillis(long timeoutMillis) {
-    if (timeoutMillis < 100) {
-      throw new IllegalArgumentException("timeoutMillis should be greater than 100 milliseconds");
-    }
-    _defaultTimeoutMillis = timeoutMillis;
-  }
-
   public long getDispatchMinimumMillis() {
     return _dispatchMinimumMillis;
   }
 
-  public void setDispatchMinimumMillis(long value) {
-    if (value < 1) {
-      throw new IllegalArgumentException("value");
-    }
-    _dispatchMinimumMillis = value;
-  }
-
   public long getLongTailMinimumMillis() {
     return _longTailMinimumMillis;
-  }
-
-  public void setLongTailMinimumMillis(long value) {
-    if (value < 1) {
-      throw new IllegalArgumentException("value");
-    }
-    _longTailMinimumMillis = value;
   }
 
   public boolean isEnableStackTraceResponseForException() {
@@ -306,19 +237,15 @@ public class ScatterGatherHelper<H, P extends ResourcePath<K>, K, R, BASIC_HTTP_
     }
   }
 
-  public Metrics initializeMetrics(@Nonnull BasicRequest request) {
+  public Metrics initializeMetrics(@Nonnull BASIC_HTTP_REQUEST request) {
     return _metricsProvider.apply(request);
-  }
-
-  public Metrics responseMetrics(@Nonnull Headers headers) {
-    return _responseMetrics.apply(headers);
   }
 
   public @Nonnull ScatterGatherStats getScatterGatherStatsByPath(P path) {
     return _scatterGatherStatsProvider.apply(path);
   }
 
-  public static Builder<?, ?, ?, ?, ?, ?, ?> builder() {
+  public static <H, P extends ResourcePath<K>, K, R, HTTP_REQUEST extends BasicRequest, HTTP_RESPONSE, HTTP_RESPONSE_STATUS> Builder<H, P, K, R, HTTP_REQUEST, HTTP_RESPONSE, HTTP_RESPONSE_STATUS> builder() {
     return new Builder<>();
   }
 
@@ -354,22 +281,17 @@ public class ScatterGatherHelper<H, P extends ResourcePath<K>, K, R, BASIC_HTTP_
         Optional.empty();
     private Function<Headers, Long> _requestTimeout = headers -> null;
     private LongTailRetrySupplier<P, K> _longTailRetrySupplier = (resourceName, methodName) -> AsyncFuture.cancelled();
-    private Function<BasicRequest, Metrics> _metricsProvider = http -> null;
-    private Function<Headers, Metrics> _responseMetrics = headers -> null;
-    private BiFunction<Headers, Metrics, Headers> _metricsDecorator = (headers, metrics) -> Headers.EMPTY_HEADERS;
+    private Function<HTTP_REQUEST, Metrics> _metricsProvider = http -> null;
+    private final BiFunction<Headers, Metrics, Headers> _metricsDecorator = (headers, metrics) -> Headers.EMPTY_HEADERS;
     private Function<P, ScatterGatherStats> _scatterGatherStatsProvider = path -> new ScatterGatherStats();
-    private List<Pair<String, Supplier<?>>> _beforeHttpServerCodec = new ArrayList<>();
-    private List<Pair<String, Supplier<?>>> _beforeChunkAggregator = new ArrayList<>();
-    private List<Pair<String, Supplier<?>>> _beforeIdleStateHandler = new ArrayList<>();
-    private List<Pair<String, Supplier<?>>> _beforeHttpRequestHandler = new ArrayList<>();
-    private IntPredicate _successCodePredicate = ScatterGatherHelper::defaultSuccessPredicate;
+    private final IntPredicate _successCodePredicate = ScatterGatherHelper::defaultSuccessPredicate;
     private RequestRetriableChecker<P, R, HTTP_RESPONSE_STATUS> _requestRetriableChecker = (p, r, hrs) -> true;
-    private long _defaultTimeoutMillis = 1000L;
-    private long _dispatchMinimumMillis = 4L;
-    private long _longTailMinimumMillis = 2L;
+    private final long _defaultTimeoutMillis = 1000L;
+    private final long _dispatchMinimumMillis = 4L;
+    private final long _longTailMinimumMillis = 2L;
     private boolean _enableStackTraceResponseForException = false;
     private BooleanSupplier _enableRetryRequestAlwaysUseADifferentHost = () -> false;
-    private BooleanSupplier _disableRetryOnTimeout = () -> false;
+    private final BooleanSupplier _disableRetryOnTimeout = () -> false;
     private BooleanSupplier _isReqRedirectionAllowedForQuery = () -> true;
 
     private Builder() {
@@ -442,12 +364,6 @@ public class ScatterGatherHelper<H, P extends ResourcePath<K>, K, R, BASIC_HTTP_
       return this;
     }
 
-    public Builder<H, P, K, R, HTTP_REQUEST, HTTP_RESPONSE, HTTP_RESPONSE_STATUS> broadcastMode(
-        @Nonnull ScatterGatherMode broadcastMode) {
-      _broadcastMode = Objects.requireNonNull(broadcastMode, "broadcastMode").asBroadcast();
-      return this;
-    }
-
     public Builder<H, P, K, R, HTTP_REQUEST, HTTP_RESPONSE, HTTP_RESPONSE_STATUS> scatterMode(
         @Nonnull ScatterGatherMode scatterMode) {
       _scatterMode = Objects.requireNonNull(scatterMode, "scatterMode").asScatter();
@@ -486,50 +402,14 @@ public class ScatterGatherHelper<H, P extends ResourcePath<K>, K, R, BASIC_HTTP_
     }
 
     public Builder<H, P, K, R, HTTP_REQUEST, HTTP_RESPONSE, HTTP_RESPONSE_STATUS> metricsProvider(
-        @Nonnull Function<BasicRequest, Metrics> metricsProvider) {
+        @Nonnull Function<HTTP_REQUEST, Metrics> metricsProvider) {
       _metricsProvider = Objects.requireNonNull(metricsProvider, "metricsProvider");
-      return this;
-    }
-
-    public Builder<H, P, K, R, HTTP_REQUEST, HTTP_RESPONSE, HTTP_RESPONSE_STATUS> metricsProvider(
-        @Nonnull BiFunction<Headers, Metrics, Headers> metricsDecorator) {
-      _metricsDecorator = Objects.requireNonNull(metricsDecorator, "metricsDecorator");
-      return this;
-    }
-
-    public Builder<H, P, K, R, HTTP_REQUEST, HTTP_RESPONSE, HTTP_RESPONSE_STATUS> responseMetrics(
-        @Nonnull Function<Headers, Metrics> responseMetrics) {
-      _responseMetrics = Objects.requireNonNull(responseMetrics, "metricsDecorator");
       return this;
     }
 
     public Builder<H, P, K, R, HTTP_REQUEST, HTTP_RESPONSE, HTTP_RESPONSE_STATUS> scatterGatherStatsProvider(
         @Nonnull Function<P, ScatterGatherStats> scatterGatherStatsProvider) {
       _scatterGatherStatsProvider = Objects.requireNonNull(scatterGatherStatsProvider, "scatterGatherStatsProvider");
-      return this;
-    }
-
-    public Builder<H, P, K, R, HTTP_REQUEST, HTTP_RESPONSE, HTTP_RESPONSE_STATUS> defaultTimeoutMillis(
-        long defaultTimeoutMillis) {
-      _defaultTimeoutMillis = defaultTimeoutMillis > 0
-          ? defaultTimeoutMillis
-          : illegalArgumentException("defaultTimeoutMillis must be more than 0");
-      return this;
-    }
-
-    public Builder<H, P, K, R, HTTP_REQUEST, HTTP_RESPONSE, HTTP_RESPONSE_STATUS> dispatchMinimumMillis(
-        long dispatchMinimumMillis) {
-      _dispatchMinimumMillis = dispatchMinimumMillis > 0
-          ? dispatchMinimumMillis
-          : illegalArgumentException("dispatchMinimumMillis must be more than 0");
-      return this;
-    }
-
-    public Builder<H, P, K, R, HTTP_REQUEST, HTTP_RESPONSE, HTTP_RESPONSE_STATUS> longTailMinimumMillis(
-        long longTailMinimumMillis) {
-      _longTailMinimumMillis = longTailMinimumMillis > 0
-          ? longTailMinimumMillis
-          : illegalArgumentException("longTailMinimumMillis must be more than 0");
       return this;
     }
 
@@ -551,21 +431,9 @@ public class ScatterGatherHelper<H, P extends ResourcePath<K>, K, R, BASIC_HTTP_
       return this;
     }
 
-    public Builder<H, P, K, R, HTTP_REQUEST, HTTP_RESPONSE, HTTP_RESPONSE_STATUS> disableRetryOnTimeout(
-        @Nonnull BooleanSupplier disableRetryOnTimeout) {
-      _disableRetryOnTimeout = disableRetryOnTimeout;
-      return this;
-    }
-
     public Builder<H, P, K, R, HTTP_REQUEST, HTTP_RESPONSE, HTTP_RESPONSE_STATUS> setIsReqRedirectionAllowedForQuery(
         @Nonnull BooleanSupplier isReqRedirectionAllowedForQuery) {
       _isReqRedirectionAllowedForQuery = isReqRedirectionAllowedForQuery;
-      return this;
-    }
-
-    public Builder<H, P, K, R, HTTP_REQUEST, HTTP_RESPONSE, HTTP_RESPONSE_STATUS> setSuccessCodePredicate(
-        @Nonnull IntPredicate successCodePredicate) {
-      _successCodePredicate = Objects.requireNonNull(successCodePredicate);
       return this;
     }
 
@@ -573,38 +441,6 @@ public class ScatterGatherHelper<H, P extends ResourcePath<K>, K, R, BASIC_HTTP_
         @Nonnull RequestRetriableChecker<P, R, HTTP_RESPONSE_STATUS> requestRetriableChecker) {
       _requestRetriableChecker = Objects.requireNonNull(requestRetriableChecker);
       return this;
-    }
-
-    private Builder<H, P, K, R, HTTP_REQUEST, HTTP_RESPONSE, HTTP_RESPONSE_STATUS> addHandler(
-        List<Pair<String, Supplier<?>>> list,
-        String name,
-        Supplier<?> supplier) {
-      list.add(Pair.make(Objects.requireNonNull(name, "name"), Objects.requireNonNull(supplier, "supplier")));
-      return this;
-    }
-
-    public Builder<H, P, K, R, HTTP_REQUEST, HTTP_RESPONSE, HTTP_RESPONSE_STATUS> addBeforeHttpServerCodec(
-        String name,
-        Supplier<?> supplier) {
-      return addHandler(_beforeHttpServerCodec, name, supplier);
-    }
-
-    public Builder<H, P, K, R, HTTP_REQUEST, HTTP_RESPONSE, HTTP_RESPONSE_STATUS> addBeforeChunkAggregator(
-        String name,
-        Supplier<? extends ChannelHandler> supplier) {
-      return addHandler(_beforeChunkAggregator, name, supplier);
-    }
-
-    public Builder<H, P, K, R, HTTP_REQUEST, HTTP_RESPONSE, HTTP_RESPONSE_STATUS> addBeforeIdleStateHandler(
-        String name,
-        Supplier<? extends ChannelHandler> supplier) {
-      return addHandler(_beforeIdleStateHandler, name, supplier);
-    }
-
-    public Builder<H, P, K, R, HTTP_REQUEST, HTTP_RESPONSE, HTTP_RESPONSE_STATUS> addBeforeHttpRequestHandler(
-        String name,
-        Supplier<? extends ChannelHandler> supplier) {
-      return addHandler(_beforeHttpRequestHandler, name, supplier);
     }
 
     public ScatterGatherHelper<H, P, K, R, HTTP_REQUEST, HTTP_RESPONSE, HTTP_RESPONSE_STATUS> build() {
@@ -622,15 +458,10 @@ public class ScatterGatherHelper<H, P extends ResourcePath<K>, K, R, BASIC_HTTP_
           _longTailRetrySupplier,
           _metricsProvider,
           _metricsDecorator,
-          _responseMetrics,
           _scatterGatherStatsProvider,
           _defaultTimeoutMillis,
           _dispatchMinimumMillis,
           _longTailMinimumMillis,
-          _beforeHttpServerCodec,
-          _beforeChunkAggregator,
-          _beforeIdleStateHandler,
-          _beforeHttpRequestHandler,
           _successCodePredicate,
           _requestRetriableChecker,
           _enableStackTraceResponseForException,

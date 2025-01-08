@@ -1,16 +1,16 @@
 package com.linkedin.alpini.router;
 
+import static org.mockito.Mockito.*;
+
 import com.linkedin.alpini.base.concurrency.AsyncFuture;
-import com.linkedin.alpini.base.concurrency.TimeoutProcessor;
 import com.linkedin.alpini.base.misc.HeaderNames;
 import com.linkedin.alpini.base.misc.Time;
-import com.linkedin.alpini.base.registry.ResourceRegistry;
-import com.linkedin.alpini.base.registry.ShutdownableExecutors;
 import com.linkedin.alpini.netty4.handlers.AsyncFullHttpRequestHandler;
 import com.linkedin.alpini.netty4.misc.BasicFullHttpRequest;
 import com.linkedin.alpini.router.api.HostHealthMonitor;
 import com.linkedin.alpini.router.api.ResourcePath;
 import com.linkedin.alpini.router.api.RouterException;
+import com.linkedin.alpini.router.api.RouterTimeoutProcessor;
 import com.linkedin.alpini.router.api.ScatterGatherHelper;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.DecoderResult;
@@ -21,7 +21,6 @@ import java.net.InetSocketAddress;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.Executor;
 import javax.annotation.Nonnull;
 import org.mockito.Mockito;
 import org.testng.Assert;
@@ -123,9 +122,7 @@ public class TestScatterGatherRequestHandler4 {
       }
     }
 
-    ResourceRegistry registry = new ResourceRegistry();
-    TimeoutProcessor timeoutProcessor = new TimeoutProcessor(registry);
-    Executor executor = registry.factory(ShutdownableExecutors.class).newSingleThreadExecutor();
+    RouterTimeoutProcessor timeoutProcessor = mock(RouterTimeoutProcessor.class);
 
     AsyncFullHttpRequestHandler.RequestHandler handler = new ScatterGatherRequestHandler4(
         ScatterGatherHelper.builder()
@@ -147,8 +144,7 @@ public class TestScatterGatherRequestHandler4 {
                   throw new IllegalStateException();
                 })
             .build(),
-        timeoutProcessor,
-        executor);
+        timeoutProcessor);
 
     class ReasonException extends RuntimeException {
       private ReasonException(String s) {

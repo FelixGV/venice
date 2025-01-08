@@ -21,7 +21,6 @@ import com.linkedin.alpini.router.api.ScatterGatherHelper;
 import com.linkedin.alpini.router.impl.Router;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.Channel;
-import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelPipeline;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.socket.ServerSocketChannel;
@@ -41,11 +40,9 @@ import java.util.Optional;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
-import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.IntSupplier;
-import java.util.function.Supplier;
 import javax.annotation.Nonnegative;
 import javax.annotation.Nonnull;
 
@@ -53,7 +50,7 @@ import javax.annotation.Nonnull;
 /**
  * @author Antony T Curtis {@literal <acurtis@linkedin.com>}
  */
-public class Router4<C extends Channel> implements Router.Builder, Router.PipelineFactory<ChannelHandler> {
+public class Router4<C extends Channel> implements Router.Builder {
   private static final int TICKS_PER_WHEEL = 4096;
 
   private final ScatterGatherHelper _scatterGatherHelper;
@@ -71,12 +68,6 @@ public class Router4<C extends Channel> implements Router.Builder, Router.Pipeli
   private IntSupplier _connectionLimit = () -> Integer.MAX_VALUE;
   private RouterTimeoutProcessor _timeoutProcessor;
   private final Map<String, Object> _serverSocketOptions = new HashMap<>();
-  private BooleanSupplier _shutdownFlag;
-  private Executor _workerExecutor;
-  private int _appWorkerCorePoolSize;
-  private long _appWorkerChannelMaxMemorySize;
-  private long _appWorkerTotalMaxMemorySize;
-  private long _appWorkerKeepAliveSeconds;
   private final List<Function<Router4PipelineFactory<C>, Router4PipelineFactory<C>>> _factoryModifiers =
       new ArrayList<>(Collections.singletonList(Function.identity()));
   private Function<ServerBootstrap, ServerBootstrap> _bootstrapFilter = Function.identity();
@@ -84,11 +75,6 @@ public class Router4<C extends Channel> implements Router.Builder, Router.Pipeli
   public Router4(@Nonnull ScatterGatherHelper scatterGatherHelper) {
     assert scatterGatherHelper.dispatcherNettyVersion() == Netty.NETTY_4_1;
     _scatterGatherHelper = scatterGatherHelper;
-  }
-
-  @Override
-  public Netty nettyVersion() {
-    return Netty.NETTY_4_1;
   }
 
   @Override
@@ -112,18 +98,6 @@ public class Router4<C extends Channel> implements Router.Builder, Router.Pipeli
   @Override
   public Router.Builder serverSocketChannel(@Nonnull Class<?> serverSocketChannel) {
     _serverSocketChannel = serverSocketChannel.asSubclass(ServerSocketChannel.class);
-    return this;
-  }
-
-  @Override
-  public Router.Builder bossPoolSize(int bossPoolSize) {
-    _bossPoolSize = Preconditions.notLessThan(bossPoolSize, 1, "bossPoolSize");
-    return this;
-  }
-
-  @Override
-  public Router.Builder ioWorkerPoolSize(int ioWorkerPoolSize) {
-    _ioWorkerPoolSize = Preconditions.notLessThan(ioWorkerPoolSize, 1, "ioWorkerPoolSize");
     return this;
   }
 
@@ -154,37 +128,6 @@ public class Router4<C extends Channel> implements Router.Builder, Router.Pipeli
   }
 
   @Override
-  public Router.Builder workerExecutor(@Nonnull Executor workerExecutor) {
-    _workerExecutor = Objects.requireNonNull(workerExecutor, "workerExecutor");
-    return this;
-  }
-
-  @Override
-  public Router.Builder appWorkerCorePoolSize(int corePoolSize) {
-    _appWorkerCorePoolSize = Preconditions.notLessThan(corePoolSize, 0, "appWorkerCorePoolSize");
-    return this;
-  }
-
-  @Override
-  public Router.Builder appWorkerChannelMaxMemorySize(long maxChannelMemorySize) {
-    _appWorkerChannelMaxMemorySize =
-        Preconditions.notLessThan(maxChannelMemorySize, 0, "appWorkerChannelMaxMemorySize");
-    return this;
-  }
-
-  @Override
-  public Router.Builder appWorkerTotalMaxMemorySize(long maxTotalMemorySize) {
-    _appWorkerTotalMaxMemorySize = Preconditions.notLessThan(maxTotalMemorySize, 0, "appWorkerTotalMaxMemorySize");
-    return this;
-  }
-
-  @Override
-  public Router.Builder appWorkerKeepAliveSeconds(long appWorkerKeepAliveSeconds) {
-    _appWorkerKeepAliveSeconds = Preconditions.notLessThan(appWorkerKeepAliveSeconds, 0, "appWorkerKeepAliveSeconds");
-    return this;
-  }
-
-  @Override
   public Router.Builder timeoutProcessor(@Nonnull RouterTimeoutProcessor timeoutProcessor) {
     _timeoutProcessor = Objects.requireNonNull(timeoutProcessor, "timeoutProcessor");
     return this;
@@ -203,48 +146,9 @@ public class Router4<C extends Channel> implements Router.Builder, Router.Pipeli
   }
 
   @Override
-  public Router.Builder serverSocketOptions(Map<String, Object> serverSocketOptions) {
-    if (serverSocketOptions != null) {
-      _serverSocketOptions.putAll(serverSocketOptions);
-    }
-    return this;
-  }
-
-  @Override
-  public Router.Builder serverSocketOptions(@Nonnull String key, Object value) {
-    if (value == null) {
-      _serverSocketOptions.remove(key);
-    } else {
-      _serverSocketOptions.put(Objects.requireNonNull(key, "serverSocketOptions"), value);
-    }
-    return this;
-  }
-
-  @Override
-  public Router.Builder maxHeaderSize(@Nonnegative int maxHeaderSize) {
-    Preconditions.notLessThan(maxHeaderSize, MINIMUM_MAX_HEADER_SIZE, "maxHeaderSize");
-    _factoryModifiers.add(factory -> factory.maxHeaderSize(maxHeaderSize));
-    return this;
-  }
-
-  @Override
-  public Router.Builder maxInitialLineLength(@Nonnegative int maxInitialLineLength) {
-    Preconditions.notLessThan(maxInitialLineLength, MINIMUM_MAX_INITIAL_LINE_LENGTH, "maxInitialLineLength");
-    _factoryModifiers.add(factory -> factory.maxInitialLineLength(maxInitialLineLength));
-    return this;
-  }
-
-  @Override
   public Router.Builder maxChunkSize(@Nonnegative int maxChunkSize) {
     Preconditions.notLessThan(maxChunkSize, MINIMUM_MAX_CHUNK_SIZE, "maxChunkSize");
     _factoryModifiers.add(factory -> factory.maxChunkSize(maxChunkSize));
-    return this;
-  }
-
-  @Override
-  public Router.Builder maxContentLength(@Nonnegative long maxContentLength) {
-    Preconditions.notLessThan(maxContentLength, MINIMUM_MAX_CONTENT_LENGTH, "maxContentLength");
-    _factoryModifiers.add(factory -> factory.maxContentLength(maxContentLength));
     return this;
   }
 
@@ -257,22 +161,8 @@ public class Router4<C extends Channel> implements Router.Builder, Router.Pipeli
   }
 
   @Override
-  public Router.Builder handshakeTimeout(@Nonnegative long time, @Nonnull TimeUnit unit) {
-    long timeoutMillis = Preconditions
-        .notLessThan(Objects.requireNonNull(unit, "unit").toMillis(time), MINIMUM_IDLE_TIMEOUT_MILLIS, "time");
-    _factoryModifiers.add(factory -> factory.handshakeConnectionTimeoutMillis(timeoutMillis));
-    return this;
-  }
-
-  @Override
   public Router.Builder enableInboundHttp2(boolean enableHttp2) {
     _factoryModifiers.add(factory -> factory.enableInboundHttp2(enableHttp2));
-    return this;
-  }
-
-  @Override
-  public Router.Builder useCustomMultiplexHandler(boolean useCustomMultiplexHandler) {
-    _factoryModifiers.add(factory -> factory.useCustomMultiplexHandler(useCustomMultiplexHandler));
     return this;
   }
 
@@ -306,21 +196,6 @@ public class Router4<C extends Channel> implements Router.Builder, Router.Pipeli
     return this;
   }
 
-  @Override
-  public <T> Router.Builder addBootstrapFilter(Function<T, T> function) {
-    // noinspection unchecked
-    _bootstrapFilter = boot -> (ServerBootstrap) function.apply((T) boot);
-    return this;
-  }
-
-  @Override
-  @SuppressWarnings("unchecked")
-  public <CHANNEL_HANDLER> Router.PipelineFactory<CHANNEL_HANDLER> pipelineFactory(
-      @Nonnull Class<CHANNEL_HANDLER> handlerClass) {
-    handlerClass.asSubclass(ChannelHandler.class);
-    return (Router.PipelineFactory) this;
-  }
-
   @SuppressWarnings("unchecked")
   private static <CHANNEL_PIPELINE> Consumer<ChannelPipeline> consumer(
       Class<CHANNEL_PIPELINE> pipelineClass,
@@ -348,26 +223,6 @@ public class Router4<C extends Channel> implements Router.Builder, Router.Pipeli
   }
 
   @Override
-  public <CHANNEL_PIPELINE> Router.Builder beforeChunkAggregator(
-      @Nonnull Class<CHANNEL_PIPELINE> pipelineClass,
-      @Nonnull Consumer<CHANNEL_PIPELINE> consumer) {
-    return add(
-        pipelineClass,
-        consumer,
-        pipelineConsumer -> factory -> factory.addBeforeChunkAggregator(pipelineConsumer));
-  }
-
-  @Override
-  public <CHANNEL_PIPELINE> Router.Builder beforeIdleStateHandler(
-      @Nonnull Class<CHANNEL_PIPELINE> pipelineClass,
-      @Nonnull Consumer<CHANNEL_PIPELINE> consumer) {
-    return add(
-        pipelineClass,
-        consumer,
-        pipelineConsumer -> factory -> factory.addBeforeIdleStateHandler(pipelineConsumer));
-  }
-
-  @Override
   public <CHANNEL_PIPELINE> Router.Builder beforeHttpRequestHandler(
       @Nonnull Class<CHANNEL_PIPELINE> pipelineClass,
       @Nonnull Consumer<CHANNEL_PIPELINE> consumer) {
@@ -376,54 +231,6 @@ public class Router4<C extends Channel> implements Router.Builder, Router.Pipeli
         consumer,
         pipelineConsumer -> factory -> factory.addBeforeHttpRequestHandler(pipelineConsumer));
   }
-
-  private Router.PipelineFactory<ChannelHandler> addModifier(
-      String name,
-      Supplier<? extends ChannelHandler> supplier,
-      Function<Router4PipelineFactory<C>, Router4PipelineFactory<C>> modifier) {
-    Objects.requireNonNull(name, "name");
-    Objects.requireNonNull(supplier, "supplier");
-    _factoryModifiers.add(modifier);
-    return this;
-  }
-
-  @Override
-  public Router.PipelineFactory<ChannelHandler> addBeforeHttpServerCodec(
-      @Nonnull String name,
-      @Nonnull Supplier<? extends ChannelHandler> supplier) {
-    return addModifier(name, supplier, factory -> factory.addBeforeHttpServerCodec(name, supplier));
-  }
-
-  @Override
-  public Router.PipelineFactory<ChannelHandler> addBeforeChunkAggregator(
-      @Nonnull String name,
-      @Nonnull Supplier<? extends ChannelHandler> supplier) {
-    return addModifier(name, supplier, factory -> factory.addBeforeChunkAggregator(name, supplier));
-  }
-
-  @Override
-  public Router.PipelineFactory<ChannelHandler> addBeforeIdleStateHandler(
-      @Nonnull String name,
-      @Nonnull Supplier<? extends ChannelHandler> supplier) {
-    return addModifier(name, supplier, factory -> factory.addBeforeIdleStateHandler(name, supplier));
-  }
-
-  @Override
-  public Router.PipelineFactory<ChannelHandler> addBeforeHttpRequestHandler(
-      @Nonnull String name,
-      @Nonnull Supplier<? extends ChannelHandler> supplier) {
-    return addModifier(name, supplier, factory -> factory.addBeforeHttpRequestHandler(name, supplier));
-  }
-
-  @Override
-  public Router.Builder builder() {
-    return this;
-  }
-
-  /*private <T extends ExternalResourceReleasable> T register(T resource) {
-  _registry.register(ExternalResourceReleaseableAdapter.wrap(resource));
-  return resource;
-  }*/
 
   private <T extends Shutdownable> T register(T resource) {
     return _registry.register(resource);
@@ -442,11 +249,6 @@ public class Router4<C extends Channel> implements Router.Builder, Router.Pipeli
 
     Executor executor = Optional.ofNullable(_executor)
         .orElseGet(() -> factory(ShutdownableExecutors.class).newCachedThreadPool(threadFactory));
-
-    /*Executor workerExecutor = Optional.ofNullable(_workerExecutor).orElseGet(() -> register(
-        new ShutdownableOrderedMemoryAwareExecutor(
-            _appWorkerCorePoolSize, _appWorkerChannelMaxMemorySize, _appWorkerTotalMaxMemorySize,
-            _appWorkerKeepAliveSeconds, TimeUnit.SECONDS, threadFactory)));*/
 
     EventLoopGroup ioWorkerPool = Objects.requireNonNull(_ioWorkerPoolBuilder.apply(executor), "ioWorkerPool");
     EventLoopGroup bossPool = Objects.requireNonNull(_bossPoolBuilder.apply(executor), "bossPool");

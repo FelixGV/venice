@@ -8,6 +8,7 @@ import static com.linkedin.venice.utils.concurrent.BlockingQueueType.LINKED_BLOC
 import com.linkedin.alpini.base.concurrency.AsyncFuture;
 import com.linkedin.alpini.base.concurrency.TimeoutProcessor;
 import com.linkedin.alpini.base.concurrency.impl.SuccessAsyncFuture;
+import com.linkedin.alpini.base.misc.Metrics;
 import com.linkedin.alpini.base.registry.ResourceRegistry;
 import com.linkedin.alpini.base.registry.ShutdownableExecutors;
 import com.linkedin.alpini.netty4.ssl.SslInitializer;
@@ -49,7 +50,6 @@ import com.linkedin.venice.router.api.VeniceDelegateMode;
 import com.linkedin.venice.router.api.VeniceDispatcher;
 import com.linkedin.venice.router.api.VeniceHostFinder;
 import com.linkedin.venice.router.api.VeniceHostHealth;
-import com.linkedin.venice.router.api.VeniceMetricsProvider;
 import com.linkedin.venice.router.api.VeniceMultiKeyRoutingStrategy;
 import com.linkedin.venice.router.api.VenicePartitionFinder;
 import com.linkedin.venice.router.api.VenicePathParser;
@@ -651,7 +651,7 @@ public class RouterServer extends AbstractVeniceService {
                 .withSingleGetTardyThreshold(config.getSingleGetTardyLatencyThresholdMs(), TimeUnit.MILLISECONDS)
                 .withMultiGetTardyThreshold(config.getMultiGetTardyLatencyThresholdMs(), TimeUnit.MILLISECONDS)
                 .withComputeTardyThreshold(config.getComputeTardyLatencyThresholdMs(), TimeUnit.MILLISECONDS))
-        .metricsProvider(new VeniceMetricsProvider())
+        .metricsProvider(request -> new Metrics())
         .longTailRetrySupplier(retrySupplier)
         .scatterGatherStatsProvider(new LongTailRetryStatsProvider(routerStats))
         .enableStackTraceResponseForException(true)

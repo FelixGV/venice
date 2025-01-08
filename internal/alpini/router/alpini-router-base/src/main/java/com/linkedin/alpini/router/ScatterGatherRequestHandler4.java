@@ -2,7 +2,6 @@ package com.linkedin.alpini.router;
 
 import com.linkedin.alpini.base.concurrency.AsyncFuture;
 import com.linkedin.alpini.base.concurrency.RunOnce;
-import com.linkedin.alpini.base.concurrency.TimeoutProcessor;
 import com.linkedin.alpini.base.misc.ExceptionUtil;
 import com.linkedin.alpini.base.misc.HeaderNames;
 import com.linkedin.alpini.base.misc.HeaderUtils;
@@ -30,7 +29,6 @@ import io.netty.handler.codec.TooLongFrameException;
 import io.netty.handler.codec.http.DefaultLastHttpContent;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.FullHttpResponse;
-import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpUtil;
@@ -43,7 +41,6 @@ import io.netty.util.concurrent.ImmediateEventExecutor;
 import io.netty.util.concurrent.Promise;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
@@ -63,16 +60,7 @@ public class ScatterGatherRequestHandler4<H, P extends ResourcePath<K>, K, R> ex
 
   public ScatterGatherRequestHandler4(
       @Nonnull ScatterGatherHelper<H, P, K, R, BasicFullHttpRequest, FullHttpResponse, HttpResponseStatus> scatterGatherHelper,
-      @Nonnull RouterTimeoutProcessor timeoutProcessor,
-      @Nonnull Executor executor) {
-    super(scatterGatherHelper, timeoutProcessor);
-  }
-
-  @Deprecated
-  public ScatterGatherRequestHandler4(
-      @Nonnull ScatterGatherHelper<H, P, K, R, BasicFullHttpRequest, FullHttpResponse, HttpResponseStatus> scatterGatherHelper,
-      @Nonnull TimeoutProcessor timeoutProcessor,
-      @Nonnull Executor executor) {
+      @Nonnull RouterTimeoutProcessor timeoutProcessor) {
     super(scatterGatherHelper, timeoutProcessor);
   }
 
@@ -197,12 +185,6 @@ public class ScatterGatherRequestHandler4<H, P extends ResourcePath<K>, K, R> ex
   }
 
   @Override
-  protected boolean hasErrorInStorageNodeResponse(FullHttpResponse response) {
-    return (response.status().code() >= 500)
-        || Boolean.parseBoolean(response.headers().getAsString(HeaderNames.X_ERROR_IN_RESPONSE));
-  }
-
-  @Override
   protected Headers getResponseHeaders(FullHttpResponse response) {
     if (response.trailingHeaders().isEmpty()) {
       return new BasicHeaders(response.headers());
@@ -225,14 +207,9 @@ public class ScatterGatherRequestHandler4<H, P extends ResourcePath<K>, K, R> ex
 
     if (gatheredResponses.isEmpty() || gatheredResponses.size() > 1 && gatheredResponses.stream()
         .anyMatch(response -> response.status().code() == HttpResponseStatus.NO_CONTENT.code())) {
-      List<HttpHeaders> headers = new ArrayList<>(gatheredResponses.size());
-      List<FullHttpResponse> remaining = gatheredResponses.stream().filter(response -> {
-        if (response.status().code() == HttpResponseStatus.NO_CONTENT.code()) {
-          headers.add(response.headers());
-          return false;
-        }
-        return true;
-      }).collect(Collectors.toList());
+      List<FullHttpResponse> remaining = gatheredResponses.stream()
+          .filter(response -> response.status().code() != HttpResponseStatus.NO_CONTENT.code())
+          .collect(Collectors.toList());
       if (remaining.isEmpty()) {
         FullHttpResponse message =
             new BasicFullHttpResponse(request, HttpResponseStatus.NO_CONTENT, Unpooled.EMPTY_BUFFER);
@@ -272,7 +249,6 @@ public class ScatterGatherRequestHandler4<H, P extends ResourcePath<K>, K, R> ex
               }
             } else {
               BasicFullHttpMultiPart part = new BasicFullHttpMultiPart(this, r.content(), r.headers());
-              hasErrorInStorageNodeResponse(r);
               if (!part.headers().contains(HeaderNames.X_MULTIPART_CONTENT_STATUS)) {
                 part.setStatus(r.status());
               }

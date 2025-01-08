@@ -64,19 +64,10 @@ public class AsyncFullHttpRequestHandler extends ChannelInitializer<Channel> {
 
   private final RequestHandler _handler;
   private final BooleanSupplier _shutdownFlag;
-  private final BooleanSupplier _busyAutoReadDisable;
 
   public AsyncFullHttpRequestHandler(@Nonnull RequestHandler handler, @Nonnull BooleanSupplier shutdownFlag) {
-    this(handler, shutdownFlag, Boolean.FALSE::booleanValue);
-  }
-
-  public AsyncFullHttpRequestHandler(
-      @Nonnull RequestHandler handler,
-      @Nonnull BooleanSupplier shutdownFlag,
-      @Nonnull BooleanSupplier busyAutoReadDisable) {
     _handler = Objects.requireNonNull(handler, "handler");
     _shutdownFlag = Objects.requireNonNull(shutdownFlag, "shutdownFlag");
-    _busyAutoReadDisable = Objects.requireNonNull(busyAutoReadDisable, "busyAutoReadDisable");
   }
 
   @Override
@@ -204,11 +195,6 @@ public class AsyncFullHttpRequestHandler extends ChannelInitializer<Channel> {
           });
 
           _phantom.lazySet(phantom);
-
-          if (_busyAutoReadDisable.getAsBoolean()) {
-            // we don't need to read more from the client until we have a response.
-            config.setAutoRead(false);
-          }
 
           // TODO: Uncomment once we figure out why determining log level takes more than 1ms
           // LOG.debug("channelRead0 call id:{}", ctx.channel().id());

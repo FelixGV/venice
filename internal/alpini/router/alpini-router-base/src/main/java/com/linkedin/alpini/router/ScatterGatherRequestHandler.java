@@ -1,11 +1,14 @@
 package com.linkedin.alpini.router;
 
 import com.linkedin.alpini.base.concurrency.TimeoutProcessor;
+import com.linkedin.alpini.netty4.misc.BasicFullHttpRequest;
+import com.linkedin.alpini.router.api.Netty;
 import com.linkedin.alpini.router.api.ResourcePath;
 import com.linkedin.alpini.router.api.RouterTimeoutProcessor;
 import com.linkedin.alpini.router.api.ScatterGatherHelper;
+import io.netty.handler.codec.http.FullHttpResponse;
+import io.netty.handler.codec.http.HttpResponseStatus;
 import java.util.Objects;
-import java.util.concurrent.Executor;
 import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -30,32 +33,13 @@ public abstract class ScatterGatherRequestHandler<H, P extends ResourcePath<K>, 
 
   @SuppressWarnings("unchecked")
   public static <H, P extends ResourcePath<K>, K, R> ScatterGatherRequestHandler<H, P, K, R> make(
-      @Nonnull ScatterGatherHelper<H, P, K, R, ?, ?, ?> scatterGatherHelper,
-      @Nonnull TimeoutProcessor timeoutProcessor,
-      @Nonnull Executor executor) {
-    return make(scatterGatherHelper, RouterTimeoutProcessor.adapt(timeoutProcessor), executor);
-  }
-
-  @SuppressWarnings("unchecked")
-  public static <H, P extends ResourcePath<K>, K, R> ScatterGatherRequestHandler<H, P, K, R> make(
-      @Nonnull ScatterGatherHelper<H, P, K, R, ?, ?, ?> scatterGatherHelper,
-      @Nonnull RouterTimeoutProcessor timeoutProcessor,
-      @Nonnull Executor executor) {
+      @Nonnull ScatterGatherHelper<H, P, K, R, BasicFullHttpRequest, FullHttpResponse, HttpResponseStatus> scatterGatherHelper,
+      @Nonnull RouterTimeoutProcessor timeoutProcessor) {
+    if (scatterGatherHelper.dispatcherNettyVersion() != Netty.NETTY_4_1) {
+      throw new IllegalStateException("Only Netty 4.1 is supported.");
+    }
     try {
-      switch (scatterGatherHelper.dispatcherNettyVersion()) {
-        case NETTY_3:
-          return Class.forName(ScatterGatherRequestHandler.class.getName() + "3")
-              .asSubclass(ScatterGatherRequestHandler.class)
-              .getConstructor(scatterGatherHelper.getClass(), RouterTimeoutProcessor.class, Executor.class)
-              .newInstance(scatterGatherHelper, timeoutProcessor, executor);
-        case NETTY_4_1:
-          return Class.forName(ScatterGatherRequestHandler.class.getName() + "4")
-              .asSubclass(ScatterGatherRequestHandler.class)
-              .getConstructor(scatterGatherHelper.getClass(), RouterTimeoutProcessor.class, Executor.class)
-              .newInstance(scatterGatherHelper, timeoutProcessor, executor);
-        default:
-          throw new IllegalStateException();
-      }
+      return new ScatterGatherRequestHandler4<>(scatterGatherHelper, timeoutProcessor);
     } catch (Exception e) {
       throw new IllegalStateException(e);
     }

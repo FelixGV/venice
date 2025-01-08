@@ -213,11 +213,6 @@ public class TestScatterGatherRequestHandlerImpl {
       }
 
       @Override
-      protected boolean hasErrorInStorageNodeResponse(Response response) {
-        return response.status()._code >= Status.INTERNAL_SERVER_ERROR._code;
-      }
-
-      @Override
       protected Headers getResponseHeaders(Response response) {
         return response.headers();
       }
@@ -312,7 +307,7 @@ public class TestScatterGatherRequestHandlerImpl {
     ScatterGatherHelper mockScatterGatherHelper = mock(ScatterGatherHelper.class);
     CompletableFuture exceptionalFuture = new CompletableFuture();
     exceptionalFuture.completeExceptionally(new RuntimeException());
-    doReturn(exceptionalFuture).when(mockScatterGatherHelper).scatter(any(), any(), any(), any(), any(), any());
+    doReturn(exceptionalFuture).when(mockScatterGatherHelper).scatter(any(), any(), any(), any());
     return buildTestHandler(
         mockScatterGatherHelper,
         mock(TimeoutProcessor.class),
@@ -326,8 +321,7 @@ public class TestScatterGatherRequestHandlerImpl {
             mock(AsyncFuture.class),
             Runnable::run,
             mock(HostHealthMonitor.class),
-            mock(ScatterGatherStats.Delta.class),
-            mock(Metrics.class));
+            mock(ScatterGatherStats.Delta.class));
   }
 
   @Test(groups = "unit")
@@ -374,7 +368,7 @@ public class TestScatterGatherRequestHandlerImpl {
     ScatterGatherHelper mockScatterGatherHelper = mock(ScatterGatherHelper.class);
     CompletableFuture exceptionalFuture = new CompletableFuture();
     exceptionalFuture.completeExceptionally(new RuntimeException());
-    doReturn(exceptionalFuture).when(mockScatterGatherHelper).scatter(any(), any(), any(), any(), any(), any());
+    doReturn(exceptionalFuture).when(mockScatterGatherHelper).scatter(any(), any(), any(), any());
     AsyncPromise mockResponseFuture = mock(AsyncPromise.class);
     buildTestHandler(
         mockScatterGatherHelper,
@@ -390,12 +384,10 @@ public class TestScatterGatherRequestHandlerImpl {
                 mock(AsyncFuture.class),
                 Runnable::run,
                 mock(HostHealthMonitor.class),
-                mock(ScatterGatherStats.Delta.class),
-                mock(Metrics.class))
+                mock(ScatterGatherStats.Delta.class))
             .operationComplete(AsyncFuture.success(Status.SERVICE_UNAVAILABLE));
 
     // hostFuture should be set as we retry the request
-    verify(hostFuture).isSuccess();
     verify(mockRetryPath).setRetryRequest(any());
     verify(mockResponseFuture, never()).setSuccess(any());
   }
@@ -602,7 +594,6 @@ public class TestScatterGatherRequestHandlerImpl {
             .partitionFinder(new PartitionFinderImpl())
             .hostFinder(new HostFinderImpl())
             .metricsProvider(request -> new Metrics())
-            .responseMetrics(response -> new Metrics())
             .dispatchHandler(
                 (PartitionDispatchHandler<InetSocketAddress, Path, String, Request, Response, Status>) (
                     scatter,
@@ -676,7 +667,6 @@ public class TestScatterGatherRequestHandlerImpl {
             .partitionFinder(new PartitionFinderImpl())
             .hostFinder(new HostFinderImpl())
             .metricsProvider(request -> new Metrics())
-            .responseMetrics(response -> new Metrics())
             .requestTimeout(header -> 1000L)
             .longTailRetrySupplier((resourceName, methodName) -> AsyncFuture.success(() -> 100L))
             .dispatchHandler(
@@ -749,7 +739,6 @@ public class TestScatterGatherRequestHandlerImpl {
             .partitionFinder(new PartitionFinderImpl())
             .hostFinder(new HostFinderImpl())
             .metricsProvider(request -> new Metrics())
-            .responseMetrics(response -> new Metrics())
             .dispatchHandler(
                 (PartitionDispatchHandler<InetSocketAddress, Path, String, Request, Response, Status>) (
                     scatter,
@@ -813,7 +802,6 @@ public class TestScatterGatherRequestHandlerImpl {
             .partitionFinder(new PartitionFinderImpl())
             .hostFinder(new HostFinderImpl())
             .metricsProvider(request -> new Metrics())
-            .responseMetrics(response -> new Metrics())
             .requestTimeout(header -> 10000L)
             .longTailRetrySupplier((resourceName, methodName) -> AsyncFuture.success(() -> 100L))
             .dispatchHandler(
@@ -898,7 +886,6 @@ public class TestScatterGatherRequestHandlerImpl {
             .partitionFinder(new PartitionFinderImpl())
             .hostFinder(new HostFinder2Impl())
             .metricsProvider(request -> new Metrics())
-            .responseMetrics(response -> new Metrics())
             .requestTimeout(header -> 1000L)
             .longTailRetrySupplier((resourceName, methodName) -> AsyncFuture.success(() -> 100L))
             .dispatchHandler(
@@ -984,7 +971,6 @@ public class TestScatterGatherRequestHandlerImpl {
             .partitionFinder(new PartitionFinderImpl())
             .hostFinder(new HostFinder2Impl())
             .metricsProvider(request -> new Metrics())
-            .responseMetrics(response -> new Metrics())
             .requestTimeout(header -> 1000L)
             .longTailRetrySupplier((resourceName, methodName) -> AsyncFuture.success(() -> 100L))
             .enableRetryRequestAlwaysUseADifferentHost(() -> true)
@@ -1083,7 +1069,6 @@ public class TestScatterGatherRequestHandlerImpl {
             .partitionFinder(new PartitionFinderImpl())
             .hostFinder(new HostFinder4Impl())
             .metricsProvider(request -> new Metrics())
-            .responseMetrics(response -> new Metrics())
             .requestTimeout(header -> 1000L)
             .longTailRetrySupplier((resourceName, methodName) -> AsyncFuture.success(() -> 100L))
             .enableRetryRequestAlwaysUseADifferentHost(() -> true)
@@ -1177,7 +1162,6 @@ public class TestScatterGatherRequestHandlerImpl {
             .partitionFinder(new PartitionFinderImpl())
             .hostFinder(new HostFinder2Impl())
             .metricsProvider(request -> new Metrics())
-            .responseMetrics(response -> new Metrics())
             .requestTimeout(header -> 1000L)
             .longTailRetrySupplier((resourceName, methodName) -> AsyncFuture.success(() -> 100L))
             .enableRetryRequestAlwaysUseADifferentHost(() -> true)
@@ -1270,7 +1254,6 @@ public class TestScatterGatherRequestHandlerImpl {
             .partitionFinder(new PartitionFinderImpl())
             .hostFinder(new HostFinder2Impl())
             .metricsProvider(request -> new Metrics())
-            .responseMetrics(response -> new Metrics())
             .requestTimeout(header -> 1000L)
             .longTailRetrySupplier((resourceName, methodName) -> AsyncFuture.success(() -> 100L))
             .enableRetryRequestAlwaysUseADifferentHost(() -> true)
@@ -1369,7 +1352,6 @@ public class TestScatterGatherRequestHandlerImpl {
             .partitionFinder(new PartitionFinderImpl())
             .hostFinder(new HostFinder2Impl())
             .metricsProvider(request -> new Metrics())
-            .responseMetrics(response -> new Metrics())
             .requestTimeout(header -> 1000L)
             .longTailRetrySupplier((resourceName, methodName) -> AsyncFuture.success(() -> 100L))
             .enableRetryRequestAlwaysUseADifferentHost(() -> true)
@@ -1462,7 +1444,6 @@ public class TestScatterGatherRequestHandlerImpl {
             })
             .setIsReqRedirectionAllowedForQuery(() -> true) // Request redirection allowed for query
             .metricsProvider(request -> new Metrics())
-            .responseMetrics(response -> new Metrics())
             .dispatchHandler(
                 (PartitionDispatchHandler<InetSocketAddress, Path, String, Request, Response, Status>) (
                     scatter,
@@ -1530,7 +1511,6 @@ public class TestScatterGatherRequestHandlerImpl {
             })
             .setIsReqRedirectionAllowedForQuery(() -> false) // Request redirection not allowed for query
             .metricsProvider(request -> new Metrics())
-            .responseMetrics(response -> new Metrics())
             .dispatchHandler(
                 (PartitionDispatchHandler<InetSocketAddress, Path, String, Request, Response, Status>) (
                     scatter,
@@ -1601,7 +1581,6 @@ public class TestScatterGatherRequestHandlerImpl {
             .partitionFinder(new PartitionFinderImpl())
             .hostFinder(new HostFinder2Impl())
             .metricsProvider(request -> new Metrics())
-            .responseMetrics(response -> new Metrics())
             .requestTimeout(header -> 1000L)
             .longTailRetrySupplier((resourceName, methodName) -> AsyncFuture.success(() -> 100L))
             .dispatchHandler(
@@ -1685,7 +1664,6 @@ public class TestScatterGatherRequestHandlerImpl {
             .partitionFinder(new PartitionFinderImpl())
             .hostFinder(new HostFinder3Impl())
             .metricsProvider(request -> new Metrics())
-            .responseMetrics(response -> new Metrics())
             .dispatchHandler(
                 (PartitionDispatchHandler<InetSocketAddress, Path, String, Request, Response, Status>) (
                     scatter,
@@ -1753,7 +1731,6 @@ public class TestScatterGatherRequestHandlerImpl {
             .partitionFinder(new PartitionFinderImpl())
             .hostFinder(new HostFinder3Impl())
             .metricsProvider(request -> new Metrics())
-            .responseMetrics(response -> new Metrics())
             .dispatchHandler(
                 (PartitionDispatchHandler<InetSocketAddress, Path, String, Request, Response, Status>) (
                     scatter,
@@ -1783,10 +1760,10 @@ public class TestScatterGatherRequestHandlerImpl {
   @Test(groups = "unit")
   public void testIncrementTotalRetriesCounts() {
     ScatterGatherHelper scatterGatherHelper = mock(ScatterGatherHelper.class);
-    TimeoutProcessor timeoutProcessor = mock(TimeoutProcessor.class);
+    RouterTimeoutProcessor timeoutProcessor = mock(RouterTimeoutProcessor.class);
     Executor executor = mock(Executor.class);
     ScatterGatherRequestHandlerImpl scatterGatherRequestHandler =
-        new ScatterGatherRequestHandler4(scatterGatherHelper, timeoutProcessor, executor);
+        new ScatterGatherRequestHandler4(scatterGatherHelper, timeoutProcessor);
 
     ScatterGatherStats stats = new ScatterGatherStats();
     ScatterGatherStats.Delta delta = stats.new Delta();

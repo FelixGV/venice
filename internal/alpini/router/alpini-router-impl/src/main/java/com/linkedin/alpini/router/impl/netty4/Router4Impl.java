@@ -12,7 +12,6 @@ import com.linkedin.alpini.netty4.misc.BasicFullHttpRequest;
 import com.linkedin.alpini.netty4.misc.Futures;
 import com.linkedin.alpini.router.ScatterGatherRequestHandler;
 import com.linkedin.alpini.router.ScatterGatherRequestHandler4;
-import com.linkedin.alpini.router.api.Netty;
 import com.linkedin.alpini.router.api.ResourcePath;
 import com.linkedin.alpini.router.api.RouterTimeoutProcessor;
 import com.linkedin.alpini.router.api.ScatterGatherHelper;
@@ -95,7 +94,6 @@ public class Router4Impl<C extends Channel> implements Router, ResourceRegistry.
   private final Timer _nettyTimer;
   private Supplier<Router4PipelineFactory<C>> _pipelineSupplier;
   private AsyncFuture<SocketAddress> _localAddress;
-  private boolean _busyAutoReadDisable;
 
   public <H, P extends ResourcePath<K>, K, R> Router4Impl(
       String name,
@@ -123,8 +121,7 @@ public class Router4Impl<C extends Channel> implements Router, ResourceRegistry.
     ScatterGatherRequestHandler4<H, P, K, R> scatterGatherRequestHandler =
         (ScatterGatherRequestHandler4<H, P, K, R>) ScatterGatherRequestHandler.make(
             Objects.requireNonNull(scatterGatherHelper),
-            Objects.requireNonNull(timeoutProcessor, "timeoutProcessor"),
-            workerExecutor);
+            Objects.requireNonNull(timeoutProcessor, "timeoutProcessor"));
 
     _nettyTimer = Objects.requireNonNull(nettyTimer, "nettyTimer");
 
@@ -183,29 +180,14 @@ public class Router4Impl<C extends Channel> implements Router, ResourceRegistry.
     }
   }
 
-  public Supplier<Router4PipelineFactory<C>> getPipelineSupplier() {
-    return _pipelineSupplier;
-  }
-
-  public void setPipelineSupplier(@Nonnull Supplier<Router4PipelineFactory<C>> pipelineSupplier) {
-    _pipelineSupplier = Objects.requireNonNull(pipelineSupplier);
-  }
-
   protected <H, P extends ResourcePath<K>, K, R> Router4PipelineFactory<C> constructRouterPipelineFactory(
       @Nonnull ScatterGatherRequestHandler4<H, P, K, R> scatterGatherRequestHandler) {
     return new Router4PipelineFactory<>(
         getConnectionLimit(),
         getActiveStreamsCountHandler(),
         getHttp2SettingsFrameLogger(),
-        /*getWorkerExecutionHandler(),*/ getNettyTimer(),
         this::isShutdown,
-        this::isBusyAutoReadDisable,
         scatterGatherRequestHandler);
-  }
-
-  @Override
-  public Netty nettyVersion() {
-    return Netty.NETTY_4_1;
   }
 
   protected ServerBootstrap bootstrap() {
@@ -261,34 +243,6 @@ public class Router4Impl<C extends Channel> implements Router, ResourceRegistry.
   @Override
   public int getConnectedCount() {
     return _connectionLimit.getConnectedCount();
-  }
-
-  @Override
-  public int getActiveStreams() {
-    return _activeStreamsCountHandler.getActiveStreamsCount();
-  }
-
-  @Override
-  public long getRstErrorCount() {
-    return _http2SettingsFrameLogger.getErrorCount();
-  }
-
-  public boolean isBusyAutoReadDisable() {
-    return _busyAutoReadDisable;
-  }
-
-  public void setBusyAutoReadDisable(boolean busyAutoReadDisable) {
-    _busyAutoReadDisable = busyAutoReadDisable;
-  }
-
-  public static void setBusyAutoReadDisable(Router router, boolean busyAutoReadDisable) {
-    if (router instanceof Router4Impl) {
-      ((Router4Impl) router).setBusyAutoReadDisable(busyAutoReadDisable);
-    }
-  }
-
-  public static boolean isBusyAutoReadDisable(Router router) {
-    return router instanceof Router4Impl && ((Router4Impl) router).isBusyAutoReadDisable();
   }
 
   /**

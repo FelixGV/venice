@@ -220,11 +220,9 @@ public abstract class ScatterGatherRequestHandlerImpl<H, P extends ResourcePath<
       @Nonnull String requestMethod,
       @Nonnull P path,
       @Nonnull Headers headers,
-      @Nonnull HostHealthMonitor<H> hostHealthMonitor,
-      Metrics metrics,
-      String initialHost) {
+      @Nonnull HostHealthMonitor<H> hostHealthMonitor) {
     try {
-      return getScatterGatherHelper().scatter(requestMethod, path, headers, hostHealthMonitor, metrics, initialHost);
+      return getScatterGatherHelper().scatter(requestMethod, path, headers, hostHealthMonitor);
     } catch (RouterException e) {
       LOG.debug("Exception in scatter", e);
       throw new CompletionException(e);
@@ -257,20 +255,19 @@ public abstract class ScatterGatherRequestHandlerImpl<H, P extends ResourcePath<
     } else {
       hostHealthMonitor = _scatterGatherHelper::isHostHealthy;
     }
-    return scatter(request.getMethodName(), path, request.getRequestHeaders(), hostHealthMonitor, m, null)
-        .thenComposeAsync(
-            scatter -> handler1(
-                ctx,
-                m,
-                request,
-                requestDeadline,
-                stats,
-                longTailMilliseconds,
-                afterParseUri,
-                beforeParseUri,
-                beforeScatter,
-                scatter),
-            stageExecutor(ctx));
+    return scatter(request.getMethodName(), path, request.getRequestHeaders(), hostHealthMonitor).thenComposeAsync(
+        scatter -> handler1(
+            ctx,
+            m,
+            request,
+            requestDeadline,
+            stats,
+            longTailMilliseconds,
+            afterParseUri,
+            beforeParseUri,
+            beforeScatter,
+            scatter),
+        stageExecutor(ctx));
   }
 
   private @Nonnull CompletionStage<HR> handler1(
@@ -397,8 +394,7 @@ public abstract class ScatterGatherRequestHandlerImpl<H, P extends ResourcePath<
                 timeoutFuture,
                 contextExecutor,
                 _scatterGatherHelper::isHostHealthy,
-                stats,
-                m));
+                stats));
       }
     }
 
@@ -607,8 +603,7 @@ public abstract class ScatterGatherRequestHandlerImpl<H, P extends ResourcePath<
       @Nonnull AsyncFuture<Void> timeoutFuture,
       @Nonnull Executor contextExecutor,
       @Nonnull HostHealthMonitor<H> hostHealthMonitor,
-      @Nonnull ScatterGatherStats.Delta stats,
-      Metrics m) {
+      @Nonnull ScatterGatherStats.Delta stats) {
     BHS request = retainRequest(requestRef);
     Executor stageExecutor = stageExecutor(contextExecutor);
     return new AsyncFutureListener<HRS>() {
@@ -676,10 +671,7 @@ public abstract class ScatterGatherRequestHandlerImpl<H, P extends ResourcePath<
                 : (H host, String partName) -> hostFuture.isSuccess() && host.equals(hostFuture.getNow())
                     || hostHealthMonitor.isHostHealthy(host, partName);
 
-        String initialHost = hostFuture.isSuccess() ? hostFuture.getNow().toString() : null;
-        LOG.debug("Prepare Retry for request with initial host: {}", initialHost);
-
-        scatter(request.getMethodName(), path, request.getRequestHeaders(), healthMonitor, m, initialHost)
+        scatter(request.getMethodName(), path, request.getRequestHeaders(), healthMonitor)
             .whenCompleteAsync((scatter, throwable) -> {
               if (throwable != null) {
                 if (lastAttempt) {
@@ -854,8 +846,6 @@ public abstract class ScatterGatherRequestHandlerImpl<H, P extends ResourcePath<
   protected abstract int getResponseCode(HR response);
 
   protected abstract int getResponseReadable(HR response);
-
-  protected abstract boolean hasErrorInStorageNodeResponse(HR response);
 
   protected abstract Headers getResponseHeaders(HR response);
 
