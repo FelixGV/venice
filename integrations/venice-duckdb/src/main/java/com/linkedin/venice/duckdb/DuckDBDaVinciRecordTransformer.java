@@ -1,6 +1,6 @@
 package com.linkedin.venice.duckdb;
 
-import static com.linkedin.venice.sql.AvroToSQL.UnsupportedTypeHandling.FAIL;
+import static com.linkedin.venice.sql.AvroToSQL.UnsupportedTypeHandling.*;
 
 import com.linkedin.davinci.client.DaVinciRecordTransformer;
 import com.linkedin.davinci.client.DaVinciRecordTransformerResult;
@@ -34,6 +34,10 @@ public class DuckDBDaVinciRecordTransformer
   private final String versionTableName;
   private final String duckDBUrl;
   private final Set<String> columnsToProject;
+  private final Connection connection;
+  private final ThreadLocal<PreparedStatement> deletePreparedStatement;
+  private final ThreadLocal<PreparedStatement> upsertPreparedStatement;
+  private final InsertProcessor upsertProcessor;
 
   public DuckDBDaVinciRecordTransformer(
       int storeVersion,
@@ -49,6 +53,29 @@ public class DuckDBDaVinciRecordTransformer
     this.versionTableName = buildStoreNameWithVersion(storeVersion);
     this.duckDBUrl = "jdbc:duckdb:" + baseDir + "/" + duckDBFilePath;
     this.columnsToProject = columnsToProject;
+    String deleteStatement = String.format(deleteStatementTemplate, versionTableName, "key"); // TODO: Fix this, it is
+                                                                                              // broken
+    String upsertStatement = AvroToSQL.upsertStatement(versionTableName, keySchema, inputValueSchema, columnsToProject);
+    try {
+      this.connection = DriverManager.getConnection(duckDBUrl);
+    } catch (SQLException e) {
+      throw new VeniceException("Failed to connect to DB!", e);
+    }
+    this.deletePreparedStatement = ThreadLocal.withInitial(() -> {
+      try {
+        return this.connection.prepareStatement(deleteStatement);
+      } catch (SQLException e) {
+        throw new VeniceException("Failed to create PreparedStatement!", e);
+      }
+    });
+    this.upsertPreparedStatement = ThreadLocal.withInitial(() -> {
+      try {
+        return this.connection.prepareStatement(upsertStatement);
+      } catch (SQLException e) {
+        throw new VeniceException("Failed to create PreparedStatement!", e);
+      }
+    });
+    this.upsertProcessor = AvroToSQL.upsertProcessor(keySchema, inputValueSchema, columnsToProject);
   }
 
   @Override
@@ -60,38 +87,18 @@ public class DuckDBDaVinciRecordTransformer
 
   @Override
   public void processPut(Lazy<GenericRecord> key, Lazy<GenericRecord> value) {
-    // TODO: Pre-allocate the upsert statement and everything that goes into it, as much as possible.
-    Schema keySchema = key.get().getSchema();
-    Schema valueSchema = value.get().getSchema();
-    String upsertStatement = AvroToSQL.upsertStatement(versionTableName, keySchema, valueSchema, this.columnsToProject);
-
-    // ToDo: Instead of creating a connection on every call, have a long-term connection. Maybe a connection pool?
-    try (Connection connection = DriverManager.getConnection(duckDBUrl)) {
-      // TODO: Pre-allocate the upsert processor as well
-      InsertProcessor upsertProcessor = AvroToSQL.upsertProcessor(keySchema, valueSchema, this.columnsToProject);
-
-      // TODO: Pre-allocate the prepared statement (consider thread-local if it's not thread safe)
-      try (PreparedStatement preparedStatement = connection.prepareStatement(upsertStatement)) {
-        upsertProcessor.process(key.get(), value.get(), preparedStatement);
-      }
-    } catch (SQLException e) {
-      throw new RuntimeException(e);
-    }
+    this.upsertProcessor.process(key.get(), value.get(), this.upsertPreparedStatement.get());
   }
 
   @Override
   public void processDelete(Lazy<GenericRecord> key) {
-    // Unable to convert to prepared statement as table and column names can't be parameterized
-    // ToDo make delete non-hardcoded on primaryKey
-    String deleteStatement = String.format(deleteStatementTemplate, versionTableName, "key");
-
-    // ToDo: Instead of creating a connection on every call, have a long-term connection. Maybe a connection pool?
-    try (Connection connection = DriverManager.getConnection(duckDBUrl);
-        PreparedStatement stmt = connection.prepareStatement(deleteStatement)) {
+    try {
+      PreparedStatement stmt = this.deletePreparedStatement.get();
+      // TODO: Fix this, it is broken.
       stmt.setString(1, key.get().get("key").toString());
       stmt.execute();
     } catch (SQLException e) {
-      throw new RuntimeException(e);
+      throw new VeniceException("Failed to execute delete!");
     }
   }
 
@@ -104,7 +111,7 @@ public class DuckDBDaVinciRecordTransformer
           getKeySchema(),
           getOutputValueSchema(),
           this.columnsToProject,
-          FAIL,
+          SKIP,
           true);
       TableDefinition existingTableDefinition = SQLUtils.getTableDefinition(this.versionTableName, connection);
       if (existingTableDefinition == null) {
@@ -149,6 +156,10 @@ public class DuckDBDaVinciRecordTransformer
     } catch (SQLException e) {
       throw new RuntimeException(e);
     }
+  }
+
+  public boolean useUniformInputValueSchema() {
+    return true;
   }
 
   public String getDuckDBUrl() {

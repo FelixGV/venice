@@ -130,6 +130,10 @@ public abstract class DaVinciRecordTransformer<K, V, O> {
     return;
   }
 
+  public boolean useUniformInputValueSchema() {
+    return false;
+  }
+
   // Final methods below
 
   /**
