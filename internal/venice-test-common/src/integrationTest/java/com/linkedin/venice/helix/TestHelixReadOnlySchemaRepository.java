@@ -57,7 +57,7 @@ public class TestHelixReadOnlySchemaRepository {
         Optional.empty(),
         new ClusterLockManager(cluster));
     storeRWRepo.refresh();
-    storeRORepo = new HelixReadOnlyStoreRepository(zkClient, adapter, cluster, 1, 1000);
+    storeRORepo = new HelixReadOnlyStoreRepository(zkClient, adapter, cluster);
     storeRORepo.refresh();
     schemaRWRepo = new HelixReadWriteSchemaRepository(storeRWRepo, zkClient, adapter, cluster, Optional.empty());
     schemaRORepo = new HelixReadOnlySchemaRepository(storeRORepo, zkClient, adapter, cluster, 1, 1000);

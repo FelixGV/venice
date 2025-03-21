@@ -49,6 +49,7 @@ import com.linkedin.venice.listener.ListenerService;
 import com.linkedin.venice.listener.ServerReadMetadataRepository;
 import com.linkedin.venice.listener.ServerStoreAclHandler;
 import com.linkedin.venice.listener.StoreValueSchemasCacheService;
+import com.linkedin.venice.meta.NameRepository;
 import com.linkedin.venice.meta.ReadOnlyLiveClusterConfigRepository;
 import com.linkedin.venice.meta.ReadOnlySchemaRepository;
 import com.linkedin.venice.meta.ReadOnlyStoreRepository;
@@ -104,6 +105,7 @@ public class VeniceServer {
   private final AtomicBoolean isStarted;
   private final Lazy<List<AbstractVeniceService>> services;
   private final PubSubClientsFactory pubSubClientsFactory;
+  private final NameRepository nameRepository;
   private StorageService storageService;
   private StorageMetadataService storageMetadataService;
   private StorageEngineMetadataService storageEngineMetadataService;
@@ -194,6 +196,7 @@ public class VeniceServer {
     this.routerAccessController = Optional.ofNullable(ctx.getRouterAccessController());
     this.storeAccessController = Optional.ofNullable(ctx.getStoreAccessController());
     this.clientConfigForConsumer = Optional.ofNullable(ctx.getClientConfigForConsumer());
+    this.nameRepository = new NameRepository(veniceServerConfig.getNameRepoMaxEntryCount());
   }
 
   /**
@@ -302,7 +305,8 @@ public class VeniceServer {
         clientConfigForConsumer.orElse(null),
         metricsRepository,
         icProvider,
-        false);
+        false,
+        this.nameRepository);
     zkClient = veniceMetadataRepositoryBuilder.getZkClient();
     metadataRepo = veniceMetadataRepositoryBuilder.getStoreRepo();
     schemaRepo = veniceMetadataRepositoryBuilder.getSchemaRepo();

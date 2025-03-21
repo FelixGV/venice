@@ -1,13 +1,18 @@
 name: Enforce Max Lines Changed Per File
 
 on:
+  push:
+    paths:
+      - '**/*.java'   # Monitor changes to Java files
+      - '**/*.avsc'   # Monitor changes to Avro schema files
+      - '**/*.proto'  # Monitor changes to Proto schema files
   pull_request:
     branches:
       - main
     paths:
       - '**/*.java'   # Monitor changes to Java files
       - '**/*.avsc'   # Monitor changes to Avro schema files
-      - '**/*.proto'   # Monitor changes to proto schema files
+      - '**/*.proto'  # Monitor changes to Proto schema files
 
 jobs:
   enforce-lines-changed:

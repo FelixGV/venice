@@ -7,6 +7,7 @@ import com.linkedin.venice.helix.HelixAdapterSerializer;
 import com.linkedin.venice.helix.HelixState;
 import com.linkedin.venice.helix.SafeHelixManager;
 import com.linkedin.venice.ingestion.control.RealTimeTopicSwitcher;
+import com.linkedin.venice.meta.NameRepository;
 import com.linkedin.venice.utils.locks.AutoCloseableLock;
 import io.tehuti.metrics.MetricsRepository;
 import java.util.Optional;
@@ -46,6 +47,7 @@ public class VeniceControllerStateModel extends StateModel {
   private final String clusterName;
   private final HelixAdminClient helixAdminClient;
   private final RealTimeTopicSwitcher realTimeTopicSwitcher;
+  private final NameRepository nameRepository;
 
   private VeniceControllerClusterConfig clusterConfig;
   private SafeHelixManager helixManager;
@@ -61,7 +63,8 @@ public class VeniceControllerStateModel extends StateModel {
       ClusterLeaderInitializationRoutine controllerInitialization,
       RealTimeTopicSwitcher realTimeTopicSwitcher,
       Optional<DynamicAccessController> accessController,
-      HelixAdminClient helixAdminClient) {
+      HelixAdminClient helixAdminClient,
+      NameRepository nameRepository) {
     this._currentState = new StateModelParser().getInitialState(VeniceControllerStateModel.class);
     this.clusterName = clusterName;
     this.zkClient = zkClient;
@@ -73,6 +76,7 @@ public class VeniceControllerStateModel extends StateModel {
     this.realTimeTopicSwitcher = realTimeTopicSwitcher;
     this.accessController = accessController;
     this.helixAdminClient = helixAdminClient;
+    this.nameRepository = nameRepository;
   }
 
   /**
@@ -191,7 +195,8 @@ public class VeniceControllerStateModel extends StateModel {
         metricsRepository,
         realTimeTopicSwitcher,
         accessController,
-        helixAdminClient);
+        this.helixAdminClient,
+        this.nameRepository);
     clusterResources.refresh();
     clusterResources.startErrorPartitionResetTask();
     clusterResources.startLeakedPushStatusCleanUpService();

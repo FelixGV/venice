@@ -12,6 +12,7 @@ import com.linkedin.venice.helix.ZkClientFactory;
 import com.linkedin.venice.ingestion.control.RealTimeTopicSwitcher;
 import com.linkedin.venice.integration.utils.ServiceFactory;
 import com.linkedin.venice.integration.utils.ZkServerWrapper;
+import com.linkedin.venice.meta.NameRepository;
 import com.linkedin.venice.system.store.MetaStoreWriter;
 import com.linkedin.venice.utils.locks.AutoCloseableLock;
 import io.tehuti.metrics.MetricsRepository;
@@ -72,7 +73,8 @@ public class TestVeniceHelixResources {
         metricsRepository,
         mock(RealTimeTopicSwitcher.class),
         Optional.empty(),
-        mock(HelixAdminClient.class));
+        mock(HelixAdminClient.class),
+        new NameRepository());
   }
 
   @Test

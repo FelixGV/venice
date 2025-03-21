@@ -28,6 +28,7 @@ import com.linkedin.venice.meta.HybridStoreConfig;
 import com.linkedin.venice.meta.OfflinePushStrategy;
 import com.linkedin.venice.meta.Store;
 import com.linkedin.venice.meta.StoreInfo;
+import com.linkedin.venice.meta.StoreName;
 import com.linkedin.venice.pubsub.PubSubTopicRepository;
 import com.linkedin.venice.pubsub.api.PubSubTopic;
 import com.linkedin.venice.pubsub.manager.TopicManager;
@@ -119,7 +120,8 @@ public class AbstractTestVeniceParentHelixAdmin {
     doReturn(store).when(internalAdmin).checkPreConditionForAclOp(any(), any());
 
     HelixReadWriteStoreRepository storeRepository = mock(HelixReadWriteStoreRepository.class);
-    doReturn(store).when(storeRepository).getStore(any());
+    doReturn(store).when(storeRepository).getStore(anyString());
+    doReturn(store).when(storeRepository).getStore(any(StoreName.class));
 
     config = mockConfig(clusterName);
     doReturn(1).when(config).getReplicationMetadataVersion();

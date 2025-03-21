@@ -2,6 +2,7 @@ package com.linkedin.venice.helix;
 
 import com.linkedin.venice.common.VeniceSystemStoreType;
 import com.linkedin.venice.exceptions.VeniceNoStoreException;
+import com.linkedin.venice.meta.NameRepository;
 import com.linkedin.venice.meta.ReadOnlyStoreRepository;
 import com.linkedin.venice.meta.Store;
 import com.linkedin.venice.meta.StoreDataChangedListener;
@@ -26,19 +27,19 @@ public class HelixReadOnlyStoreRepositoryAdapter implements ReadOnlyStoreReposit
   private final StoreDataChangedListener zkSharedStoreDataChangedListener;
   private final StoreDataChangedListener regularStoreDataChangedListener;
   private final Set<StoreDataChangedListener> listeners = new CopyOnWriteArraySet<>();
-  private final String clusterName;
+  private final NameRepository nameRepository;
 
   public HelixReadOnlyStoreRepositoryAdapter(
       HelixReadOnlyZKSharedSystemStoreRepository systemStoreRepository,
       ReadOnlyStoreRepository regularStoreRepository,
-      String clusterName) {
+      NameRepository nameRepository) {
     this.systemStoreRepository = systemStoreRepository;
     this.regularStoreRepository = regularStoreRepository;
+    this.nameRepository = nameRepository;
     this.zkSharedStoreDataChangedListener = new ZKSharedStoreDataChangedListener();
     this.systemStoreRepository.registerStoreDataChangedListener(this.zkSharedStoreDataChangedListener);
     this.regularStoreDataChangedListener = new VeniceStoreDataChangedListener();
     this.regularStoreRepository.registerStoreDataChangedListener(this.regularStoreDataChangedListener);
-    this.clusterName = clusterName;
   }
 
   /**

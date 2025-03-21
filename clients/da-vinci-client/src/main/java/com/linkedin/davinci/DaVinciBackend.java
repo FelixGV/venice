@@ -50,6 +50,7 @@ import com.linkedin.venice.kafka.protocol.state.PartitionState;
 import com.linkedin.venice.kafka.protocol.state.StoreVersionState;
 import com.linkedin.venice.meta.ClusterInfoProvider;
 import com.linkedin.venice.meta.IngestionMode;
+import com.linkedin.venice.meta.NameRepository;
 import com.linkedin.venice.meta.ReadOnlySchemaRepository;
 import com.linkedin.venice.meta.ReadOnlyStoreRepository;
 import com.linkedin.venice.meta.Store;
@@ -125,7 +126,8 @@ public class DaVinciBackend implements Closeable {
       Optional<Set<String>> managedClients,
       ICProvider icProvider,
       Optional<ObjectCacheConfig> cacheConfig,
-      DaVinciRecordTransformerConfig recordTransformerConfig) {
+      DaVinciRecordTransformerConfig recordTransformerConfig,
+      NameRepository nameRepository) {
     LOGGER.info("Creating Da Vinci backend with managed clients: {}", managedClients);
     try {
       VeniceServerConfig backendConfig = configLoader.getVeniceServerConfig();
@@ -140,8 +142,13 @@ public class DaVinciBackend implements Closeable {
       this.configLoader = configLoader;
       metricsRepository = Optional.ofNullable(clientConfig.getMetricsRepository())
           .orElse(TehutiUtils.getMetricsRepository("davinci-client"));
-      VeniceMetadataRepositoryBuilder veniceMetadataRepositoryBuilder =
-          new VeniceMetadataRepositoryBuilder(configLoader, clientConfig, metricsRepository, icProvider, false);
+      VeniceMetadataRepositoryBuilder veniceMetadataRepositoryBuilder = new VeniceMetadataRepositoryBuilder(
+          configLoader,
+          clientConfig,
+          metricsRepository,
+          icProvider,
+          false,
+          nameRepository);
       ClusterInfoProvider clusterInfoProvider = veniceMetadataRepositoryBuilder.getClusterInfoProvider();
       ReadOnlyStoreRepository readOnlyStoreRepository = veniceMetadataRepositoryBuilder.getStoreRepo();
       if (!(readOnlyStoreRepository instanceof SubscriptionBasedReadOnlyStoreRepository)) {

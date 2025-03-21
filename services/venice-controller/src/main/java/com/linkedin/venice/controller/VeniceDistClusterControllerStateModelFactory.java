@@ -4,6 +4,7 @@ import com.linkedin.venice.acl.DynamicAccessController;
 import com.linkedin.venice.controller.init.ClusterLeaderInitializationRoutine;
 import com.linkedin.venice.helix.HelixAdapterSerializer;
 import com.linkedin.venice.ingestion.control.RealTimeTopicSwitcher;
+import com.linkedin.venice.meta.NameRepository;
 import io.tehuti.metrics.MetricsRepository;
 import java.util.Collection;
 import java.util.Optional;
@@ -28,6 +29,7 @@ public class VeniceDistClusterControllerStateModelFactory extends StateModelFact
   private final RealTimeTopicSwitcher realTimeTopicSwitcher;
   private final Optional<DynamicAccessController> accessController;
   private final HelixAdminClient helixAdminClient;
+  private final NameRepository nameRepository;
 
   public VeniceDistClusterControllerStateModelFactory(
       ZkClient zkClient,
@@ -38,7 +40,8 @@ public class VeniceDistClusterControllerStateModelFactory extends StateModelFact
       ClusterLeaderInitializationRoutine controllerInitialization,
       RealTimeTopicSwitcher realTimeTopicSwitcher,
       Optional<DynamicAccessController> accessController,
-      HelixAdminClient helixAdminClient) {
+      HelixAdminClient helixAdminClient,
+      NameRepository nameRepository) {
     this.zkClient = zkClient;
     this.adapterSerializer = adapterSerializer;
     this.clusterConfigs = clusterConfigs;
@@ -48,6 +51,7 @@ public class VeniceDistClusterControllerStateModelFactory extends StateModelFact
     this.realTimeTopicSwitcher = realTimeTopicSwitcher;
     this.accessController = accessController;
     this.helixAdminClient = helixAdminClient;
+    this.nameRepository = nameRepository;
   }
 
   /**
@@ -58,16 +62,17 @@ public class VeniceDistClusterControllerStateModelFactory extends StateModelFact
     String veniceClusterName = VeniceControllerStateModel.getVeniceClusterNameFromPartitionName(partitionName);
     VeniceControllerStateModel model = new VeniceControllerStateModel(
         veniceClusterName,
-        zkClient,
-        adapterSerializer,
-        clusterConfigs,
-        admin,
-        metricsRepository,
-        controllerInitialization,
-        realTimeTopicSwitcher,
-        accessController,
-        helixAdminClient);
-    clusterToStateModelsMap.put(veniceClusterName, model);
+        this.zkClient,
+        this.adapterSerializer,
+        this.clusterConfigs,
+        this.admin,
+        this.metricsRepository,
+        this.controllerInitialization,
+        this.realTimeTopicSwitcher,
+        this.accessController,
+        this.helixAdminClient,
+        this.nameRepository);
+    this.clusterToStateModelsMap.put(veniceClusterName, model);
     return model;
   }
 

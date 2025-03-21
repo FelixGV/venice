@@ -4,6 +4,7 @@ import static com.linkedin.venice.router.api.DictionaryRetrievalService.MAX_DICT
 import static com.linkedin.venice.router.api.DictionaryRetrievalService.MIN_DICTIONARY_DOWNLOAD_DELAY_TIME_MS;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
@@ -21,6 +22,7 @@ import com.linkedin.venice.meta.OnlineInstanceFinder;
 import com.linkedin.venice.meta.ReadOnlyStoreRepository;
 import com.linkedin.venice.meta.Store;
 import com.linkedin.venice.meta.StoreDataChangedListener;
+import com.linkedin.venice.meta.StoreName;
 import com.linkedin.venice.meta.Version;
 import com.linkedin.venice.meta.VersionStatus;
 import com.linkedin.venice.router.VeniceRouterConfig;
@@ -72,7 +74,8 @@ public class TestDictionaryRetrievalService {
     doReturn(version).when(store).getVersion(VERSION_NUMBER);
     stores.add(store);
     doReturn(stores).when(metadataRepository).getAllStores();
-    doReturn(store).when(metadataRepository).getStore(any());
+    doReturn(store).when(metadataRepository).getStore(anyString());
+    doReturn(store).when(metadataRepository).getStore(any(StoreName.class));
     storageNodeClient = mock(StorageNodeClient.class);
     compressorFactory = mock(CompressorFactory.class);
     sslFactory = mock(SSLFactory.class);

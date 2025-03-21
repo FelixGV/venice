@@ -16,6 +16,7 @@ import com.linkedin.venice.controller.lingeringjob.LingeringStoreVersionChecker;
 import com.linkedin.venice.controller.supersetschema.SupersetSchemaGenerator;
 import com.linkedin.venice.exceptions.VeniceException;
 import com.linkedin.venice.kafka.protocol.KafkaMessageEnvelope;
+import com.linkedin.venice.meta.NameRepository;
 import com.linkedin.venice.pubsub.PubSubClientsFactory;
 import com.linkedin.venice.pubsub.PubSubTopicRepository;
 import com.linkedin.venice.pubsub.api.PubSubMessageDeserializer;
@@ -49,7 +50,7 @@ public class VeniceControllerService extends AbstractVeniceService {
   private final Admin admin;
   private final VeniceControllerMultiClusterConfig multiClusterConfigs;
   private final Map<String, AdminConsumerService> consumerServicesByClusters;
-
+  private final NameRepository nameRepository;
   private final BiConsumer<Integer, Schema> newSchemaEncountered;
 
   public VeniceControllerService(
@@ -66,6 +67,7 @@ public class VeniceControllerService extends AbstractVeniceService {
       PubSubTopicRepository pubSubTopicRepository,
       PubSubClientsFactory pubSubClientsFactory) {
     this.multiClusterConfigs = multiClusterConfigs;
+    this.nameRepository = new NameRepository(this.multiClusterConfigs.getNameRepoMaxEntryCount());
 
     DelegatingClusterLeaderInitializationRoutine initRoutineForPushJobDetailsSystemStore =
         new DelegatingClusterLeaderInitializationRoutine();
@@ -90,6 +92,7 @@ public class VeniceControllerService extends AbstractVeniceService {
         sslConfig,
         accessController,
         icProvider,
+        this.nameRepository,
         pubSubTopicRepository,
         pubSubClientsFactory,
         Arrays.asList(initRoutineForPushJobDetailsSystemStore, initRoutineForHeartbeatSystemStore));

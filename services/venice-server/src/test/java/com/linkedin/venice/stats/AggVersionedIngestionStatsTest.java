@@ -1,6 +1,7 @@
 package com.linkedin.venice.stats;
 
-import static org.mockito.Mockito.any;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 
@@ -13,6 +14,7 @@ import com.linkedin.venice.meta.ReadOnlyStoreRepository;
 import com.linkedin.venice.meta.ReadStrategy;
 import com.linkedin.venice.meta.RoutingStrategy;
 import com.linkedin.venice.meta.Store;
+import com.linkedin.venice.meta.StoreName;
 import com.linkedin.venice.meta.Version;
 import com.linkedin.venice.meta.VersionImpl;
 import com.linkedin.venice.meta.VersionStatus;
@@ -63,7 +65,8 @@ public class AggVersionedIngestionStatsTest {
     List<Store> storeList = new ArrayList<>();
     storeList.add(mockStore);
 
-    doReturn(mockStore).when(mockMetaRepository).getStoreOrThrow(any());
+    doReturn(mockStore).when(mockMetaRepository).getStoreOrThrow(anyString());
+    doReturn(mockStore).when(mockMetaRepository).getStoreOrThrow(any(StoreName.class));
     doReturn(storeList).when(mockMetaRepository).getAllStores();
 
     // No metrics initially.
@@ -137,7 +140,8 @@ public class AggVersionedIngestionStatsTest {
     List<Store> storeList = new ArrayList<>();
     storeList.add(mockStore);
 
-    doReturn(mockStore).when(mockMetaRepository).getStoreOrThrow(any());
+    doReturn(mockStore).when(mockMetaRepository).getStoreOrThrow(anyString());
+    doReturn(mockStore).when(mockMetaRepository).getStoreOrThrow(any(StoreName.class));
     doReturn(storeList).when(mockMetaRepository).getAllStores();
 
     stats.loadAllStats();

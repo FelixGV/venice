@@ -14,6 +14,7 @@ import com.linkedin.venice.helix.HelixReadOnlyZKSharedSchemaRepository;
 import com.linkedin.venice.helix.HelixReadOnlyZKSharedSystemStoreRepository;
 import com.linkedin.venice.helix.ZkClientFactory;
 import com.linkedin.venice.meta.ClusterInfoProvider;
+import com.linkedin.venice.meta.NameRepository;
 import com.linkedin.venice.meta.ReadOnlyLiveClusterConfigRepository;
 import com.linkedin.venice.meta.ReadOnlySchemaRepository;
 import com.linkedin.venice.meta.ReadOnlyStoreRepository;
@@ -42,6 +43,7 @@ public class VeniceMetadataRepositoryBuilder {
   private final MetricsRepository metricsRepository;
   private final boolean isIngestionIsolation;
   private final ICProvider icProvider;
+  private final NameRepository nameRepository;
 
   private ReadOnlyStoreRepository storeRepo;
   private HelixReadOnlyStoreConfigRepository storeConfigRepo;
@@ -56,7 +58,8 @@ public class VeniceMetadataRepositoryBuilder {
       ClientConfig clientConfig,
       MetricsRepository metricsRepository,
       ICProvider icProvider,
-      boolean isIngestionIsolation) {
+      boolean isIngestionIsolation,
+      NameRepository nameRepository) {
     this.configLoader = configLoader;
     this.clientConfig = clientConfig;
     if (clientConfig != null) {
@@ -65,6 +68,7 @@ public class VeniceMetadataRepositoryBuilder {
     this.metricsRepository = metricsRepository;
     this.isIngestionIsolation = isIngestionIsolation;
     this.icProvider = icProvider;
+    this.nameRepository = nameRepository;
     if (isDaVinciClient()) {
       initDaVinciStoreAndSchemaRepository();
     } else {
@@ -133,17 +137,13 @@ public class VeniceMetadataRepositoryBuilder {
     HelixReadOnlyZKSharedSystemStoreRepository readOnlyZKSharedSystemStoreRepository =
         new HelixReadOnlyZKSharedSystemStoreRepository(zkClient, adapter, systemSchemaClusterName);
 
-    HelixReadOnlyStoreRepository readOnlyStoreRepository = new HelixReadOnlyStoreRepository(
-        zkClient,
-        adapter,
-        clusterName,
-        clusterConfig.getRefreshAttemptsForZkReconnect(),
-        clusterConfig.getRefreshIntervalForZkReconnectInMs());
+    HelixReadOnlyStoreRepository readOnlyStoreRepository =
+        new HelixReadOnlyStoreRepository(zkClient, adapter, clusterName);
 
     storeRepo = new HelixReadOnlyStoreRepositoryAdapter(
         readOnlyZKSharedSystemStoreRepository,
         readOnlyStoreRepository,
-        clusterName);
+        this.nameRepository);
     // Load existing store config and setup watches
     storeRepo.refresh();
 

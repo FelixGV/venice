@@ -18,6 +18,7 @@ import com.linkedin.davinci.client.DaVinciConfig;
 import com.linkedin.davinci.client.factory.CachingDaVinciClientFactory;
 import com.linkedin.venice.client.store.ClientConfig;
 import com.linkedin.venice.exceptions.VeniceException;
+import com.linkedin.venice.meta.NameRepository;
 import com.linkedin.venice.meta.PersistenceType;
 import com.linkedin.venice.utils.PropertyBuilder;
 import com.linkedin.venice.utils.TestUtils;
@@ -65,8 +66,12 @@ public class DaVinciTestContext<K, V> {
         PropertyBuilder backendConfigBuilder = getDaVinciPropertyBuilder(zkAddress);
         extraBackendProperties.forEach(backendConfigBuilder::put);
         // Get and start Da Vinci client.
-        daVinciClient =
-            new AvroGenericDaVinciClient<>(daVinciConfig, clientConfig, backendConfigBuilder.build(), Optional.empty());
+        daVinciClient = new AvroGenericDaVinciClient<>(
+            daVinciConfig,
+            clientConfig,
+            backendConfigBuilder.build(),
+            Optional.empty(),
+            new NameRepository());
         daVinciClient.start();
         return daVinciClient;
       } catch (Exception e) {

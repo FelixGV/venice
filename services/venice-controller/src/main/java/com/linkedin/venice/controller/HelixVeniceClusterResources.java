@@ -21,6 +21,7 @@ import com.linkedin.venice.helix.VeniceOfflinePushMonitorAccessor;
 import com.linkedin.venice.helix.ZkRoutersClusterManager;
 import com.linkedin.venice.helix.ZkStoreConfigAccessor;
 import com.linkedin.venice.ingestion.control.RealTimeTopicSwitcher;
+import com.linkedin.venice.meta.NameRepository;
 import com.linkedin.venice.meta.ReadWriteSchemaRepository;
 import com.linkedin.venice.meta.ReadWriteStoreRepository;
 import com.linkedin.venice.meta.Store;
@@ -76,6 +77,7 @@ public class HelixVeniceClusterResources implements VeniceResource {
   private final Optional<MetaStoreWriter> metaStoreWriter;
   private final VeniceAdminStats veniceAdminStats;
   private final VeniceHelixAdmin admin;
+  private final NameRepository nameRepository;
 
   public HelixVeniceClusterResources(
       String clusterName,
@@ -87,11 +89,13 @@ public class HelixVeniceClusterResources implements VeniceResource {
       MetricsRepository metricsRepository,
       RealTimeTopicSwitcher realTimeTopicSwitcher,
       Optional<DynamicAccessController> accessController,
-      HelixAdminClient helixAdminClient) {
+      HelixAdminClient helixAdminClient,
+      NameRepository nameRepository) {
     this.clusterName = clusterName;
     this.config = config;
     this.helixManager = helixManager;
     this.admin = admin;
+    this.nameRepository = nameRepository;
     /**
      * So far, Meta system store doesn't support write from parent cluster.
      */
@@ -114,7 +118,7 @@ public class HelixVeniceClusterResources implements VeniceResource {
     this.storeMetadataRepository = new HelixReadWriteStoreRepositoryAdapter(
         admin.getReadOnlyZKSharedSystemStoreRepository(),
         readWriteStoreRepository,
-        clusterName);
+        this.nameRepository);
     this.schemaRepository = new HelixReadWriteSchemaRepositoryAdapter(
         admin.getReadOnlyZKSharedSchemaRepository(),
         new HelixReadWriteSchemaRepository(

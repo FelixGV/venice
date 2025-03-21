@@ -22,9 +22,7 @@ public class HelixReadOnlyStoreRepository extends CachedReadOnlyStoreRepository 
   public HelixReadOnlyStoreRepository(
       ZkClient zkClient,
       HelixAdapterSerializer compositeSerializer,
-      String clusterName,
-      int refreshAttemptsForZkReconnect,
-      long refreshIntervalForZkReconnectInMs) {
+      String clusterName) {
     /**
      * HelixReadOnlyStoreRepository is used in router, server, fast-client, da-vinci and system store.
      * Its centralized locking should NOT be shared with other classes. Create a new instance.

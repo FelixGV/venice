@@ -1,6 +1,7 @@
 package com.linkedin.venice.pushmonitor;
 
-import static org.mockito.Mockito.any;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -10,6 +11,7 @@ import static org.mockito.Mockito.verify;
 import com.linkedin.venice.meta.ReadOnlyStoreRepository;
 import com.linkedin.venice.meta.Store;
 import com.linkedin.venice.meta.StoreCleaner;
+import com.linkedin.venice.meta.StoreName;
 import com.linkedin.venice.meta.Version;
 import java.util.Arrays;
 import java.util.List;
@@ -49,7 +51,8 @@ public class LeakedPushStatusCleanUpServiceTest {
      * Define the behavior of store config; the leaked version will not be in the version list of the store
      */
     Store mockStore = mock(Store.class);
-    doReturn(mockStore).when(metadataRepository).getStoreOrThrow(any());
+    doReturn(mockStore).when(metadataRepository).getStoreOrThrow(anyString());
+    doReturn(mockStore).when(metadataRepository).getStoreOrThrow(any(StoreName.class));
     doReturn(currentVersion).when(mockStore).getCurrentVersion();
     doReturn(false).when(mockStore).containsVersion(leakedVersion1);
     doReturn(false).when(mockStore).containsVersion(leakedVersion2);

@@ -22,6 +22,7 @@ import com.linkedin.davinci.config.VeniceServerConfig.IncrementalPushStatusWrite
 import com.linkedin.venice.helix.HelixPartitionStatusAccessor;
 import com.linkedin.venice.meta.ReadOnlyStoreRepository;
 import com.linkedin.venice.meta.Store;
+import com.linkedin.venice.meta.StoreName;
 import com.linkedin.venice.pushmonitor.ExecutionStatus;
 import com.linkedin.venice.pushmonitor.OfflinePushAccessor;
 import com.linkedin.venice.pushstatushelper.PushStatusStoreWriter;
@@ -55,7 +56,8 @@ public class TestPushStatusNotifier {
     storeRepository = mock(ReadOnlyStoreRepository.class);
     Store store = mock(Store.class);
     when(store.isDaVinciPushStatusStoreEnabled()).thenReturn(true);
-    when(storeRepository.getStoreOrThrow(any())).thenReturn(store);
+    when(storeRepository.getStoreOrThrow(anyString())).thenReturn(store);
+    when(storeRepository.getStoreOrThrow(any(StoreName.class))).thenReturn(store);
   }
 
   @Test
@@ -79,7 +81,8 @@ public class TestPushStatusNotifier {
     statusNotifier.completed(topic, 1, 1, "");
     verify(offlinePushAccessor, never()).updateReplicaStatus(topic, 1, "host", ExecutionStatus.COMPLETED, 1, "");
 
-    doReturn(mock(Store.class)).when(storeRepository).getStoreOrThrow(any());
+    doReturn(mock(Store.class)).when(storeRepository).getStoreOrThrow(anyString());
+    doReturn(mock(Store.class)).when(storeRepository).getStoreOrThrow(any(StoreName.class));
     statusNotifier.startOfIncrementalPushReceived(topic, 1, 1, "");
     statusNotifier.endOfIncrementalPushReceived(topic, 1, 1, "");
     statusNotifier.quotaNotViolated(topic, 1, 1, "");

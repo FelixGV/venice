@@ -5,6 +5,7 @@ import static com.linkedin.venice.router.api.VenicePathParser.TYPE_STORAGE;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.SERVICE_UNAVAILABLE;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.intThat;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyInt;
@@ -76,6 +77,7 @@ import com.linkedin.venice.meta.ReadOnlySchemaRepository;
 import com.linkedin.venice.meta.ReadOnlyStoreRepository;
 import com.linkedin.venice.meta.ServerAdminAction;
 import com.linkedin.venice.meta.Store;
+import com.linkedin.venice.meta.StoreName;
 import com.linkedin.venice.meta.Version;
 import com.linkedin.venice.metadata.response.VersionProperties;
 import com.linkedin.venice.offsets.OffsetRecord;
@@ -192,7 +194,8 @@ public class StorageReadRequestHandlerTest {
 
   @BeforeMethod
   public void setUp() {
-    doReturn(store).when(storeRepository).getStoreOrThrow(any());
+    doReturn(store).when(storeRepository).getStoreOrThrow(anyString());
+    doReturn(store).when(storeRepository).getStoreOrThrow(any(StoreName.class));
     doReturn(version).when(store).getVersion(anyInt());
     doReturn(version).when(store).getVersionOrThrow(anyInt());
 
@@ -675,8 +678,10 @@ public class StorageReadRequestHandlerTest {
 
   @Test(dataProvider = "True-and-False", dataProviderClass = DataProviderUtils.class)
   public void testHandleComputeRequest(boolean readComputationEnabled) throws Exception {
-    doReturn(readComputationEnabled).when(storeRepository).isReadComputationEnabled(any());
+    doReturn(readComputationEnabled).when(storeRepository).isReadComputationEnabled(anyString());
+    doReturn(readComputationEnabled).when(storeRepository).isReadComputationEnabled(any(StoreName.class));
 
+    String storeName = "test-store";
     String keyString = "test-key";
     String missingKeyString = "missing-test-key";
     GenericRecord valueRecord = new GenericData.Record(
@@ -702,7 +707,7 @@ public class StorageReadRequestHandlerTest {
 
     Set<Object> keySet = new HashSet<>(Arrays.asList(keyString, missingKeyString));
     AvroGenericReadComputeStoreClient storeClient = mock(AvroGenericReadComputeStoreClient.class);
-    doReturn("test-store").when(storeClient).getStoreName();
+    doReturn(storeName).when(storeClient).getStoreName();
     Schema keySchema = AvroSchemaParseUtils.parseSchemaFromJSONLooseValidation("\"string\"");
     new AvroComputeRequestBuilderV3<>(storeClient, getMockSchemaReader(keySchema, valueRecord.getSchema()))
         .dotProduct("listField", Collections.singletonList(4.0f), "dotProduct")
@@ -727,6 +732,7 @@ public class StorageReadRequestHandlerTest {
         new ComputeRouterRequestKeyV1(1, ByteBuffer.wrap(missingKeyString.getBytes()), partition);
     doReturn(Arrays.asList(key, missingKey)).when(request).getKeys();
     doReturn(2).when(request).getKeyCount();
+    doReturn(storeName).when(request).getStoreName();
 
     StorageReadRequestHandler requestHandler = createStorageReadRequestHandler();
     requestHandler.channelRead(context, request);

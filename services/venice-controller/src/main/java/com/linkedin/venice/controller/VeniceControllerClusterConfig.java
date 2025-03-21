@@ -148,6 +148,7 @@ import static com.linkedin.venice.ConfigKeys.META_STORE_WRITER_CLOSE_TIMEOUT_MS;
 import static com.linkedin.venice.ConfigKeys.MIN_NUMBER_OF_STORE_VERSIONS_TO_PRESERVE;
 import static com.linkedin.venice.ConfigKeys.MIN_NUMBER_OF_UNUSED_KAFKA_TOPICS_TO_PRESERVE;
 import static com.linkedin.venice.ConfigKeys.MULTI_REGION;
+import static com.linkedin.venice.ConfigKeys.NAME_REPOSITORY_MAX_ENTRY_COUNT;
 import static com.linkedin.venice.ConfigKeys.NATIVE_REPLICATION_FABRIC_ALLOWLIST;
 import static com.linkedin.venice.ConfigKeys.NATIVE_REPLICATION_FABRIC_WHITELIST;
 import static com.linkedin.venice.ConfigKeys.NATIVE_REPLICATION_SOURCE_FABRIC;
@@ -205,6 +206,7 @@ import com.linkedin.venice.client.store.ClientConfig;
 import com.linkedin.venice.controllerapi.ControllerRoute;
 import com.linkedin.venice.exceptions.ConfigurationException;
 import com.linkedin.venice.exceptions.VeniceException;
+import com.linkedin.venice.meta.NameRepository;
 import com.linkedin.venice.meta.OfflinePushStrategy;
 import com.linkedin.venice.meta.PersistenceType;
 import com.linkedin.venice.meta.ReadStrategy;
@@ -569,6 +571,8 @@ public class VeniceControllerClusterConfig {
   private final List<String> helixInstanceCapacityKeys;
   private final Map<String, Integer> helixDefaultInstanceCapacityMap;
   private final Map<String, Integer> helixDefaultPartitionWeightMap;
+
+  private final int nameRepoMaxEntryCount;
 
   /**
    * Configs for repush
@@ -1109,6 +1113,8 @@ public class VeniceControllerClusterConfig {
         props.getLong(CONTROLLER_DEFERRED_VERSION_SWAP_SLEEP_MS, TimeUnit.MINUTES.toMillis(1));
     this.deferredVersionSwapServiceEnabled = props.getBoolean(CONTROLLER_DEFERRED_VERSION_SWAP_SERVICE_ENABLED, false);
     this.skipDeferredVersionSwapForDVCEnabled = props.getBoolean(SKIP_DEFERRED_VERSION_SWAP_FOR_DVC_ENABLED, true);
+    this.nameRepoMaxEntryCount =
+        props.getInt(NAME_REPOSITORY_MAX_ENTRY_COUNT, NameRepository.DEFAULT_MAXIMUM_ENTRY_COUNT);
   }
 
   public VeniceProperties getProps() {
@@ -1928,6 +1934,10 @@ public class VeniceControllerClusterConfig {
 
   public boolean isHybridStorePartitionCountUpdateEnabled() {
     return isHybridStorePartitionCountUpdateEnabled;
+  }
+
+  public int getNameRepoMaxEntryCount() {
+    return this.nameRepoMaxEntryCount;
   }
 
   /**

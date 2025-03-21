@@ -25,6 +25,7 @@ import com.linkedin.davinci.transformer.TestStringRecordTransformer;
 import com.linkedin.venice.client.exceptions.VeniceClientException;
 import com.linkedin.venice.client.store.ClientConfig;
 import com.linkedin.venice.controllerapi.D2ServiceDiscoveryResponse;
+import com.linkedin.venice.meta.NameRepository;
 import com.linkedin.venice.meta.ReadOnlySchemaRepository;
 import com.linkedin.venice.schema.SchemaEntry;
 import com.linkedin.venice.serializer.AvroSerializer;
@@ -70,8 +71,9 @@ public class AvroGenericDaVinciClientTest {
     VeniceProperties backendConfig = mock(VeniceProperties.class);
     when(backendConfig.toProperties()).thenReturn(new java.util.Properties());
 
-    AvroGenericDaVinciClient<Integer, String> dvcClient =
-        spy(new AvroGenericDaVinciClient<>(daVinciConfig, clientConfig, backendConfig, Optional.empty()));
+    NameRepository nameRepository = new NameRepository();
+    AvroGenericDaVinciClient<Integer, String> dvcClient = spy(
+        new AvroGenericDaVinciClient<>(daVinciConfig, clientConfig, backendConfig, Optional.empty(), nameRepository));
     doReturn(false).when(dvcClient).isReady();
     doNothing().when(dvcClient).initBackend(any(), any(), any(), any(), any(), any());
 
@@ -221,8 +223,14 @@ public class AvroGenericDaVinciClientTest {
     VeniceProperties backendConfig = mock(VeniceProperties.class);
     ICProvider icProvider = mock(ICProvider.class);
 
-    AvroGenericDaVinciClient daVinciClient =
-        new AvroGenericDaVinciClient(daVinciConfig, clientConfig, backendConfig, Optional.empty(), icProvider, null);
+    AvroGenericDaVinciClient daVinciClient = new AvroGenericDaVinciClient(
+        daVinciConfig,
+        clientConfig,
+        backendConfig,
+        Optional.empty(),
+        icProvider,
+        null,
+        new NameRepository());
 
     assertEquals(daVinciClient.getReadChunkExecutorForLargeRequest(), READ_CHUNK_EXECUTOR);
 
@@ -233,7 +241,8 @@ public class AvroGenericDaVinciClientTest {
         backendConfig,
         Optional.empty(),
         icProvider,
-        readChunkExecutor);
+        readChunkExecutor,
+        new NameRepository());
     assertEquals(daVinciClient.getReadChunkExecutorForLargeRequest(), readChunkExecutor);
 
     // Close a not-ready client won't throw exception.

@@ -6,6 +6,7 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.atLeastOnce;
@@ -39,6 +40,7 @@ import com.linkedin.venice.meta.Partition;
 import com.linkedin.venice.meta.PartitionAssignment;
 import com.linkedin.venice.meta.ReadOnlyStoreRepository;
 import com.linkedin.venice.meta.Store;
+import com.linkedin.venice.meta.StoreName;
 import com.linkedin.venice.meta.Version;
 import com.linkedin.venice.meta.VersionStatus;
 import com.linkedin.venice.protocols.VeniceServerResponse;
@@ -404,7 +406,8 @@ public class ReadQuotaEnforcementHandlerTest {
   public void testQuotaEnforcementHandlerAtNodeLevel() {
     Store store = mock(Store.class);
     doReturn(true).when(store).isStorageNodeReadQuotaEnabled();
-    doReturn(store).when(storeRepository).getStore(any());
+    doReturn(store).when(storeRepository).getStore(anyString());
+    doReturn(store).when(storeRepository).getStore(any(StoreName.class));
 
     runTest(
         "dummyStore_v1",
@@ -433,7 +436,8 @@ public class ReadQuotaEnforcementHandlerTest {
     Store store = mock(Store.class);
     doReturn(true).when(store).isStorageNodeReadQuotaEnabled();
     doReturn(storeReadQuota).when(store).getReadQuotaInCU();
-    doReturn(store).when(storeRepository).getStore(any());
+    doReturn(store).when(storeRepository).getStore(anyString());
+    doReturn(store).when(storeRepository).getStore(any(StoreName.class));
 
     quotaEnforcementHandler.onCustomizedViewChange(pa);
 
@@ -471,7 +475,8 @@ public class ReadQuotaEnforcementHandlerTest {
     Store store = mock(Store.class);
     doReturn(true).when(store).isStorageNodeReadQuotaEnabled();
     doReturn(storeReadQuota).when(store).getReadQuotaInCU();
-    doReturn(store).when(storeRepository).getStore(any());
+    doReturn(store).when(storeRepository).getStore(anyString());
+    doReturn(store).when(storeRepository).getStore(any(StoreName.class));
 
     quotaEnforcementHandler.onCustomizedViewChange(pa);
 

@@ -126,6 +126,7 @@ import com.linkedin.venice.meta.InstanceStatus;
 import com.linkedin.venice.meta.LiveClusterConfig;
 import com.linkedin.venice.meta.LiveInstanceChangedListener;
 import com.linkedin.venice.meta.LiveInstanceMonitor;
+import com.linkedin.venice.meta.NameRepository;
 import com.linkedin.venice.meta.OfflinePushStrategy;
 import com.linkedin.venice.meta.Partition;
 import com.linkedin.venice.meta.PartitionAssignment;
@@ -364,6 +365,7 @@ public class VeniceHelixAdmin implements Admin, StoreCleaner {
 
   // TODO remove this field and all invocations once we are fully on HaaS. Use the helixAdminClient instead.
   private final HelixAdmin admin;
+  private final NameRepository nameRepository;
   /**
    * Client/wrapper used for performing Helix operations in Venice.
    */
@@ -454,7 +456,10 @@ public class VeniceHelixAdmin implements Admin, StoreCleaner {
 
   private Set<PushJobCheckpoints> pushJobUserErrorCheckpoints;
 
-  public VeniceHelixAdmin(
+  /**
+   * Test-only.
+   */
+  VeniceHelixAdmin(
       VeniceControllerMultiClusterConfig multiClusterConfigs,
       MetricsRepository metricsRepository,
       D2Client d2Client,
@@ -468,6 +473,7 @@ public class VeniceHelixAdmin implements Admin, StoreCleaner {
         Optional.empty(),
         Optional.empty(),
         Optional.empty(),
+        new NameRepository(),
         pubSubTopicRepository,
         pubSubClientsFactory,
         Collections.EMPTY_LIST);
@@ -482,6 +488,7 @@ public class VeniceHelixAdmin implements Admin, StoreCleaner {
       Optional<SSLConfig> sslConfig,
       Optional<DynamicAccessController> accessController,
       Optional<ICProvider> icProvider,
+      @Nonnull NameRepository nameRepository,
       PubSubTopicRepository pubSubTopicRepository,
       PubSubClientsFactory pubSubClientsFactory,
       List<ClusterLeaderInitializationRoutine> additionalInitRoutines) {
@@ -502,6 +509,7 @@ public class VeniceHelixAdmin implements Admin, StoreCleaner {
 
     this.minNumberOfStoreVersionsToPreserve = multiClusterConfigs.getMinNumberOfStoreVersionsToPreserve();
     this.d2Client = d2Client;
+    this.nameRepository = nameRepository;
     this.pubSubTopicRepository = pubSubTopicRepository;
 
     if (sslEnabled) {
@@ -709,7 +717,8 @@ public class VeniceHelixAdmin implements Admin, StoreCleaner {
         clusterLeaderInitializationManager,
         realTimeTopicSwitcher,
         accessController,
-        helixAdminClient);
+        this.helixAdminClient,
+        this.nameRepository);
 
     for (String clusterName: multiClusterConfigs.getClusters()) {
       if (!multiClusterConfigs.getControllerConfig(clusterName).isErrorLeaderReplicaFailOverEnabled()) {

@@ -68,6 +68,7 @@ import com.linkedin.venice.meta.ReadOnlyStoreRepository;
 import com.linkedin.venice.meta.ReadStrategy;
 import com.linkedin.venice.meta.RoutingStrategy;
 import com.linkedin.venice.meta.Store;
+import com.linkedin.venice.meta.StoreName;
 import com.linkedin.venice.meta.SystemStoreAttributes;
 import com.linkedin.venice.meta.SystemStoreAttributesImpl;
 import com.linkedin.venice.meta.Version;
@@ -1069,6 +1070,7 @@ public class TestUtils {
     Store store = mock(Store.class);
     when(store.getClientDecompressionEnabled()).thenReturn(decompressOnClient);
     when(readOnlyStoreRepository.getStoreOrThrow(anyString())).thenReturn(store);
+    when(readOnlyStoreRepository.getStoreOrThrow(any(StoreName.class))).thenReturn(store);
 
     VeniceRouterConfig routerConfig = mock(VeniceRouterConfig.class);
     when(routerConfig.isDecompressOnClient()).thenReturn(decompressOnClient);

@@ -38,7 +38,6 @@ import static com.linkedin.venice.ConfigKeys.INGESTION_MEMORY_LIMIT_STORE_LIST;
 import static com.linkedin.venice.ConfigKeys.INGESTION_MLOCK_ENABLED;
 import static com.linkedin.venice.ConfigKeys.INGESTION_USE_DA_VINCI_CLIENT;
 import static com.linkedin.venice.ConfigKeys.KAFKA_FETCH_THROTTLER_FACTORS_PER_SECOND;
-import static com.linkedin.venice.ConfigKeys.KAFKA_PRODUCER_METRICS;
 import static com.linkedin.venice.ConfigKeys.KEY_VALUE_PROFILING_ENABLED;
 import static com.linkedin.venice.ConfigKeys.KME_REGISTRATION_FROM_MESSAGE_HEADER_ENABLED;
 import static com.linkedin.venice.ConfigKeys.LEADER_FOLLOWER_STATE_TRANSITION_THREAD_POOL_STRATEGY;
@@ -52,6 +51,7 @@ import static com.linkedin.venice.ConfigKeys.MAX_LEADER_FOLLOWER_STATE_TRANSITIO
 import static com.linkedin.venice.ConfigKeys.META_STORE_WRITER_CLOSE_CONCURRENCY;
 import static com.linkedin.venice.ConfigKeys.META_STORE_WRITER_CLOSE_TIMEOUT_MS;
 import static com.linkedin.venice.ConfigKeys.MIN_CONSUMER_IN_CONSUMER_POOL_PER_KAFKA_CLUSTER;
+import static com.linkedin.venice.ConfigKeys.NAME_REPOSITORY_MAX_ENTRY_COUNT;
 import static com.linkedin.venice.ConfigKeys.OFFSET_LAG_DELTA_RELAX_FACTOR_FOR_FAST_ONLINE_TRANSITION_IN_RESTART;
 import static com.linkedin.venice.ConfigKeys.PARTICIPANT_MESSAGE_CONSUMPTION_DELAY_MS;
 import static com.linkedin.venice.ConfigKeys.PARTICIPANT_MESSAGE_STORE_ENABLED;
@@ -206,6 +206,7 @@ import com.linkedin.venice.authorization.DefaultIdentityParser;
 import com.linkedin.venice.exceptions.ConfigurationException;
 import com.linkedin.venice.exceptions.VeniceException;
 import com.linkedin.venice.meta.IngestionMode;
+import com.linkedin.venice.meta.NameRepository;
 import com.linkedin.venice.pubsub.PubSubClientsFactory;
 import com.linkedin.venice.throttle.VeniceRateLimiter;
 import com.linkedin.venice.utils.Time;
@@ -468,7 +469,6 @@ public class VeniceServerConfig extends VeniceClusterConfig {
   private final long sharedConsumerNonExistingTopicCleanupDelayMS;
   private final int offsetLagDeltaRelaxFactorForFastOnlineTransitionInRestart;
 
-  private final Set<String> kafkaProducerMetrics;
   /**
    * Boolean flag indicating if it is a Da Vinci application.
    */
@@ -613,6 +613,7 @@ public class VeniceServerConfig extends VeniceClusterConfig {
       Arrays.asList(0.4D, 0.6D, 0.8D, 1.0D, 1.2D, 1.4D, 1.6D);
 
   private final boolean isParticipantMessageStoreEnabled;
+  private final int nameRepoMaxEntryCount;
 
   public VeniceServerConfig(VeniceProperties serverProperties) throws ConfigurationException {
     this(serverProperties, Collections.emptyMap());
@@ -828,17 +829,6 @@ public class VeniceServerConfig extends VeniceClusterConfig {
     sharedConsumerNonExistingTopicCleanupDelayMS = serverProperties
         .getLong(SERVER_SHARED_CONSUMER_NON_EXISTING_TOPIC_CLEANUP_DELAY_MS, TimeUnit.MINUTES.toMillis(10));
 
-    List<String> kafkaProducerMetricsList = serverProperties.getList(
-        KAFKA_PRODUCER_METRICS,
-        Arrays.asList(
-            "outgoing-byte-rate",
-            "record-send-rate",
-            "batch-size-max",
-            "batch-size-avg",
-            "buffer-available-bytes",
-            "buffer-exhausted-rate"));
-    kafkaProducerMetrics = new HashSet<>(kafkaProducerMetricsList);
-
     isDaVinciClient = serverProperties.getBoolean(INGESTION_USE_DA_VINCI_CLIENT, false);
     unsubscribeAfterBatchpushEnabled = serverProperties.getBoolean(SERVER_UNSUB_AFTER_BATCHPUSH, false);
 
@@ -1045,6 +1035,8 @@ public class VeniceServerConfig extends VeniceClusterConfig {
     aaWCIngestionStorageLookupThreadPoolSize =
         serverProperties.getInt(SERVER_AA_WC_INGESTION_STORAGE_LOOKUP_THREAD_POOL_SIZE, 4);
     this.isParticipantMessageStoreEnabled = serverProperties.getBoolean(PARTICIPANT_MESSAGE_STORE_ENABLED, false);
+    this.nameRepoMaxEntryCount =
+        serverProperties.getInt(NAME_REPOSITORY_MAX_ENTRY_COUNT, NameRepository.DEFAULT_MAXIMUM_ENTRY_COUNT);
   }
 
   List<Double> extractThrottleLimitFactorsFor(VeniceProperties serverProperties, String configKey) {
@@ -1921,5 +1913,9 @@ public class VeniceServerConfig extends VeniceClusterConfig {
 
   public boolean isParticipantMessageStoreEnabled() {
     return isParticipantMessageStoreEnabled;
+  }
+
+  public int getNameRepoMaxEntryCount() {
+    return this.nameRepoMaxEntryCount;
   }
 }

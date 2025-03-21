@@ -9,6 +9,7 @@ import static org.testng.Assert.assertTrue;
 import com.linkedin.venice.common.VeniceSystemStoreType;
 import com.linkedin.venice.integration.utils.ServiceFactory;
 import com.linkedin.venice.integration.utils.ZkServerWrapper;
+import com.linkedin.venice.meta.NameRepository;
 import com.linkedin.venice.meta.Store;
 import com.linkedin.venice.meta.SystemStoreAttributes;
 import com.linkedin.venice.meta.VersionImpl;
@@ -60,7 +61,8 @@ public class TestHelixReadWriteStoreRepositoryAdapter {
         new ClusterLockManager(cluster));
     writeRepo.refresh();
 
-    writeRepoAdapter = new HelixReadWriteStoreRepositoryAdapter(zkSharedSystemStoreRepository, writeRepo, cluster);
+    writeRepoAdapter =
+        new HelixReadWriteStoreRepositoryAdapter(zkSharedSystemStoreRepository, writeRepo, new NameRepository());
     // Create zk shared store first
     Store zkSharedStore =
         TestUtils.createTestStore(systemStoreType.getZkSharedStoreName(), "test_system_store_owner", 1);
@@ -80,7 +82,7 @@ public class TestHelixReadWriteStoreRepositoryAdapter {
     s1.setReadComputationEnabled(true);
     writeRepo.addStore(s1);
 
-    readOnlyRepo = new HelixReadOnlyStoreRepository(zkClient, adapter, cluster, 1, 1000);
+    readOnlyRepo = new HelixReadOnlyStoreRepository(zkClient, adapter, cluster);
     readOnlyRepo.refresh();
   }
 

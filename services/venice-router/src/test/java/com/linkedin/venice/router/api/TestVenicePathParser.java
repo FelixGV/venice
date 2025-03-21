@@ -25,6 +25,7 @@ import com.linkedin.venice.helix.HelixReadOnlyStoreConfigRepository;
 import com.linkedin.venice.meta.NameRepository;
 import com.linkedin.venice.meta.ReadOnlyStoreRepository;
 import com.linkedin.venice.meta.Store;
+import com.linkedin.venice.meta.StoreName;
 import com.linkedin.venice.partitioner.DefaultVenicePartitioner;
 import com.linkedin.venice.partitioner.VenicePartitioner;
 import com.linkedin.venice.read.RequestType;
@@ -126,7 +127,8 @@ public class TestVenicePathParser {
     doReturn(new DefaultVenicePartitioner()).when(partitionFinder).findPartitioner(any(), anyInt());
 
     ReadOnlyStoreRepository storeRepository = mock(ReadOnlyStoreRepository.class);
-    doReturn(10).when(storeRepository).getBatchGetLimit(any());
+    doReturn(10).when(storeRepository).getBatchGetLimit(anyString());
+    doReturn(10).when(storeRepository).getBatchGetLimit(any(StoreName.class));
 
     VeniceRouterConfig routerConfig = mock(VeniceRouterConfig.class);
     TreeMap<Integer, Integer> batchGetRetryThresholds = new TreeMap<>();
@@ -154,14 +156,16 @@ public class TestVenicePathParser {
         ComputeRequestWrapper.LATEST_SCHEMA_VERSION_FOR_COMPUTE_REQUEST);
 
     // Verify request rejection when neither read-compute or client-compute is available.
-    doReturn(false).when(storeRepository).isReadComputationEnabled(any());
+    doReturn(false).when(storeRepository).isReadComputationEnabled(anyString());
+    doReturn(false).when(storeRepository).isReadComputationEnabled(any(StoreName.class));
     RouterException e = Assert.expectThrows(RouterException.class, () -> parser.parseResourceUri(uri, request));
     Assert.assertEquals(
         e.getMessage(),
         "Read compute is not enabled for the store. Please contact Venice team to enable the feature.");
 
     // Verify request handling when read-compute is enabled.
-    doReturn(true).when(storeRepository).isReadComputationEnabled(any());
+    doReturn(true).when(storeRepository).isReadComputationEnabled(anyString());
+    doReturn(true).when(storeRepository).isReadComputationEnabled(any(StoreName.class));
     request.content().resetReaderIndex();
     VenicePath path = parser.parseResourceUri(uri, request);
     Assert.assertTrue(path instanceof VeniceComputePath);
@@ -175,7 +179,8 @@ public class TestVenicePathParser {
     assertNull(path.getClientComputeHeader());
 
     // Verify compute to multi-get conversion when read-compute is disabled, but client-compute is available.
-    doReturn(false).when(storeRepository).isReadComputationEnabled(any());
+    doReturn(false).when(storeRepository).isReadComputationEnabled(anyString());
+    doReturn(false).when(storeRepository).isReadComputationEnabled(any(StoreName.class));
     request.headers().add(HttpConstants.VENICE_CLIENT_COMPUTE, "1");
     request.content().resetReaderIndex();
     path = parser.parseResourceUri(uri, request);
@@ -285,6 +290,7 @@ public class TestVenicePathParser {
         0);
     ReadOnlyStoreRepository storeRepository = mock(ReadOnlyStoreRepository.class);
     doReturn(maxKeyCount).when(storeRepository).getBatchGetLimit(anyString());
+    doReturn(maxKeyCount).when(storeRepository).getBatchGetLimit(any(StoreName.class));
     RouterStats mockRouterStats = mock(RouterStats.class);
     AggRouterHttpRequestStats multiGetStats = mock(AggRouterHttpRequestStats.class);
     AggRouterHttpRequestStats singleGetStats = mock(AggRouterHttpRequestStats.class);

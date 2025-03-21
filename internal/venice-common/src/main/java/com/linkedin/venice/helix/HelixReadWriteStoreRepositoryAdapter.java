@@ -2,6 +2,7 @@ package com.linkedin.venice.helix;
 
 import com.linkedin.venice.common.VeniceSystemStoreType;
 import com.linkedin.venice.exceptions.VeniceException;
+import com.linkedin.venice.meta.NameRepository;
 import com.linkedin.venice.meta.ReadWriteStoreRepository;
 import com.linkedin.venice.meta.Store;
 import com.linkedin.venice.meta.SystemStore;
@@ -17,8 +18,8 @@ public class HelixReadWriteStoreRepositoryAdapter extends HelixReadOnlyStoreRepo
   public HelixReadWriteStoreRepositoryAdapter(
       HelixReadOnlyZKSharedSystemStoreRepository systemStoreRepository,
       ReadWriteStoreRepository regularStoreRepository,
-      String clusterName) {
-    super(systemStoreRepository, regularStoreRepository, clusterName);
+      NameRepository nameRepository) {
+    super(systemStoreRepository, regularStoreRepository, nameRepository);
     this.regularStoreRepository = regularStoreRepository;
   }
 

@@ -38,6 +38,7 @@ import com.linkedin.venice.ingestion.protocol.enums.IngestionReportType;
 import com.linkedin.venice.kafka.protocol.state.PartitionState;
 import com.linkedin.venice.kafka.protocol.state.StoreVersionState;
 import com.linkedin.venice.meta.ClusterInfoProvider;
+import com.linkedin.venice.meta.NameRepository;
 import com.linkedin.venice.meta.ReadOnlyLiveClusterConfigRepository;
 import com.linkedin.venice.meta.ReadOnlySchemaRepository;
 import com.linkedin.venice.meta.ReadOnlyStoreRepository;
@@ -152,6 +153,7 @@ public class IsolatedIngestionServer extends AbstractVeniceService {
   private LeakedResourceCleaner leakedResourceCleaner;
 
   private final VeniceServerConfig serverConfig;
+  private final NameRepository nameRepository;
 
   public IsolatedIngestionServer(String configPath) throws FileNotFoundException {
     VeniceProperties loadedVeniceProperties = IsolatedIngestionUtils.loadVenicePropertiesFromFile(configPath);
@@ -162,6 +164,7 @@ public class IsolatedIngestionServer extends AbstractVeniceService {
         IsolatedIngestionUtils.loadForkedIngestionKafkaClusterMapConfig(configBasePath);
     this.configLoader = new VeniceConfigLoader(loadedVeniceProperties, loadedVeniceProperties, kafkaClusterMap);
     this.serverConfig = configLoader.getVeniceServerConfig();
+    this.nameRepository = new NameRepository(this.serverConfig.getNameRepoMaxEntryCount());
 
     this.servicePort = serverConfig.getIngestionServicePort();
     this.connectionTimeoutMs =
@@ -595,8 +598,13 @@ public class IsolatedIngestionServer extends AbstractVeniceService {
     metricsRepository = MetricsRepositoryUtils.createMultiThreadedMetricsRepository();
 
     // Initialize store/schema repositories.
-    VeniceMetadataRepositoryBuilder veniceMetadataRepositoryBuilder =
-        new VeniceMetadataRepositoryBuilder(configLoader, clientConfig, metricsRepository, null, true);
+    VeniceMetadataRepositoryBuilder veniceMetadataRepositoryBuilder = new VeniceMetadataRepositoryBuilder(
+        configLoader,
+        clientConfig,
+        metricsRepository,
+        null,
+        true,
+        this.nameRepository);
     storeRepository = veniceMetadataRepositoryBuilder.getStoreRepo();
     liveConfigRepository = veniceMetadataRepositoryBuilder.getLiveClusterConfigRepo();
     ReadOnlySchemaRepository schemaRepository = veniceMetadataRepositoryBuilder.getSchemaRepo();

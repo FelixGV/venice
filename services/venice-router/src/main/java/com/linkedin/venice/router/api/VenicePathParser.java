@@ -401,7 +401,7 @@ public class VenicePathParser implements ExtendedResourcePathParser<VenicePath, 
   VeniceResponseDecompressor getDecompressor(StoreVersionName storeVersionName, HttpRequest request) {
     boolean decompressOnClient = this.routerConfig.isDecompressOnClient();
     if (decompressOnClient) {
-      Store store = this.storeRepository.getStoreOrThrow(storeVersionName.getStoreName());
+      Store store = this.storeRepository.getStoreOrThrow(storeVersionName.getStore());
       decompressOnClient = store.getClientDecompressionEnabled();
     }
 

@@ -1,6 +1,5 @@
 package com.linkedin.venice.helix;
 
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
@@ -44,7 +43,8 @@ public class HelixCustomizedViewOfflinePushRepositoryTest {
     instances.add(new LiveInstance("host_1234"));
     when(routingTableSnapshot.getLiveInstances()).thenReturn(instances);
     customizedViewOfflinePushRepository.onCustomizedViewDataChange(routingTableSnapshot);
-    verify(storeRepository, times(1)).getStore(any());
+    verify(storeRepository, times(1)).getStore(anyString());
+    // verify(storeRepository, times(1)).getStore(any(StoreName.class)); // Uncomment after API migration
     HelixCustomizedViewOfflinePushRepository.StoreChangeListener storeChangeListener =
         customizedViewOfflinePushRepository.new StoreChangeListener();
     storeChangeListener.handleStoreCreated(store);

@@ -45,6 +45,7 @@ import com.linkedin.venice.compute.ComputeUtils;
 import com.linkedin.venice.controllerapi.D2ServiceDiscoveryResponse;
 import com.linkedin.venice.exceptions.VeniceException;
 import com.linkedin.venice.exceptions.VeniceUnsupportedOperationException;
+import com.linkedin.venice.meta.NameRepository;
 import com.linkedin.venice.meta.Store;
 import com.linkedin.venice.meta.Version;
 import com.linkedin.venice.schema.SchemaReader;
@@ -138,13 +139,16 @@ public class AvroGenericDaVinciClient<K, V> implements DaVinciClient<K, V>, Avro
   private final Executor readChunkExecutorForLargeRequest;
 
   private final DaVinciRecordTransformerConfig recordTransformerConfig;
+  private final NameRepository nameRepository;
 
+  /** Test-only, do not use for main code! */
   public AvroGenericDaVinciClient(
       DaVinciConfig daVinciConfig,
       ClientConfig clientConfig,
       VeniceProperties backendConfig,
-      Optional<Set<String>> managedClients) {
-    this(daVinciConfig, clientConfig, backendConfig, managedClients, null, null);
+      Optional<Set<String>> managedClients,
+      NameRepository nameRepository) {
+    this(daVinciConfig, clientConfig, backendConfig, managedClients, null, null, nameRepository);
   }
 
   public AvroGenericDaVinciClient(
@@ -153,7 +157,8 @@ public class AvroGenericDaVinciClient<K, V> implements DaVinciClient<K, V>, Avro
       VeniceProperties backendConfig,
       Optional<Set<String>> managedClients,
       ICProvider icProvider,
-      Executor readChunkExecutorForLargeRequest) {
+      Executor readChunkExecutorForLargeRequest,
+      NameRepository nameRepository) {
     this(
         daVinciConfig,
         clientConfig,
@@ -162,7 +167,8 @@ public class AvroGenericDaVinciClient<K, V> implements DaVinciClient<K, V>, Avro
         icProvider,
         GenericChunkingAdapter.INSTANCE,
         () -> {},
-        readChunkExecutorForLargeRequest);
+        readChunkExecutorForLargeRequest,
+        nameRepository);
   }
 
   protected AvroGenericDaVinciClient(
@@ -173,7 +179,8 @@ public class AvroGenericDaVinciClient<K, V> implements DaVinciClient<K, V>, Avro
       ICProvider icProvider,
       AbstractAvroChunkingAdapter<V> chunkingAdapter,
       Runnable preValidation,
-      Executor readChunkExecutorForLargeRequest) {
+      Executor readChunkExecutorForLargeRequest,
+      NameRepository nameRepository) {
     logger.info("Creating client, storeName={}, daVinciConfig={}", clientConfig.getStoreName(), daVinciConfig);
     this.daVinciConfig = daVinciConfig;
     this.clientConfig = clientConfig;
@@ -184,6 +191,7 @@ public class AvroGenericDaVinciClient<K, V> implements DaVinciClient<K, V>, Avro
     this.recordTransformerConfig = daVinciConfig.getRecordTransformerConfig();
     this.readChunkExecutorForLargeRequest =
         readChunkExecutorForLargeRequest != null ? readChunkExecutorForLargeRequest : READ_CHUNK_EXECUTOR;
+    this.nameRepository = nameRepository;
 
     if (daVinciConfig.isIsolated() && recordTransformerConfig != null) {
       // When both are enabled, this causes the storage engine to be deleted everytime the client starts,
@@ -745,7 +753,8 @@ public class AvroGenericDaVinciClient<K, V> implements DaVinciClient<K, V>, Avro
                 managedClients,
                 icProvider,
                 cacheConfig,
-                recordTransformerConfig),
+                recordTransformerConfig,
+                this.nameRepository),
             backend -> {
               // Ensure that existing backend is fully closed before a new one can be created.
               synchronized (AvroGenericDaVinciClient.class) {

@@ -17,6 +17,7 @@ import com.linkedin.venice.controller.server.AdminSparkServer;
 import com.linkedin.venice.controller.server.VeniceControllerRequestHandler;
 import com.linkedin.venice.controllerapi.ControllerRoute;
 import com.linkedin.venice.exceptions.VeniceException;
+import com.linkedin.venice.meta.NameRepository;
 import com.linkedin.venice.pubsub.PubSubClientsFactory;
 import com.linkedin.venice.pubsub.PubSubTopicRepository;
 import com.linkedin.venice.utils.ExceptionUtils;
@@ -448,8 +449,12 @@ public class ServiceFactory {
       daVinciPropertyBuilder.put(key.toString(), value);
     });
 
-    DaVinciClient<K, V> client =
-        new AvroGenericDaVinciClient<>(daVinciConfig, clientConfig, daVinciPropertyBuilder.build(), Optional.empty());
+    DaVinciClient<K, V> client = new AvroGenericDaVinciClient<>(
+        daVinciConfig,
+        clientConfig,
+        daVinciPropertyBuilder.build(),
+        Optional.empty(),
+        new NameRepository());
     client.start();
     return client;
   }

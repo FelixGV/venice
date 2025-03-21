@@ -9,6 +9,7 @@ import com.linkedin.davinci.client.StatsAvroGenericDaVinciClient;
 import com.linkedin.davinci.client.StatsAvroSpecificDaVinciClient;
 import com.linkedin.venice.client.store.ClientConfig;
 import com.linkedin.venice.exceptions.VeniceException;
+import com.linkedin.venice.meta.NameRepository;
 import com.linkedin.venice.service.ICProvider;
 import com.linkedin.venice.utils.VeniceProperties;
 import com.linkedin.venice.views.VeniceView;
@@ -40,6 +41,7 @@ public class CachingDaVinciClientFactory implements DaVinciClientFactory, Closea
   protected final List<DaVinciClient> isolatedClients = new ArrayList<>();
   protected final Map<String, DaVinciConfig> configs = new HashMap<>();
   private final Executor readChunkExecutorForLargeRequest;
+  private final NameRepository nameRepository = new NameRepository();
 
   @Deprecated
   public CachingDaVinciClientFactory(
@@ -324,7 +326,8 @@ public class CachingDaVinciClientFactory implements DaVinciClientFactory, Closea
           backendConfig,
           managedClients,
           icProvider,
-          readChunkExecutorForLargeRequest);
+          readChunkExecutorForLargeRequest,
+          nameRepository);
       if (config.isReadMetricsEnabled()) {
         return new StatsAvroGenericDaVinciClient<>(client, clientConfig);
       }
@@ -346,7 +349,8 @@ public class CachingDaVinciClientFactory implements DaVinciClientFactory, Closea
           backendConfig,
           managedClients,
           icProvider,
-          readChunkExecutorForLargeRequest);
+          readChunkExecutorForLargeRequest,
+          nameRepository);
       if (config.isReadMetricsEnabled()) {
         return new StatsAvroSpecificDaVinciClient<>(client, clientConfig);
       }

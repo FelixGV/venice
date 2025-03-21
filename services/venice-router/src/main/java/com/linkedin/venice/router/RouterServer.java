@@ -143,6 +143,7 @@ public class RouterServer extends AbstractVeniceService {
   // Immutable state
   private final List<ServiceDiscoveryAnnouncer> serviceDiscoveryAnnouncers;
   private final MetricsRepository metricsRepository;
+  private final NameRepository nameRepository;
   private final Optional<SSLFactory> sslFactory;
   private final Optional<DynamicAccessController> accessController;
 
@@ -183,8 +184,6 @@ public class RouterServer extends AbstractVeniceService {
   private ZkRoutersClusterManager routersClusterManager;
   private Optional<Router> router = Optional.empty();
   private Router secureRouter;
-  private D2Client d2Client;
-  private String d2ServiceName;
   private DictionaryRetrievalService dictionaryRetrievalService;
   private RouterThrottler readRequestThrottler;
 
@@ -324,16 +323,12 @@ public class RouterServer extends AbstractVeniceService {
     this(properties, serviceDiscoveryAnnouncers, accessController, sslFactory, metricsRepository, true);
     HelixReadOnlyZKSharedSystemStoreRepository readOnlyZKSharedSystemStoreRepository =
         new HelixReadOnlyZKSharedSystemStoreRepository(zkClient, adapter, config.getSystemSchemaClusterName());
-    HelixReadOnlyStoreRepository readOnlyStoreRepository = new HelixReadOnlyStoreRepository(
-        zkClient,
-        adapter,
-        config.getClusterName(),
-        config.getRefreshAttemptsForZkReconnect(),
-        config.getRefreshIntervalForZkReconnectInMs());
+    HelixReadOnlyStoreRepository readOnlyStoreRepository =
+        new HelixReadOnlyStoreRepository(zkClient, adapter, config.getClusterName());
     this.metadataRepository = new HelixReadOnlyStoreRepositoryAdapter(
         readOnlyZKSharedSystemStoreRepository,
         readOnlyStoreRepository,
-        config.getClusterName());
+        this.nameRepository);
     this.routerStats = new RouterStats<>(
         requestType -> new AggRouterHttpRequestStats(
             config.getClusterName(),
@@ -397,6 +392,7 @@ public class RouterServer extends AbstractVeniceService {
     }
     this.metaStoreShadowReader = Optional.empty();
     this.metricsRepository = metricsRepository;
+    this.nameRepository = new NameRepository(this.config.getNameRepoMaxEntryCount());
 
     this.aggHostHealthStats = new AggHostHealthStats(config.getClusterName(), metricsRepository);
 
@@ -586,7 +582,7 @@ public class RouterServer extends AbstractVeniceService {
         compressorFactory,
         metricsRepository,
         retryManagerExecutorService,
-        new NameRepository(this.config.getNameRepoMaxEntryCount()));
+        this.nameRepository);
 
     MetaDataHandler metaDataHandler = new MetaDataHandler(
         routingDataRepository,

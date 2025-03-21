@@ -15,6 +15,7 @@ import com.linkedin.venice.common.VeniceSystemStoreType;
 import com.linkedin.venice.integration.utils.ServiceFactory;
 import com.linkedin.venice.integration.utils.ZkServerWrapper;
 import com.linkedin.venice.meta.BackupStrategy;
+import com.linkedin.venice.meta.NameRepository;
 import com.linkedin.venice.meta.Store;
 import com.linkedin.venice.meta.StoreDataChangedListener;
 import com.linkedin.venice.meta.SystemStore;
@@ -62,11 +63,11 @@ public class TestHelixReadOnlyStoreRepositoryAdapter {
 
     HelixReadOnlyZKSharedSystemStoreRepository zkSharedSystemStoreRepository =
         new HelixReadOnlyZKSharedSystemStoreRepository(zkClient, adapter, cluster);
-    HelixReadOnlyStoreRepository storeRepository =
-        new HelixReadOnlyStoreRepository(zkClient, adapter, cluster, 1, 1000);
+    HelixReadOnlyStoreRepository storeRepository = new HelixReadOnlyStoreRepository(zkClient, adapter, cluster);
     zkSharedSystemStoreRepository.refresh();
     storeRepository.refresh();
-    repo = new HelixReadOnlyStoreRepositoryAdapter(zkSharedSystemStoreRepository, storeRepository, cluster);
+    repo =
+        new HelixReadOnlyStoreRepositoryAdapter(zkSharedSystemStoreRepository, storeRepository, new NameRepository());
     writeRepo = new HelixReadWriteStoreRepository(
         zkClient,
         adapter,

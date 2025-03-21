@@ -1,6 +1,7 @@
 package com.linkedin.venice.acl.handler;
 
 import static com.linkedin.venice.acl.handler.AbstractStoreAclHandler.STORE_ACL_CHECK_RESULT_ATTRIBUTE_KEY;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.argThat;
 import static org.mockito.Mockito.doAnswer;
@@ -17,6 +18,7 @@ import com.linkedin.venice.authorization.IdentityParser;
 import com.linkedin.venice.common.VeniceSystemStoreUtils;
 import com.linkedin.venice.helix.HelixReadOnlyStoreRepository;
 import com.linkedin.venice.meta.Store;
+import com.linkedin.venice.meta.StoreName;
 import com.linkedin.venice.utils.TestMockTime;
 import com.linkedin.venice.utils.Time;
 import com.linkedin.venice.utils.concurrent.VeniceConcurrentHashMap;
@@ -303,11 +305,14 @@ public class AbstractStoreAclHandlerTest {
     when(accessController.hasAccess(any(), any(), any())).thenReturn(hasAccess[0]);
     when(accessController.hasAcl(any())).thenReturn(hasAcl[0]);
     when(accessController.isFailOpen()).thenReturn(isFailOpen[0]);
-    when(metadataRepo.hasStore(any())).thenReturn(hasStore[0]);
+    when(metadataRepo.hasStore(anyString())).thenReturn(hasStore[0]);
+    when(metadataRepo.hasStore(any(StoreName.class))).thenReturn(hasStore[0]);
     if (hasStore[0]) {
-      when(metadataRepo.getStore(any())).thenReturn(store);
+      when(metadataRepo.getStore(anyString())).thenReturn(store);
+      when(metadataRepo.getStore(any(StoreName.class))).thenReturn(store);
     } else {
-      when(metadataRepo.getStore(any())).thenReturn(null);
+      when(metadataRepo.getStore(anyString())).thenReturn(null);
+      when(metadataRepo.getStore(any(StoreName.class))).thenReturn(null);
     }
     String storeNameInRequest = storeName;
     if (isSystemStore[0]) {
