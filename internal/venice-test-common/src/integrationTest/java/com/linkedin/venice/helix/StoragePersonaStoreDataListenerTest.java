@@ -2,6 +2,7 @@ package com.linkedin.venice.helix;
 
 import com.linkedin.venice.integration.utils.ServiceFactory;
 import com.linkedin.venice.integration.utils.ZkServerWrapper;
+import com.linkedin.venice.meta.NameRepository;
 import com.linkedin.venice.meta.Store;
 import com.linkedin.venice.utils.TestUtils;
 import com.linkedin.venice.utils.locks.ClusterLockManager;
@@ -32,7 +33,8 @@ public class StoragePersonaStoreDataListenerTest {
         adapter,
         testClusterName,
         Optional.empty(),
-        new ClusterLockManager(testClusterName));
+        new ClusterLockManager(testClusterName),
+        new NameRepository());
     personaRepository = new StoragePersonaRepository(testClusterName, storeRepository, adapter, zkClient);
   }
 

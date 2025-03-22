@@ -6,6 +6,7 @@ import static com.linkedin.venice.zk.VeniceZkPaths.STORES;
 import com.linkedin.venice.exceptions.VeniceException;
 import com.linkedin.venice.integration.utils.ServiceFactory;
 import com.linkedin.venice.integration.utils.ZkServerWrapper;
+import com.linkedin.venice.meta.NameRepository;
 import com.linkedin.venice.meta.Store;
 import com.linkedin.venice.meta.StoreDataChangedListener;
 import com.linkedin.venice.meta.VersionImpl;
@@ -48,13 +49,14 @@ public class TestHelixReadOnlyStorageEngineRepository {
     zkClient.create(clusterPath, null, CreateMode.PERSISTENT);
     zkClient.create(clusterPath + storesPath, null, CreateMode.PERSISTENT);
 
-    repo = new HelixReadOnlyStoreRepository(zkClient, adapter, cluster);
+    repo = new HelixReadOnlyStoreRepository(zkClient, adapter, cluster, new NameRepository());
     writeRepo = new HelixReadWriteStoreRepository(
         zkClient,
         adapter,
         cluster,
         Optional.empty(),
-        new ClusterLockManager(cluster));
+        new ClusterLockManager(cluster),
+        new NameRepository());
     repo.refresh();
     writeRepo.refresh();
   }

@@ -1,5 +1,6 @@
 package com.linkedin.venice.helix;
 
+import com.linkedin.venice.meta.NameRepository;
 import com.linkedin.venice.meta.Store;
 import com.linkedin.venice.utils.locks.AutoCloseableLock;
 import com.linkedin.venice.utils.locks.ClusterLockManager;
@@ -22,12 +23,13 @@ public class HelixReadOnlyStoreRepository extends CachedReadOnlyStoreRepository 
   public HelixReadOnlyStoreRepository(
       ZkClient zkClient,
       HelixAdapterSerializer compositeSerializer,
-      String clusterName) {
+      String clusterName,
+      NameRepository nameRepository) {
     /**
      * HelixReadOnlyStoreRepository is used in router, server, fast-client, da-vinci and system store.
      * Its centralized locking should NOT be shared with other classes. Create a new instance.
      */
-    super(zkClient, clusterName, compositeSerializer, new ClusterLockManager(clusterName));
+    super(zkClient, clusterName, nameRepository, compositeSerializer, new ClusterLockManager(clusterName));
   }
 
   @Override

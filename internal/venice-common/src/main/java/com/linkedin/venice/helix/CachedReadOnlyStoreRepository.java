@@ -3,6 +3,7 @@ package com.linkedin.venice.helix;
 import static com.linkedin.venice.zk.VeniceZkPaths.STORES;
 
 import com.linkedin.venice.exceptions.VeniceNoStoreException;
+import com.linkedin.venice.meta.NameRepository;
 import com.linkedin.venice.meta.ReadOnlyStore;
 import com.linkedin.venice.meta.ReadOnlyStoreRepository;
 import com.linkedin.venice.meta.Store;
@@ -34,6 +35,7 @@ public class CachedReadOnlyStoreRepository implements ReadOnlyStoreRepository {
   public static final String STORE_REPOSITORY_PATH = "/" + STORES;
 
   protected final String clusterName;
+  protected final NameRepository nameRepository;
   protected final String clusterStoreRepositoryPath;
 
   protected final ZkClient zkClient;
@@ -47,11 +49,13 @@ public class CachedReadOnlyStoreRepository implements ReadOnlyStoreRepository {
   public CachedReadOnlyStoreRepository(
       ZkClient zkClient,
       String clusterName,
+      NameRepository nameRepository,
       HelixAdapterSerializer compositeSerializer,
       ClusterLockManager clusterLockManager) {
     this.zkClient = zkClient;
     this.zkDataAccessor = new ZkBaseDataAccessor<>(zkClient);
     this.clusterName = clusterName;
+    this.nameRepository = nameRepository;
     this.clusterStoreRepositoryPath =
         Paths.get(HelixUtils.getHelixClusterZkPath(clusterName), STORE_REPOSITORY_PATH).toString();
     compositeSerializer.registerSerializer(clusterStoreRepositoryPath, new VeniceJsonSerializer<>(Integer.TYPE));

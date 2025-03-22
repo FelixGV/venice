@@ -30,6 +30,7 @@ import com.linkedin.venice.helix.ZkClientFactory;
 import com.linkedin.venice.integration.utils.ServiceFactory;
 import com.linkedin.venice.integration.utils.VeniceClusterCreateOptions;
 import com.linkedin.venice.integration.utils.VeniceClusterWrapper;
+import com.linkedin.venice.meta.NameRepository;
 import com.linkedin.venice.meta.PersistenceType;
 import com.linkedin.venice.meta.Store;
 import com.linkedin.venice.meta.Version;
@@ -187,7 +188,8 @@ public class TestHybridQuota {
           adapter,
           zkAddress,
           Optional.empty(),
-          new ClusterLockManager(sharedVenice.getClusterName()));
+          new ClusterLockManager(sharedVenice.getClusterName()),
+          new NameRepository());
 
       Store store = TestUtils.createTestStore(storeName, "owner", System.currentTimeMillis());
       store.setPartitionCount(3);

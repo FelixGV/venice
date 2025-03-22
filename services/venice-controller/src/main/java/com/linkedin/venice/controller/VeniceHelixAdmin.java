@@ -585,7 +585,8 @@ public class VeniceHelixAdmin implements Admin, StoreCleaner {
     zkSharedSystemStoreRepository = new SharedHelixReadOnlyZKSharedSystemStoreRepository(
         zkClient,
         adapterSerializer,
-        commonConfig.getSystemSchemaClusterName());
+        commonConfig.getSystemSchemaClusterName(),
+        this.nameRepository);
     zkSharedSchemaRepository = new SharedHelixReadOnlyZKSharedSchemaRepository(
         zkSharedSystemStoreRepository,
         zkClient,

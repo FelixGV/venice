@@ -4,6 +4,7 @@ import static com.linkedin.venice.zk.VeniceZkPaths.STORES;
 
 import com.linkedin.venice.integration.utils.ServiceFactory;
 import com.linkedin.venice.integration.utils.ZkServerWrapper;
+import com.linkedin.venice.meta.NameRepository;
 import com.linkedin.venice.meta.Store;
 import com.linkedin.venice.meta.VersionImpl;
 import com.linkedin.venice.utils.TestUtils;
@@ -46,7 +47,8 @@ public class TestHelixReadWriteStorageEngineRepository {
         adapter,
         cluster,
         Optional.empty(),
-        new ClusterLockManager(cluster));
+        new ClusterLockManager(cluster),
+        new NameRepository());
     repo.refresh();
   }
 
@@ -105,7 +107,8 @@ public class TestHelixReadWriteStorageEngineRepository {
         adapter,
         cluster,
         Optional.empty(),
-        new ClusterLockManager(cluster));
+        new ClusterLockManager(cluster),
+        new NameRepository());
     newRepo.refresh();
     Assert.assertEquals(newRepo.getStore(s1.getName()), s1, "Can not load stores from ZK successfully");
     Assert.assertEquals(newRepo.getStore(s2.getName()), s2, "Can not load stores from ZK successfully");

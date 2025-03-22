@@ -5,6 +5,7 @@ import static com.linkedin.venice.zk.VeniceZkPaths.STORES;
 import com.linkedin.venice.exceptions.VeniceNoStoreException;
 import com.linkedin.venice.integration.utils.ServiceFactory;
 import com.linkedin.venice.integration.utils.ZkServerWrapper;
+import com.linkedin.venice.meta.NameRepository;
 import com.linkedin.venice.meta.OfflinePushStrategy;
 import com.linkedin.venice.meta.PersistenceType;
 import com.linkedin.venice.meta.ReadStrategy;
@@ -55,9 +56,10 @@ public class TestHelixReadOnlySchemaRepository {
         adapter,
         cluster,
         Optional.empty(),
-        new ClusterLockManager(cluster));
+        new ClusterLockManager(cluster),
+        new NameRepository());
     storeRWRepo.refresh();
-    storeRORepo = new HelixReadOnlyStoreRepository(zkClient, adapter, cluster);
+    storeRORepo = new HelixReadOnlyStoreRepository(zkClient, adapter, cluster, new NameRepository());
     storeRORepo.refresh();
     schemaRWRepo = new HelixReadWriteSchemaRepository(storeRWRepo, zkClient, adapter, cluster, Optional.empty());
     schemaRORepo = new HelixReadOnlySchemaRepository(storeRORepo, zkClient, adapter, cluster, 1, 1000);

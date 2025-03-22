@@ -2,6 +2,7 @@ package com.linkedin.venice.helix;
 
 import com.linkedin.venice.exceptions.VeniceNoStoreException;
 import com.linkedin.venice.exceptions.VeniceStoreAlreadyExistsException;
+import com.linkedin.venice.meta.NameRepository;
 import com.linkedin.venice.meta.ReadWriteStoreRepository;
 import com.linkedin.venice.meta.Store;
 import com.linkedin.venice.system.store.MetaStoreWriter;
@@ -29,8 +30,9 @@ public class HelixReadWriteStoreRepository extends CachedReadOnlyStoreRepository
       HelixAdapterSerializer compositeSerializer,
       String clusterName,
       Optional<MetaStoreWriter> metaStoreWriter,
-      ClusterLockManager storeLock) {
-    super(zkClient, clusterName, compositeSerializer, storeLock);
+      ClusterLockManager storeLock,
+      NameRepository nameRepository) {
+    super(zkClient, clusterName, nameRepository, compositeSerializer, storeLock);
     this.clusterName = clusterName;
     this.metaStoreWriter = metaStoreWriter;
   }

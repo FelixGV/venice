@@ -4,6 +4,7 @@ import com.linkedin.venice.exceptions.VeniceException;
 import com.linkedin.venice.integration.utils.ServiceFactory;
 import com.linkedin.venice.integration.utils.ZkServerWrapper;
 import com.linkedin.venice.meta.Instance;
+import com.linkedin.venice.meta.NameRepository;
 import com.linkedin.venice.meta.PartitionAssignment;
 import com.linkedin.venice.meta.RoutingDataRepository;
 import com.linkedin.venice.meta.Store;
@@ -134,7 +135,8 @@ public class TestHelixCustomizedViewOfflinePushRepository {
         adapter,
         clusterName,
         Optional.empty(),
-        new ClusterLockManager(clusterName));
+        new ClusterLockManager(clusterName),
+        new NameRepository());
     Store store = TestUtils.createTestStore(storeName, "owner", System.currentTimeMillis());
     store.setPartitionCount(3);
     Version version = new VersionImpl(storeName, 1, "pushId");

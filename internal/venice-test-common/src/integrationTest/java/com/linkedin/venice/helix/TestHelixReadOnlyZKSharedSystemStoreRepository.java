@@ -14,6 +14,7 @@ import com.linkedin.venice.integration.utils.ZkServerWrapper;
 import com.linkedin.venice.meta.BufferReplayPolicy;
 import com.linkedin.venice.meta.DataReplicationPolicy;
 import com.linkedin.venice.meta.HybridStoreConfigImpl;
+import com.linkedin.venice.meta.NameRepository;
 import com.linkedin.venice.meta.Store;
 import com.linkedin.venice.meta.VersionImpl;
 import com.linkedin.venice.utils.TestUtils;
@@ -52,13 +53,14 @@ public class TestHelixReadOnlyZKSharedSystemStoreRepository {
     zkClient.create(clusterPath, null, CreateMode.PERSISTENT);
     zkClient.create(clusterPath + storesPath, null, CreateMode.PERSISTENT);
 
-    repo = new HelixReadOnlyZKSharedSystemStoreRepository(zkClient, adapter, cluster);
+    repo = new HelixReadOnlyZKSharedSystemStoreRepository(zkClient, adapter, cluster, new NameRepository());
     writeRepo = new HelixReadWriteStoreRepository(
         zkClient,
         adapter,
         cluster,
         Optional.empty(),
-        new ClusterLockManager(cluster));
+        new ClusterLockManager(cluster),
+        new NameRepository());
     repo.refresh();
     writeRepo.refresh();
     // Create zk shared store first

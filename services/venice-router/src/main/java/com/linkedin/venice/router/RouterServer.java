@@ -322,9 +322,13 @@ public class RouterServer extends AbstractVeniceService {
       String d2ServiceName) {
     this(properties, serviceDiscoveryAnnouncers, accessController, sslFactory, metricsRepository, true);
     HelixReadOnlyZKSharedSystemStoreRepository readOnlyZKSharedSystemStoreRepository =
-        new HelixReadOnlyZKSharedSystemStoreRepository(zkClient, adapter, config.getSystemSchemaClusterName());
+        new HelixReadOnlyZKSharedSystemStoreRepository(
+            this.zkClient,
+            this.adapter,
+            this.config.getSystemSchemaClusterName(),
+            this.nameRepository);
     HelixReadOnlyStoreRepository readOnlyStoreRepository =
-        new HelixReadOnlyStoreRepository(zkClient, adapter, config.getClusterName());
+        new HelixReadOnlyStoreRepository(zkClient, adapter, config.getClusterName(), this.nameRepository);
     this.metadataRepository = new HelixReadOnlyStoreRepositoryAdapter(
         readOnlyZKSharedSystemStoreRepository,
         readOnlyStoreRepository,

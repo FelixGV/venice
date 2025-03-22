@@ -27,6 +27,7 @@ import com.linkedin.venice.meta.PartitionerConfig;
 import com.linkedin.venice.meta.PartitionerConfigImpl;
 import com.linkedin.venice.meta.Store;
 import com.linkedin.venice.meta.StoreConfig;
+import com.linkedin.venice.meta.StoreName;
 import com.linkedin.venice.meta.Version;
 import com.linkedin.venice.router.RouterServer;
 import com.linkedin.venice.router.httpclient.StorageNodeClientType;
@@ -84,7 +85,9 @@ public class MockVeniceRouterWrapper extends ProcessWrapper {
     doReturn(CompressionStrategy.NO_OP).when(mockStore).getCompressionStrategy();
     HelixReadOnlyStoreRepository mockMetadataRepository = Mockito.mock(HelixReadOnlyStoreRepository.class);
     doReturn(mockStore).when(mockMetadataRepository).getStore(Mockito.anyString());
+    doReturn(mockStore).when(mockMetadataRepository).getStore(Mockito.any(StoreName.class));
     doReturn(mockStore).when(mockMetadataRepository).getStoreOrThrow(Mockito.anyString());
+    doReturn(mockStore).when(mockMetadataRepository).getStoreOrThrow(Mockito.any(StoreName.class));
 
     Version mockVersion = Mockito.mock(Version.class);
     doReturn(mockVersion).when(mockStore).getVersion(Mockito.anyInt());

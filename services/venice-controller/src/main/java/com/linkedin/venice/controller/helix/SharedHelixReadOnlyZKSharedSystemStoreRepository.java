@@ -2,6 +2,7 @@ package com.linkedin.venice.controller.helix;
 
 import com.linkedin.venice.helix.HelixAdapterSerializer;
 import com.linkedin.venice.helix.HelixReadOnlyZKSharedSystemStoreRepository;
+import com.linkedin.venice.meta.NameRepository;
 import java.io.Closeable;
 import java.io.IOException;
 import org.apache.helix.zookeeper.impl.client.ZkClient;
@@ -19,8 +20,9 @@ public class SharedHelixReadOnlyZKSharedSystemStoreRepository extends HelixReadO
   public SharedHelixReadOnlyZKSharedSystemStoreRepository(
       ZkClient zkClient,
       HelixAdapterSerializer compositeSerializer,
-      String systemStoreClusterName) {
-    super(zkClient, compositeSerializer, systemStoreClusterName);
+      String systemStoreClusterName,
+      NameRepository nameRepository) {
+    super(zkClient, compositeSerializer, systemStoreClusterName, nameRepository);
   }
 
   @Override

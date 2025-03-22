@@ -51,14 +51,15 @@ public class TestHelixReadWriteStoreRepositoryAdapter {
     zkClient.create(clusterPath + storesPath, null, CreateMode.PERSISTENT);
 
     HelixReadOnlyZKSharedSystemStoreRepository zkSharedSystemStoreRepository =
-        new HelixReadOnlyZKSharedSystemStoreRepository(zkClient, adapter, cluster);
+        new HelixReadOnlyZKSharedSystemStoreRepository(zkClient, adapter, cluster, new NameRepository());
     zkSharedSystemStoreRepository.refresh();
     HelixReadWriteStoreRepository writeRepo = new HelixReadWriteStoreRepository(
         zkClient,
         adapter,
         cluster,
         Optional.empty(),
-        new ClusterLockManager(cluster));
+        new ClusterLockManager(cluster),
+        new NameRepository());
     writeRepo.refresh();
 
     writeRepoAdapter =
@@ -82,7 +83,7 @@ public class TestHelixReadWriteStoreRepositoryAdapter {
     s1.setReadComputationEnabled(true);
     writeRepo.addStore(s1);
 
-    readOnlyRepo = new HelixReadOnlyStoreRepository(zkClient, adapter, cluster);
+    readOnlyRepo = new HelixReadOnlyStoreRepository(zkClient, adapter, cluster, new NameRepository());
     readOnlyRepo.refresh();
   }
 

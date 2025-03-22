@@ -10,6 +10,7 @@ import com.linkedin.venice.controllerapi.UpdateStoragePersonaQueryParams;
 import com.linkedin.venice.exceptions.VeniceException;
 import com.linkedin.venice.integration.utils.ServiceFactory;
 import com.linkedin.venice.integration.utils.ZkServerWrapper;
+import com.linkedin.venice.meta.NameRepository;
 import com.linkedin.venice.meta.Store;
 import com.linkedin.venice.persona.StoragePersona;
 import com.linkedin.venice.utils.TestUtils;
@@ -44,7 +45,8 @@ public class StoragePersonaRepositoryTest {
         adapter,
         testClusterName,
         Optional.empty(),
-        new ClusterLockManager(testClusterName));
+        new ClusterLockManager(testClusterName),
+        new NameRepository());
     personaRepository = new StoragePersonaRepository(testClusterName, storeRepository, adapter, zkClient);
   }
 

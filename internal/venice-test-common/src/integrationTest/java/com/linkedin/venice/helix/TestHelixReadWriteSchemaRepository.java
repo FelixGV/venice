@@ -8,6 +8,7 @@ import com.linkedin.venice.exceptions.StoreKeySchemaExistException;
 import com.linkedin.venice.exceptions.VeniceNoStoreException;
 import com.linkedin.venice.integration.utils.ServiceFactory;
 import com.linkedin.venice.integration.utils.ZkServerWrapper;
+import com.linkedin.venice.meta.NameRepository;
 import com.linkedin.venice.meta.OfflinePushStrategy;
 import com.linkedin.venice.meta.PersistenceType;
 import com.linkedin.venice.meta.ReadStrategy;
@@ -56,7 +57,8 @@ public class TestHelixReadWriteSchemaRepository {
         adapter,
         cluster,
         Optional.empty(),
-        new ClusterLockManager(cluster));
+        new ClusterLockManager(cluster),
+        new NameRepository());
     storeRepo.refresh();
     schemaRepo = new HelixReadWriteSchemaRepository(storeRepo, zkClient, adapter, cluster, Optional.empty());
   }

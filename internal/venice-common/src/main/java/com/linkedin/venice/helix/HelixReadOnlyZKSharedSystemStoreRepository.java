@@ -3,6 +3,7 @@ package com.linkedin.venice.helix;
 import com.linkedin.venice.common.VeniceSystemStoreType;
 import com.linkedin.venice.exceptions.VeniceException;
 import com.linkedin.venice.exceptions.VeniceNoStoreException;
+import com.linkedin.venice.meta.NameRepository;
 import com.linkedin.venice.meta.Store;
 import java.util.Collection;
 import java.util.HashSet;
@@ -27,8 +28,9 @@ public class HelixReadOnlyZKSharedSystemStoreRepository extends HelixReadOnlySto
   public HelixReadOnlyZKSharedSystemStoreRepository(
       ZkClient zkClient,
       HelixAdapterSerializer compositeSerializer,
-      String systemStoreClusterName) {
-    super(zkClient, compositeSerializer, systemStoreClusterName);
+      String systemStoreClusterName,
+      NameRepository nameRepository) {
+    super(zkClient, compositeSerializer, systemStoreClusterName, nameRepository);
     // Initialize the necessary zk shared system stores
     for (VeniceSystemStoreType type: VeniceSystemStoreType.values()) {
       if (type.isNewMedataRepositoryAdopted()) {
