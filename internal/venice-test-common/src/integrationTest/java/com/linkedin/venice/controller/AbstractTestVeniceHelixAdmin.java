@@ -89,19 +89,13 @@ class AbstractTestVeniceHelixAdmin {
 
   final PubSubTopicRepository pubSubTopicRepository = new PubSubTopicRepository();
 
-  public void setupCluster(boolean createParticipantStore, MetricsRepository metricsRepository) throws Exception {
+  public void setupCluster(MetricsRepository metricsRepository) throws Exception {
     Utils.thisIsLocalhost();
     zkServerWrapper = ServiceFactory.getZkServer();
     zkAddress = zkServerWrapper.getAddress();
     pubSubBrokerWrapper = ServiceFactory.getPubSubBroker();
     clusterName = Utils.getUniqueString("test-cluster");
     Properties properties = getControllerProperties(clusterName);
-    if (createParticipantStore) {
-      properties.put(PARTICIPANT_MESSAGE_STORE_ENABLED, true);
-    } else {
-      properties.put(PARTICIPANT_MESSAGE_STORE_ENABLED, false);
-      properties.put(ADMIN_HELIX_MESSAGING_CHANNEL_ENABLED, true);
-    }
     properties.put(UNREGISTER_METRIC_FOR_DELETED_STORE_ENABLED, true);
     properties.put(CONTROLLER_INSTANCE_TAG_LIST, "GENERAL,TEST");
     properties.put(TOPIC_CLEANUP_SLEEP_INTERVAL_BETWEEN_TOPIC_LIST_FETCH_MS, 100);
@@ -127,10 +121,8 @@ class AbstractTestVeniceHelixAdmin {
     startParticipant();
     waitUntilIsLeader(veniceAdmin, clusterName, LEADER_CHANGE_TIMEOUT_MS);
 
-    if (createParticipantStore) {
-      // Wait for participant store to finish materializing
-      verifyParticipantMessageStoreSetup();
-    }
+    // Wait for participant store to finish materializing
+    verifyParticipantMessageStoreSetup();
   }
 
   public void cleanupCluster() {

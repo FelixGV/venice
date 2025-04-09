@@ -371,7 +371,7 @@ public abstract class StoreIngestionTask implements Runnable, Closeable {
   private final boolean offsetLagDeltaRelaxEnabled;
   private final boolean ingestionCheckpointDuringGracefulShutdownEnabled;
 
-  protected boolean isDataRecovery;
+  protected final boolean isDataRecovery;
   protected int dataRecoverySourceVersionNumber;
   protected final boolean readOnlyForBatchOnlyStoreEnabled;
   protected final MetaStoreWriter metaStoreWriter;
@@ -410,6 +410,7 @@ public abstract class StoreIngestionTask implements Runnable, Closeable {
       VeniceStoreVersionConfig storeVersionConfig,
       int errorPartitionId,
       boolean isIsolatedIngestion,
+      boolean isDataRecovery,
       Optional<ObjectCacheBackend> cacheBackend,
       DaVinciRecordTransformerConfig recordTransformerConfig,
       Queue<VeniceNotifier> notifiers,
@@ -515,6 +516,7 @@ public abstract class StoreIngestionTask implements Runnable, Closeable {
     }
     this.bootstrapTimeoutInMs = pushTimeoutInMs;
     this.isIsolatedIngestion = isIsolatedIngestion;
+    this.isDataRecovery = isDataRecovery;
     this.partitionCount = storeVersionPartitionCount;
     this.ingestionNotificationDispatcher =
         new IngestionNotificationDispatcher(notifiers, kafkaVersionTopic, isCurrentVersion);
@@ -4619,6 +4621,7 @@ public abstract class StoreIngestionTask implements Runnable, Closeable {
    */
   public boolean isTransientRecordBufferUsed(PartitionConsumptionState partitionConsumptionState) {
     return this.isWriteComputationEnabled && partitionConsumptionState.isEndOfPushReceived();
+    // && !this.isDataRecovery; TODO: Decide if this extra condition is useful...
   }
 
   // Visible for unit test.
