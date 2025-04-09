@@ -21,7 +21,7 @@ import org.apache.logging.log4j.Logger;
 
 
 public class LeaderProducerCallback implements ChunkAwareCallback {
-  private static final Logger LOGGER = LogManager.getLogger(LeaderFollowerStoreIngestionTask.class);
+  private static final Logger LOGGER = LogManager.getLogger(LeaderProducerCallback.class);
   private static final RedundantExceptionFilter REDUNDANT_LOGGING_FILTER =
       RedundantExceptionFilter.getRedundantExceptionFilter();
   private static final Runnable NO_OP = () -> {};
@@ -247,18 +247,22 @@ public class LeaderProducerCallback implements ChunkAwareCallback {
     this.rmdChunks = rmdChunks;
     this.oldValueManifest = oldValueManifest;
     this.oldRmdManifest = oldRmdManifest;
-    if (getPartitionConsumptionState() == null) {
+
+    // We access the PCS via this getter for unit test mocking purposes...
+    PartitionConsumptionState pcs = getPartitionConsumptionState();
+    if (pcs == null) {
       LOGGER.error("PartitionConsumptionState is missing in chunk producer callback");
       return;
     }
-    // TransientRecord map is indexed by non-chunked key.
-    if (getIngestionTask().isTransientRecordBufferUsed()) {
+    // We cannot use the TransientRecord map prior to the EOP, so no need to perform the lookup at all in that case.
+    if (getIngestionTask().isTransientRecordBufferUsed() && pcs.isEndOfPushReceived()) {
       PartitionConsumptionState.TransientRecord record =
-          getPartitionConsumptionState().getTransientRecord(getSourceConsumerRecord().getKey().getKey());
+          // TransientRecord map is indexed by non-chunked key.
+          pcs.getTransientRecord(getSourceConsumerRecord().getKey().getKey());
       if (record != null) {
         record.setValueManifest(chunkedValueManifest);
         record.setRmdManifest(chunkedRmdManifest);
-      } else if (partitionConsumptionState.isEndOfPushReceived()) {
+      } else {
         String msg = "Transient record is missing when trying to update value/RMD manifest for resource: "
             + Utils.getReplicaId(ingestionTask.getKafkaVersionTopic(), partition);
         if (!REDUNDANT_LOGGING_FILTER.isRedundantException(msg)) {

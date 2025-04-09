@@ -24,7 +24,7 @@ public class TestEnablingSSLPushInVeniceHelixAdminWithIsolatedEnvironment extend
 
   @BeforeMethod(alwaysRun = true)
   public void setUp() throws Exception {
-    setupCluster(false, new MetricsRepository());
+    setupCluster(new MetricsRepository());
   }
 
   @AfterMethod(alwaysRun = true)
