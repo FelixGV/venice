@@ -243,6 +243,7 @@ public class LeaderFollowerStoreIngestionTask extends StoreIngestionTask {
         storeConfig,
         errorPartitionId,
         isIsolatedIngestion,
+        version.getDataRecoveryVersionConfig() != null && !builder.isDaVinciClient(),
         cacheBackend,
         recordTransformerConfig,
         builder.getLeaderFollowerNotifiers(),
@@ -273,9 +274,8 @@ public class LeaderFollowerStoreIngestionTask extends StoreIngestionTask {
      * During data recovery for DaVinci client running in follower mode does not have the configs needed for data recovery
      * which leads to DaVinci host ingestion failure, ignore data recovery config for daVinci.
      */
-    if (version.getDataRecoveryVersionConfig() == null || isDaVinciClient) {
+    if (!this.isDataRecovery) {
       this.nativeReplicationSourceVersionTopicKafkaURL = version.getPushStreamSourceAddress();
-      isDataRecovery = false;
     } else {
       this.nativeReplicationSourceVersionTopicKafkaURL = serverConfig.getKafkaClusterIdToUrlMap()
           .get(
@@ -286,7 +286,6 @@ public class LeaderFollowerStoreIngestionTask extends StoreIngestionTask {
             "Unable to get data recovery source kafka url from the provided source fabric:"
                 + version.getDataRecoveryVersionConfig().getDataRecoverySourceFabric());
       }
-      isDataRecovery = true;
       dataRecoverySourceVersionNumber = version.getDataRecoveryVersionConfig().getDataRecoverySourceVersionNumber();
       if (isHybridMode()) {
         dataRecoveryCompletionTimeLagThresholdInMs = PubSubConstants.BUFFER_REPLAY_MINIMAL_SAFETY_MARGIN / 2;

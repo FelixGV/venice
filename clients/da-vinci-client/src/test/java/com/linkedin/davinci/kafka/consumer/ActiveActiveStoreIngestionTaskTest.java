@@ -395,6 +395,7 @@ public class ActiveActiveStoreIngestionTaskTest {
 
     PartitionConsumptionState partitionConsumptionState = mock(PartitionConsumptionState.class);
     when(partitionConsumptionState.getTransientRecord(any())).thenReturn(transientRecord);
+    when(partitionConsumptionState.isEndOfPushReceived()).thenReturn(true);
     KafkaKey kafkaKey = mock(KafkaKey.class);
     when(consumerRecord.getKey()).thenReturn(kafkaKey);
     when(kafkaKey.getKey()).thenReturn(new byte[] { 0xa });
