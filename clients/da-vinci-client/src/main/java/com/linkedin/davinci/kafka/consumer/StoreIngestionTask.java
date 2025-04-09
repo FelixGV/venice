@@ -889,7 +889,7 @@ public abstract class StoreIngestionTask implements Runnable, Closeable {
     return returnStatus;
   }
 
-  private void beginBatchWrite(int partitionId, boolean sorted, PartitionConsumptionState partitionConsumptionState) {
+  private void beginBatchWrite(boolean sorted, PartitionConsumptionState partitionConsumptionState) {
     Map<String, String> checkpointedDatabaseInfo = partitionConsumptionState.getOffsetRecord().getDatabaseInfo();
     StoragePartitionConfig storagePartitionConfig = getStoragePartitionConfig(sorted, partitionConsumptionState);
     partitionConsumptionState.setDeferredWrite(storagePartitionConfig.isDeferredWrite());
@@ -1233,7 +1233,6 @@ public abstract class StoreIngestionTask implements Runnable, Closeable {
         processStartOfPush(
             record.getValue(),
             controlMessage,
-            record.getTopicPartition().getPartitionNumber(),
             partitionConsumptionStateMap.get(topicPartition.getPartitionNumber()));
       }
     }
@@ -2173,7 +2172,7 @@ public abstract class StoreIngestionTask implements Runnable, Closeable {
         /**
          * Notify the underlying store engine about starting batch push.
          */
-        beginBatchWrite(partition, sorted, newPartitionConsumptionState);
+        beginBatchWrite(sorted, newPartitionConsumptionState);
 
         newPartitionConsumptionState.setStartOfPushTimestamp(storeVersionState.startOfPushTimestamp);
         newPartitionConsumptionState.setEndOfPushTimestamp(storeVersionState.endOfPushTimestamp);
@@ -3077,7 +3076,6 @@ public abstract class StoreIngestionTask implements Runnable, Closeable {
   private void processStartOfPush(
       KafkaMessageEnvelope startOfPushKME,
       ControlMessage controlMessage,
-      int partition,
       PartitionConsumptionState partitionConsumptionState) {
     StartOfPush startOfPush = (StartOfPush) controlMessage.controlMessageUnion;
     /*
@@ -3173,7 +3171,7 @@ public abstract class StoreIngestionTask implements Runnable, Closeable {
         });
 
     ingestionNotificationDispatcher.reportStarted(partitionConsumptionState);
-    beginBatchWrite(partition, persistedStoreVersionState.sorted, partitionConsumptionState);
+    beginBatchWrite(persistedStoreVersionState.sorted, partitionConsumptionState);
     partitionConsumptionState.setStartOfPushTimestamp(startOfPushKME.producerMetadata.messageTimestamp);
   }
 
