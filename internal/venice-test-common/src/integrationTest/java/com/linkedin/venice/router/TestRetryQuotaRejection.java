@@ -83,7 +83,6 @@ public class TestRetryQuotaRejection {
     extraProperties.put(ConfigKeys.ROUTER_STORAGE_NODE_CLIENT_TYPE, StorageNodeClientType.APACHE_HTTP_ASYNC_CLIENT);
     extraProperties.put(ROUTER_ENABLE_READ_THROTTLING, false);
     extraProperties.put(SERVER_QUOTA_ENFORCEMENT_ENABLED, "true");
-    extraProperties.put(PARTICIPANT_MESSAGE_STORE_ENABLED, "false");
 
     veniceCluster = ServiceFactory.getVeniceCluster(
         new VeniceClusterCreateOptions.Builder().numberOfControllers(1)

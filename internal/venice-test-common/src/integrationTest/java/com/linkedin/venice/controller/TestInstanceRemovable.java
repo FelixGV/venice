@@ -1,6 +1,5 @@
 package com.linkedin.venice.controller;
 
-import com.linkedin.venice.ConfigKeys;
 import com.linkedin.venice.controllerapi.ControllerClient;
 import com.linkedin.venice.controllerapi.StoppableNodeStatusResponse;
 import com.linkedin.venice.controllerapi.UpdateStoreQueryParams;
@@ -37,7 +36,6 @@ public class TestInstanceRemovable {
 
   private void setupCluster(int numberOfServer) {
     Properties properties = new Properties();
-    properties.setProperty(ConfigKeys.PARTICIPANT_MESSAGE_STORE_ENABLED, "false");
     cluster = ServiceFactory.getVeniceCluster(
         new VeniceClusterCreateOptions.Builder().numberOfControllers(1)
             .numberOfServers(numberOfServer)

@@ -1,7 +1,5 @@
 package com.linkedin.venice.controller;
 
-import static org.mockito.Mockito.*;
-
 import com.linkedin.venice.controller.stats.DeadStoreStats;
 import com.linkedin.venice.controllerapi.UpdateStoreQueryParams;
 import com.linkedin.venice.exceptions.VeniceException;
@@ -43,7 +41,7 @@ import org.testng.annotations.Test;
 public class TestVeniceHelixAdminWithIsolatedEnvironment extends AbstractTestVeniceHelixAdmin {
   @BeforeMethod(alwaysRun = true)
   public void setUp() throws Exception {
-    setupCluster(false, new MetricsRepository());
+    setupCluster(new MetricsRepository());
   }
 
   @AfterMethod(alwaysRun = true)

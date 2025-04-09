@@ -12,7 +12,6 @@ import static com.linkedin.venice.ConfigKeys.BLOB_TRANSFER_MANAGER_ENABLED;
 import static com.linkedin.venice.ConfigKeys.CLIENT_USE_SYSTEM_STORE_REPOSITORY;
 import static com.linkedin.venice.ConfigKeys.DATA_BASE_PATH;
 import static com.linkedin.venice.ConfigKeys.DA_VINCI_SUBSCRIBE_ON_DISK_PARTITIONS_AUTOMATICALLY;
-import static com.linkedin.venice.ConfigKeys.PARTICIPANT_MESSAGE_STORE_ENABLED;
 import static com.linkedin.venice.ConfigKeys.PERSISTENCE_TYPE;
 import static com.linkedin.venice.ConfigKeys.PUSH_STATUS_STORE_ENABLED;
 import static com.linkedin.venice.meta.PersistenceType.ROCKS_DB;
@@ -237,9 +236,6 @@ public class BootstrappingVeniceChangelogConsumerDaVinciRecordTransformerImpl<K,
         .put(BLOB_TRANSFER_MANAGER_ENABLED, changelogClientConfig.isBlobTransferEnabled())
         .put(CLIENT_USE_SYSTEM_STORE_REPOSITORY, true)
         .put(PUSH_STATUS_STORE_ENABLED, true)
-        // Turning this off, as the CDC client will be throttling ingestion based on calls to poll, which can block
-        // version pushes and may delay a version being ready to serve
-        .put(PARTICIPANT_MESSAGE_STORE_ENABLED, false)
         .build();
   }
 
