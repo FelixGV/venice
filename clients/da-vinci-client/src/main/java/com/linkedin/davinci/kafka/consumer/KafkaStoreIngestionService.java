@@ -361,6 +361,8 @@ public class KafkaStoreIngestionService extends AbstractVeniceService implements
         metricsRepository,
         icProvider);
 
+    LOGGER.info("initializeParticipantStoreConsumptionTask returned: {}", this.participantStoreConsumptionTask);
+
     /**
      * Register a callback function to handle the case when a new KME value schema is encountered when the server
      * consumes messages from Kafka.
@@ -549,6 +551,9 @@ public class KafkaStoreIngestionService extends AbstractVeniceService implements
       participantStoreConsumerExecutorService = Executors.newSingleThreadExecutor(
           new DaemonThreadFactory("ParticipantStoreConsumptionTask", serverConfig.getRegionName()));
       participantStoreConsumerExecutorService.submit(participantStoreConsumptionTask);
+      LOGGER.info("{} submitted.", ParticipantStoreConsumptionTask.class.getSimpleName());
+    } else {
+      LOGGER.info("{} is disabled.", ParticipantStoreConsumptionTask.class.getSimpleName());
     }
     final int idleIngestionTaskCleanupIntervalInSeconds = serverConfig.getIdleIngestionTaskCleanupIntervalInSeconds();
     if (idleStoreIngestionTaskKillerExecutor != null) {
@@ -579,7 +584,9 @@ public class KafkaStoreIngestionService extends AbstractVeniceService implements
       try {
         return versionNumber == metadataRepo.getStoreOrThrow(storeName).getCurrentVersion();
       } catch (VeniceNoStoreException e) {
-        LOGGER.warn("Unable to find store meta-data for {}", veniceStoreVersionConfig.getStoreVersionName(), e);
+        LOGGER.warn(
+            "Unable to find store meta-data for {}. Will return that current version is false.",
+            veniceStoreVersionConfig.getStoreVersionName());
         return false;
       }
     };
