@@ -216,6 +216,11 @@ public abstract class AbstractStorageEngine<Partition extends AbstractStoragePar
   }
 
   public synchronized void addStoragePartition(StoragePartitionConfig storagePartitionConfig) {
+    LOGGER.info(
+        "addStoragePartition({}) called.",
+        storagePartitionConfig.getPartitionId(),
+        new Exception("Just for logging purposes."));
+
     validateStoreName(storagePartitionConfig);
     int partitionId = storagePartitionConfig.getPartitionId();
 
@@ -247,6 +252,7 @@ public abstract class AbstractStorageEngine<Partition extends AbstractStoragePar
   }
 
   public synchronized void closePartition(int partitionId) {
+    LOGGER.info("closePartition({}) called.", partitionId, new Exception("Just for logging purposes."));
     AbstractStoragePartition partition = this.partitionList.remove(partitionId);
     if (partition == null) {
       LOGGER.error("Failed to close a non existing partition: {} Store {}", partitionId, getStoreVersionName());
@@ -282,6 +288,12 @@ public abstract class AbstractStorageEngine<Partition extends AbstractStoragePar
    * @param dropMetadataPartitionWhenEmpty - if true, the whole store will be dropped if ALL partitions are removed
    */
   public synchronized void dropPartition(int partitionId, boolean dropMetadataPartitionWhenEmpty) {
+    LOGGER.info(
+        "dropPartition({}, {}) called.",
+        partitionId,
+        dropMetadataPartitionWhenEmpty,
+        new Exception("Just for logging purposes."));
+
     /**
      * The caller of this method should ensure that:
      * 1. The SimpleKafkaConsumerTask associated with this partition is shutdown
