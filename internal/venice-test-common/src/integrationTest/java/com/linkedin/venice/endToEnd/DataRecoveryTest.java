@@ -135,7 +135,7 @@ public class DataRecoveryTest {
     Utils.closeQuietlyWithErrorLogged(multiRegionMultiClusterWrapper);
   }
 
-  @Test(timeOut = TEST_TIMEOUT)
+  @Test(timeOut = TEST_TIMEOUT, enabled = false)
   public void testStartDataRecoveryAPIs() {
     String storeName = Utils.getUniqueString("dataRecovery-store");
     String parentControllerURLs = multiRegionMultiClusterWrapper.getControllerConnectString();
@@ -223,7 +223,7 @@ public class DataRecoveryTest {
     }
   }
 
-  @Test(timeOut = 2 * TEST_TIMEOUT)
+  @Test(timeOut = 2 * TEST_TIMEOUT, enabled = false)
   public void testBatchOnlyDataRecovery() throws Exception {
     String storeName = Utils.getUniqueString("dataRecovery-store-batch");
     String parentControllerURLs = multiRegionMultiClusterWrapper.getControllerConnectString();

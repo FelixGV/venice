@@ -21,7 +21,7 @@ import org.apache.logging.log4j.Logger;
 
 
 public class LeaderProducerCallback implements ChunkAwareCallback {
-  private static final Logger LOGGER = LogManager.getLogger(LeaderFollowerStoreIngestionTask.class);
+  private static final Logger LOGGER = LogManager.getLogger(LeaderProducerCallback.class);
   private static final RedundantExceptionFilter REDUNDANT_LOGGING_FILTER =
       RedundantExceptionFilter.getRedundantExceptionFilter();
   private static final Runnable NO_OP = () -> {};
@@ -261,9 +261,9 @@ public class LeaderProducerCallback implements ChunkAwareCallback {
       } else if (partitionConsumptionState.isEndOfPushReceived()) {
         String msg = "Transient record is missing when trying to update value/RMD manifest for resource: "
             + Utils.getReplicaId(ingestionTask.getKafkaVersionTopic(), partition);
-        if (!REDUNDANT_LOGGING_FILTER.isRedundantException(msg)) {
-          LOGGER.error(msg);
-        }
+        // if (!REDUNDANT_LOGGING_FILTER.isRedundantException(msg)) {
+        LOGGER.error(msg);
+        // }
       }
     }
   }
