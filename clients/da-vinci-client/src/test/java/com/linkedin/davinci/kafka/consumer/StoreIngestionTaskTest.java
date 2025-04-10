@@ -5779,7 +5779,7 @@ public abstract class StoreIngestionTaskTest {
 
     // action
     storeIngestionTaskUnderTest
-        .processEndOfPush(kafkaMessageEnvelope, 1, offsetRecord.getOffsetLag(), partitionConsumptionState);
+        .processEndOfPush(kafkaMessageEnvelope, offsetRecord.getOffsetLag(), partitionConsumptionState);
     // verify
     if (isBlobTransferEnabled && blobTransferManagerEnabled) {
       verify(mockDeepCopyStorageEngine).createSnapshot(any());

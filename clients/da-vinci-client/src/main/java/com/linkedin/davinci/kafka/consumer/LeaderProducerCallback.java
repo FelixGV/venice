@@ -251,14 +251,15 @@ public class LeaderProducerCallback implements ChunkAwareCallback {
       LOGGER.error("PartitionConsumptionState is missing in chunk producer callback");
       return;
     }
-    // TransientRecord map is indexed by non-chunked key.
-    if (getIngestionTask().isTransientRecordBufferUsed()) {
+    // We cannot use the TransientRecord map prior to the EOP, so no need to perform the lookup at all in that case.
+    if (partitionConsumptionState.isEndOfPushReceived() && getIngestionTask().isTransientRecordBufferUsed()) {
       PartitionConsumptionState.TransientRecord record =
+          // TransientRecord map is indexed by non-chunked key.
           getPartitionConsumptionState().getTransientRecord(getSourceConsumerRecord().getKey().getKey());
       if (record != null) {
         record.setValueManifest(chunkedValueManifest);
         record.setRmdManifest(chunkedRmdManifest);
-      } else if (partitionConsumptionState.isEndOfPushReceived()) {
+      } else {
         String msg = "Transient record is missing when trying to update value/RMD manifest for resource: "
             + Utils.getReplicaId(ingestionTask.getKafkaVersionTopic(), partition);
         // if (!REDUNDANT_LOGGING_FILTER.isRedundantException(msg)) {

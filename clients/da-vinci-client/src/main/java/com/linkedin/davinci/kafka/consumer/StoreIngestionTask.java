@@ -3177,7 +3177,6 @@ public abstract class StoreIngestionTask implements Runnable, Closeable {
 
   protected void processEndOfPush(
       KafkaMessageEnvelope endOfPushKME,
-      int partition,
       long offset,
       PartitionConsumptionState partitionConsumptionState) {
 
@@ -3327,7 +3326,7 @@ public abstract class StoreIngestionTask implements Runnable, Closeable {
          */
         break;
       case END_OF_PUSH:
-        processEndOfPush(kafkaMessageEnvelope, partition, offset, partitionConsumptionState);
+        processEndOfPush(kafkaMessageEnvelope, offset, partitionConsumptionState);
         break;
       case START_OF_SEGMENT:
         break;
