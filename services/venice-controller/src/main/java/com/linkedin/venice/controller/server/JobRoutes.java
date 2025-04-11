@@ -106,6 +106,7 @@ public class JobRoutes extends AbstractRoute {
     responseObject.setExtraInfoUpdateTimestamp(offlineJobStatus.getExtraInfoUpdateTimestamp());
     responseObject.setExtraDetails(offlineJobStatus.getExtraDetails());
     responseObject.setUncompletedPartitions(offlineJobStatus.getUncompletedPartitions());
+    responseObject.setUncompletedPartitionsByRegion(offlineJobStatus.getUncompletedPartitionsByRegion());
 
     responseObject.setCluster(cluster);
     responseObject.setName(store);

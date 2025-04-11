@@ -67,11 +67,12 @@ public interface Admin extends AutoCloseable, Closeable {
   class OfflinePushStatusInfo {
     private ExecutionStatus executionStatus;
     private Long statusUpdateTimestamp;
+    private String statusDetails;
+    private List<UncompletedPartition> uncompletedPartitions;
     private Map<String, String> extraInfo;
     private Map<String, Long> extraInfoUpdateTimestamp;
-    private String statusDetails;
     private Map<String, String> extraDetails;
-    private List<UncompletedPartition> uncompletedPartitions;
+    private Map<String, List<UncompletedPartition>> uncompletedPartitionsByRegion;
 
     /** N.B.: Test-only constructor ): */
     public OfflinePushStatusInfo(ExecutionStatus executionStatus) {
@@ -80,7 +81,14 @@ public interface Admin extends AutoCloseable, Closeable {
 
     /** N.B.: Test-only constructor ): */
     public OfflinePushStatusInfo(ExecutionStatus executionStatus, Map<String, String> extraInfo) {
-      this(executionStatus, null, extraInfo, null, Collections.emptyMap(), Collections.emptyMap());
+      this(
+          executionStatus,
+          null,
+          extraInfo,
+          null,
+          Collections.emptyMap(),
+          Collections.emptyMap(),
+          Collections.emptyMap());
     }
 
     /** Used by single datacenter (child) controllers, hence, no extra info nor extra details */
@@ -90,6 +98,7 @@ public interface Admin extends AutoCloseable, Closeable {
           statusUpdateTimestamp,
           Collections.emptyMap(),
           statusDetails,
+          Collections.emptyMap(),
           Collections.emptyMap(),
           Collections.emptyMap());
     }
@@ -101,13 +110,15 @@ public interface Admin extends AutoCloseable, Closeable {
         Map<String, String> extraInfo,
         String statusDetails,
         Map<String, String> extraDetails,
-        Map<String, Long> extraInfoUpdateTimestamp) {
+        Map<String, Long> extraInfoUpdateTimestamp,
+        Map<String, List<UncompletedPartition>> uncompletedPartitionsByRegion) {
       this.executionStatus = executionStatus;
       this.statusUpdateTimestamp = statusUpdateTimestamp;
       this.extraInfo = extraInfo;
       this.statusDetails = statusDetails;
       this.extraDetails = extraDetails;
       this.extraInfoUpdateTimestamp = extraInfoUpdateTimestamp;
+      this.uncompletedPartitionsByRegion = uncompletedPartitionsByRegion;
     }
 
     public ExecutionStatus getExecutionStatus() {
@@ -132,6 +143,10 @@ public interface Admin extends AutoCloseable, Closeable {
 
     public void setUncompletedPartitions(List<UncompletedPartition> uncompletedPartitions) {
       this.uncompletedPartitions = uncompletedPartitions;
+    }
+
+    public Map<String, List<UncompletedPartition>> getUncompletedPartitionsByRegion() {
+      return uncompletedPartitionsByRegion;
     }
 
     public Long getStatusUpdateTimestamp() {

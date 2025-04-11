@@ -17,11 +17,13 @@ public class JobStatusQueryResponse
   private String status;
   private String statusDetails;
   private Long statusUpdateTimestamp;
+  private List<UncompletedPartition> uncompletedPartitions;
+
+  // Parent-only fields, containing per-region info.
   private Map<String, String> extraInfo;
   private Map<String, String> extraDetails;
   private Map<String, Long> extraInfoUpdateTimestamp;
-
-  private List<UncompletedPartition> uncompletedPartitions;
+  private Map<String, List<UncompletedPartition>> uncompletedPartitionsByRegion;
 
   public int getVersion() {
     return version;
@@ -130,9 +132,22 @@ public class JobStatusQueryResponse
     return uncompletedPartitions;
   }
 
+  public Map<String, List<UncompletedPartition>> getUncompletedPartitionsByRegion() {
+    return uncompletedPartitionsByRegion;
+  }
+
+  public void setUncompletedPartitionsByRegion(Map<String, List<UncompletedPartition>> uncompletedPartitionsByRegion) {
+    this.uncompletedPartitionsByRegion = uncompletedPartitionsByRegion;
+  }
+
   public String toString() {
     return JobStatusQueryResponse.class.getSimpleName() + "(\n" + "version: " + version + ",\n" + "status: " + status
-        + ",\n" + "statusDetails: " + statusDetails + ",\n" + "extraInfo: " + extraInfo + ",\n" + "extraDetails: "
-        + extraDetails + ",\n" + super.toString() + ")";
+        + ",\n" + "statusDetails: " + statusDetails
+        + (this.uncompletedPartitions != null ? ",\n" + "uncompletedPartitions: " + uncompletedPartitions : "") + ",\n"
+        + "extraInfo: " + extraInfo + ",\n" + "extraDetails: " + extraDetails
+        + (this.uncompletedPartitionsByRegion != null
+            ? ",\n" + "uncompletedPartitionsByRegion: " + uncompletedPartitionsByRegion
+            : "")
+        + ",\n" + super.toString() + ")";
   }
 }

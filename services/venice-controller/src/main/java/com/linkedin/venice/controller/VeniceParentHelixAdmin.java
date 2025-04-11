@@ -201,6 +201,7 @@ import com.linkedin.venice.meta.StoreDataAudit;
 import com.linkedin.venice.meta.StoreGraveyard;
 import com.linkedin.venice.meta.StoreInfo;
 import com.linkedin.venice.meta.StoreVersionInfo;
+import com.linkedin.venice.meta.UncompletedPartition;
 import com.linkedin.venice.meta.VeniceUserStoreType;
 import com.linkedin.venice.meta.Version;
 import com.linkedin.venice.meta.VersionStatus;
@@ -3716,6 +3717,7 @@ public class VeniceParentHelixAdmin implements Admin {
     Map<String, String> extraInfo = new HashMap<>();
     Map<String, String> extraDetails = new HashMap<>();
     Map<String, Long> extraInfoUpdateTimestamp = new HashMap<>();
+    Map<String, List<UncompletedPartition>> uncompletedPartitionsByRegion = new HashMap<>();
     int numChildRegionsFailedToFetchStatus = 0;
     Set<String> targetedRegionSet = RegionUtils.parseRegionsFilterList(targetedRegions);
 
@@ -3754,6 +3756,9 @@ public class VeniceParentHelixAdmin implements Admin {
         }
         Optional<String> statusDetails = response.getOptionalStatusDetails();
         statusDetails.ifPresent(s -> extraDetails.put(region, leaderControllerUrl + " " + s));
+        if (response.getUncompletedPartitions() != null) {
+          uncompletedPartitionsByRegion.put(region, response.getUncompletedPartitions());
+        }
       }
     }
 
@@ -3822,7 +3827,8 @@ public class VeniceParentHelixAdmin implements Admin {
         extraInfo,
         currentReturnStatusDetails.toString(),
         extraDetails,
-        extraInfoUpdateTimestamp);
+        extraInfoUpdateTimestamp,
+        uncompletedPartitionsByRegion);
   }
 
   /**
