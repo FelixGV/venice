@@ -88,7 +88,7 @@ public abstract class DataRecoveryTest {
 
   protected abstract KafkaConsumerService.ConsumerAssignmentStrategy getConsumerAssignmentStrategy();
 
-  protected abstract boolean useParticipantStore();
+  protected abstract boolean useOnlyParticipantStore();
 
   @BeforeClass(alwaysRun = true)
   public void setUp() {
@@ -108,8 +108,8 @@ public abstract class DataRecoveryTest {
     controllerProps.put(ALLOW_CLUSTER_WIPE, "true");
     controllerProps.put(TOPIC_CLEANUP_SLEEP_INTERVAL_BETWEEN_TOPIC_LIST_FETCH_MS, "1000");
     controllerProps.put(MIN_NUMBER_OF_UNUSED_KAFKA_TOPICS_TO_PRESERVE, "0");
-    controllerProps.put(ADMIN_HELIX_MESSAGING_CHANNEL_ENABLED, Boolean.toString(!useParticipantStore()));
-    controllerProps.put(PARTICIPANT_MESSAGE_STORE_ENABLED, Boolean.toString(useParticipantStore()));
+    controllerProps.put(ADMIN_HELIX_MESSAGING_CHANNEL_ENABLED, Boolean.toString(!useOnlyParticipantStore()));
+    controllerProps.put(PARTICIPANT_MESSAGE_STORE_ENABLED, true); // Always on
     VeniceMultiRegionClusterCreateOptions.Builder optionsBuilder =
         new VeniceMultiRegionClusterCreateOptions.Builder().numberOfRegions(NUMBER_OF_CHILD_DATACENTERS)
             .numberOfClusters(NUMBER_OF_CLUSTERS)
@@ -128,18 +128,16 @@ public abstract class DataRecoveryTest {
     parentControllers = multiRegionMultiClusterWrapper.getParentControllers();
     clusterName = CLUSTER_NAMES[0];
 
-    if (useParticipantStore()) {
-      try (ControllerClient controllerClient =
-          new ControllerClient(clusterName, childDatacenters.get(1).getControllerConnectString())) {
-        // Verify the participant store is up and running in dest region.
-        // Participant store is needed for checking kill record existence and dest region readiness for data recovery.
-        String participantStoreName = VeniceSystemStoreUtils.getParticipantStoreNameForCluster(clusterName);
-        TestUtils.waitForNonDeterministicPushCompletion(
-            Version.composeKafkaTopic(participantStoreName, 1),
-            controllerClient,
-            2,
-            TimeUnit.MINUTES);
-      }
+    try (ControllerClient controllerClient =
+        new ControllerClient(clusterName, childDatacenters.get(1).getControllerConnectString())) {
+      // Verify the participant store is up and running in dest region.
+      // Participant store is needed for checking kill record existence and dest region readiness for data recovery.
+      String participantStoreName = VeniceSystemStoreUtils.getParticipantStoreNameForCluster(clusterName);
+      TestUtils.waitForNonDeterministicPushCompletion(
+          Version.composeKafkaTopic(participantStoreName, 1),
+          controllerClient,
+          2,
+          TimeUnit.MINUTES);
     }
   }
 

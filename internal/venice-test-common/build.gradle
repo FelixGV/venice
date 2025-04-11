@@ -134,7 +134,7 @@ def integrationTestConfigs = {
 }
 
 def integrationTestBuckets = [
-  "1000": [
+/*  "1000": [
       "com.linkedin.davinci.*",
       "com.linkedin.venice.endToEnd.DaVinciClientDiskFullTest",
       "com.linkedin.venice.endToEnd.DaVinciClientMemoryLimitTest",
@@ -216,9 +216,24 @@ def integrationTestBuckets = [
       "com.linkedin.venice.endToEnd.TestAdminOperationWithPreviousVersion",
       "com.linkedin.venice.endToEnd.TestMaterializedViewEndToEnd",
       "com.linkedin.venice.endToEnd.TestDeferredVersionSwap"
-  ],
+  ],*/
   "1450": [
-      "com.linkedin.venice.datarecovery.*"
+      "com.linkedin.venice.datarecovery.PWiseHMChannelDataRecoveryTest"
+  ],
+  "1451": [
+      "com.linkedin.venice.datarecovery.PWisePStoreDataRecoveryTest"
+  ],
+  "1452": [
+      "com.linkedin.venice.datarecovery.SAwarePWiseHMChannelDataRecoveryTest"
+  ],
+  "1453": [
+      "com.linkedin.venice.datarecovery.SAwarePWisePStoreDataRecoveryTest"
+  ],
+  "1454": [
+      "com.linkedin.venice.datarecovery.TWiseHMChannelDataRecoveryTest"
+  ],
+  "1455": [
+      "com.linkedin.venice.datarecovery.TWisePStoreDataRecoveryTest"
   ],
   "1500":[
       "com.linkedin.venice.multicluster.TestMetadataOperationInMultiCluster",

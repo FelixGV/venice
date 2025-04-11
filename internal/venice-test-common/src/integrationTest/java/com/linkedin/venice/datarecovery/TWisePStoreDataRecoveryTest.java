@@ -13,7 +13,7 @@ public class TWisePStoreDataRecoveryTest extends DataRecoveryTest {
   }
 
   @Override
-  protected boolean useParticipantStore() {
+  protected boolean useOnlyParticipantStore() {
     return true;
   }
 }

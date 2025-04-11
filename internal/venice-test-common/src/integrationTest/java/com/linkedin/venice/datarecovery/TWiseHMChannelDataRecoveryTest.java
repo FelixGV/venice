@@ -13,7 +13,7 @@ public class TWiseHMChannelDataRecoveryTest extends DataRecoveryTest {
   }
 
   @Override
-  protected boolean useParticipantStore() {
+  protected boolean useOnlyParticipantStore() {
     return false;
   }
 }
