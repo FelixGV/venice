@@ -641,10 +641,6 @@ public abstract class StoreIngestionTask implements Runnable, Closeable {
     return versionNumber;
   }
 
-  public boolean isFutureVersion() {
-    return versionedIngestionStats.isFutureVersion(storeName, versionNumber);
-  }
-
   protected void throwIfNotRunning() {
     if (!isRunning()) {
       throw new VeniceException(" Topic " + kafkaVersionTopic + " is shutting down, no more messages accepted");
@@ -2945,7 +2941,7 @@ public abstract class StoreIngestionTask implements Runnable, Closeable {
       ChunkedValueManifest valueManifest = manifestSerializer.deserialize(valueByteArray, CHUNK_MANIFEST_SCHEMA_ID);
       int recordSize = keyLen + valueManifest.getSize();
       hostLevelIngestionStats.recordAssembledRecordSize(recordSize, currentTimeMs);
-      recordAssembledRecordSizeRatio(calculateAssembledRecordSizeRatio(recordSize), currentTimeMs);
+      recordAssembledRecordSizeRatio(recordSize, currentTimeMs);
 
       if (rmdBytes == null || rmdBytes.remaining() == 0) {
         return;
@@ -2963,9 +2959,7 @@ public abstract class StoreIngestionTask implements Runnable, Closeable {
     }
   }
 
-  protected abstract void recordAssembledRecordSizeRatio(double ratio, long currentTimeMs);
-
-  protected abstract double calculateAssembledRecordSizeRatio(long recordSize);
+  protected abstract void recordAssembledRecordSizeRatio(long recordSize, long currentTimeMs);
 
   public abstract long getBatchReplicationLag();
 

@@ -63,6 +63,7 @@ import com.linkedin.venice.message.KafkaKey;
 import com.linkedin.venice.meta.DataReplicationPolicy;
 import com.linkedin.venice.meta.PartitionerConfig;
 import com.linkedin.venice.meta.Store;
+import com.linkedin.venice.meta.StoreDataChangedListener;
 import com.linkedin.venice.meta.Version;
 import com.linkedin.venice.offsets.OffsetRecord;
 import com.linkedin.venice.partitioner.DefaultVenicePartitioner;
@@ -204,6 +205,7 @@ public class LeaderFollowerStoreIngestionTask extends StoreIngestionTask {
   protected final Int2ObjectMap<String> kafkaClusterIdToUrlMap;
   protected final Map<String, byte[]> globalRtDivKeyBytesCache;
   private long dataRecoveryCompletionTimeLagThresholdInMs = 0;
+  private volatile int maxRecordSizeInBytes;
 
   protected final Map<String, VeniceViewWriter> viewWriters;
   protected final boolean hasChangeCaptureView;
@@ -383,6 +385,27 @@ public class LeaderFollowerStoreIngestionTask extends StoreIngestionTask {
     });
     this.aaWCIngestionStorageLookupThreadPool = builder.getAaWCIngestionStorageLookupThreadPool();
     this.globalRtDivKeyBytesCache = new VeniceConcurrentHashMap<>();
+    this.storeRepository.registerStoreDataChangedListener(new StoreDataChangedListener() {
+      @Override
+      public void handleStoreChanged(Store store) {
+        if (!store.getName().equals(LeaderFollowerStoreIngestionTask.this.storeName)) {
+          return;
+        }
+
+        int newMax = store.getMaxRecordSizeBytes();
+        if (newMax <= 0) {
+          /**
+           * maxRecordSizeBytes (and the nearline variant) is a store-level config that defaults to -1.
+           * The default value will be set fleet-wide using the default.max.record.size.bytes on config the server and
+           * controller.
+           */
+          newMax = LeaderFollowerStoreIngestionTask.this.serverConfig.getDefaultMaxRecordSizeBytes();
+        }
+        if (newMax != LeaderFollowerStoreIngestionTask.this.maxRecordSizeInBytes) {
+          LeaderFollowerStoreIngestionTask.this.maxRecordSizeInBytes = newMax;
+        }
+      }
+    });
   }
 
   public static VeniceWriter<byte[], byte[], byte[]> constructVeniceWriter(
@@ -2075,31 +2098,14 @@ public class LeaderFollowerStoreIngestionTask extends StoreIngestionTask {
     }
   }
 
-  /**
-   * maxRecordSizeBytes (and the nearline variant) is a store-level config that defaults to -1.
-   * The default value will be set fleet-wide using the default.max.record.size.bytes on config the server and controller.
-   */
-  private int backfillRecordSizeLimit(int recordSizeLimit) {
-    return (recordSizeLimit > 0) ? recordSizeLimit : serverConfig.getDefaultMaxRecordSizeBytes();
-  }
-
-  protected int getMaxRecordSizeBytes() {
-    return backfillRecordSizeLimit(storeRepository.getStore(storeName).getMaxRecordSizeBytes());
-  }
-
-  protected int getMaxNearlineRecordSizeBytes() {
-    return backfillRecordSizeLimit(storeRepository.getStore(storeName).getMaxNearlineRecordSizeBytes());
-  }
-
   @Override
-  protected final double calculateAssembledRecordSizeRatio(long recordSize) {
-    return (double) recordSize / getMaxRecordSizeBytes();
-  }
-
-  @Override
-  protected final void recordAssembledRecordSizeRatio(double ratio, long currentTimeMs) {
-    if (getMaxRecordSizeBytes() != VeniceWriter.UNLIMITED_MAX_RECORD_SIZE && ratio > 0) {
-      hostLevelIngestionStats.recordAssembledRecordSizeRatio(ratio, currentTimeMs);
+  protected final void recordAssembledRecordSizeRatio(long recordSize, long currentTimeMs) {
+    int maxRecordSizeInBytes = this.maxRecordSizeInBytes;
+    if (maxRecordSizeInBytes != VeniceWriter.UNLIMITED_MAX_RECORD_SIZE) {
+      double ratio = (double) recordSize / maxRecordSizeInBytes;
+      if (ratio > 0) {
+        hostLevelIngestionStats.recordAssembledRecordSizeRatio(ratio, currentTimeMs);
+      }
     }
   }
 

@@ -312,8 +312,16 @@ public interface Store {
 
   void setMaxRecordSizeBytes(int maxRecordSizeBytes);
 
+  /**
+   * @deprecated Not planning to use this anymore... will be deleted.
+   */
+  @Deprecated
   int getMaxNearlineRecordSizeBytes();
 
+  /**
+   * @deprecated Not planning to use this anymore... will be deleted.
+   */
+  @Deprecated
   void setMaxNearlineRecordSizeBytes(int maxNearlineRecordSizeBytes);
 
   void setUnusedSchemaDeletionEnabled(boolean unusedSchemaDeletionEnabled);
