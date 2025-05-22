@@ -16,13 +16,13 @@ import static com.linkedin.venice.utils.TestWriteUtils.STRING_SCHEMA;
 import com.linkedin.venice.client.store.AvroGenericStoreClient;
 import com.linkedin.venice.client.store.ClientConfig;
 import com.linkedin.venice.client.store.ClientFactory;
-import com.linkedin.venice.common.VeniceSystemStoreUtils;
 import com.linkedin.venice.controller.Admin;
 import com.linkedin.venice.controllerapi.ControllerClient;
 import com.linkedin.venice.controllerapi.ReadyForDataRecoveryResponse;
 import com.linkedin.venice.controllerapi.UpdateStoreQueryParams;
 import com.linkedin.venice.controllerapi.VersionCreationResponse;
 import com.linkedin.venice.helix.HelixReadOnlySchemaRepository;
+import com.linkedin.venice.integration.utils.ParticipantStoreUtils;
 import com.linkedin.venice.integration.utils.PubSubBrokerWrapper;
 import com.linkedin.venice.integration.utils.ServiceFactory;
 import com.linkedin.venice.integration.utils.VeniceMultiClusterWrapper;
@@ -101,17 +101,11 @@ public class DataRecoveryTest {
     childDatacenters = multiRegionMultiClusterWrapper.getChildRegions();
     clusterName = CLUSTER_NAMES[0];
 
-    try (ControllerClient controllerClient =
-        new ControllerClient(clusterName, childDatacenters.get(1).getControllerConnectString())) {
-      // Verify the participant store is up and running in dest region.
-      // Participant store is needed for checking kill record existence and dest region readiness for data recovery.
-      String participantStoreName = VeniceSystemStoreUtils.getParticipantStoreNameForCluster(clusterName);
-      TestUtils.waitForNonDeterministicPushCompletion(
-          Version.composeKafkaTopic(participantStoreName, 1),
-          controllerClient,
-          2,
-          TimeUnit.MINUTES);
-    }
+    // Verify the participant store is up and running in dest region.
+    // Participant store is needed for checking kill record existence and dest region readiness for data recovery.
+    VeniceMultiClusterWrapper destRegion = childDatacenters.get(1);
+    Admin destRegionAdmin = destRegion.getLeaderController(clusterName).getVeniceAdmin();
+    ParticipantStoreUtils.verifyParticipantMessageStoreSetup(destRegionAdmin, clusterName, pubSubTopicRepository);
   }
 
   @AfterClass(alwaysRun = true)
