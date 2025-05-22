@@ -462,10 +462,14 @@ public class MetaSystemStoreTest {
   private void createStoreAndMaterializeMetaSystemStore(String storeName, String valueSchema) {
     // Verify and create Venice regular store if it doesn't exist.
     if (parentControllerClient.getStore(storeName).getStore() == null) {
-      NewStoreResponse resp =
-          parentControllerClient.createNewStore(storeName, "test_owner", INT_KEY_SCHEMA, valueSchema);
-      assertFalse(resp.isError(), "Create new store failed: " + resp.getError());
-      assertFalse(parentControllerClient.emptyPush(storeName, "test-push-job", 100).isError());
+      assertCommand(parentControllerClient.createNewStore(storeName, "test_owner", INT_KEY_SCHEMA, valueSchema));
+      VersionCreationResponse versionCreationResponse =
+          assertCommand(parentControllerClient.emptyPush(storeName, "test-push-job", 100));
+      TestUtils.waitForNonDeterministicPushCompletion(
+          versionCreationResponse.getKafkaTopic(),
+          controllerClient,
+          30,
+          TimeUnit.SECONDS);
     }
     String metaSystemStoreName = VeniceSystemStoreType.META_STORE.getSystemStoreName(storeName);
     TestUtils.waitForNonDeterministicPushCompletion(
