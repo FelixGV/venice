@@ -4620,8 +4620,14 @@ public abstract class StoreIngestionTask implements Runnable, Closeable {
    * 2. The transient record buffer is only used post-EOP.
    */
   public boolean isTransientRecordBufferUsed(PartitionConsumptionState partitionConsumptionState) {
-    return this.isWriteComputationEnabled && partitionConsumptionState.isEndOfPushReceived();
-    // && !this.isDataRecovery; TODO: Decide if this extra condition is useful...
+    return this.isWriteComputationEnabled && partitionConsumptionState.isEndOfPushReceived() && !this.isDataRecovery; // TODO:
+                                                                                                                      // Decide
+                                                                                                                      // if
+                                                                                                                      // this
+                                                                                                                      // extra
+                                                                                                                      // condition
+                                                                                                                      // is
+                                                                                                                      // useful...
   }
 
   // Visible for unit test.
