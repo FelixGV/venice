@@ -5,6 +5,7 @@ import static com.linkedin.venice.ConfigKeys.CLIENT_USE_SYSTEM_STORE_REPOSITORY;
 import static com.linkedin.venice.system.store.MetaStoreWriter.KEY_STRING_CLUSTER_NAME;
 import static com.linkedin.venice.system.store.MetaStoreWriter.KEY_STRING_SCHEMA_ID;
 import static com.linkedin.venice.system.store.MetaStoreWriter.KEY_STRING_STORE_NAME;
+import static com.linkedin.venice.utils.TestUtils.assertCommand;
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertFalse;
 import static org.testng.Assert.assertNotNull;
@@ -434,8 +435,7 @@ public class MetaSystemStoreTest {
               .getValueSchemas(clusterName, regularVeniceStoreName));
     });
     VersionCreationResponse versionCreationResponse =
-        parentControllerClient.emptyPush(regularVeniceStoreName, "new_push", 10000);
-    assertFalse(versionCreationResponse.isError());
+        assertCommand(parentControllerClient.emptyPush(regularVeniceStoreName, "new_push", 10000));
     TestUtils.waitForNonDeterministicPushCompletion(
         versionCreationResponse.getKafkaTopic(),
         controllerClient,

@@ -212,7 +212,6 @@ public class VeniceWriterUnitTest {
     PartitionConsumptionState partitionConsumptionState = mock(PartitionConsumptionState.class);
     when(leaderProducerCallback.getPartitionConsumptionState()).thenReturn(partitionConsumptionState);
     when(partitionConsumptionState.getTransientRecord(any())).thenReturn(transientRecord);
-    when(partitionConsumptionState.isEndOfPushReceived()).thenReturn(true);
     DefaultPubSubMessage record = mock(DefaultPubSubMessage.class);
     KafkaKey kafkaKey = mock(KafkaKey.class);
     when(record.getKey()).thenReturn(kafkaKey);
