@@ -46,6 +46,8 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.testng.Assert;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
@@ -53,6 +55,7 @@ import org.testng.annotations.Test;
 
 
 public class DataRecoveryTest {
+  private static final Logger LOGGER = LogManager.getLogger(DataRecoveryTest.class);
   private static final long TEST_TIMEOUT = 120_000;
   private static final int NUMBER_OF_CHILD_DATACENTERS = 2;
   private static final int NUMBER_OF_CLUSTERS = 1;
@@ -266,7 +269,7 @@ public class DataRecoveryTest {
     }
   }
 
-  @Test(timeOut = TEST_TIMEOUT * 2)
+  @Test(timeOut = TEST_TIMEOUT * 2, invocationCount = 5)
   public void testHybridAADataRecovery() throws Exception {
     String storeName = Utils.getUniqueString("dataRecovery-store-hybrid-AA");
     String parentControllerURLs = multiRegionMultiClusterWrapper.getControllerConnectString();
@@ -277,6 +280,7 @@ public class DataRecoveryTest {
             new ControllerClient(clusterName, childDatacenters.get(1).getControllerConnectString())) {
       List<ControllerClient> dcControllerClientList = Arrays.asList(dc0Client, dc1Client);
       TestUtils.createAndVerifyStoreInAllRegions(storeName, parentControllerClient, dcControllerClientList);
+      LOGGER.info("*************** createAndVerifyStoreInAllRegions DONE ***************");
       assertCommand(
           parentControllerClient.updateStore(
               storeName,
@@ -289,6 +293,7 @@ public class DataRecoveryTest {
       assertCommand(parentControllerClient.emptyPush(storeName, "empty-push-" + System.currentTimeMillis(), 1000));
       String versionTopic = Version.composeKafkaTopic(storeName, 1);
       TestUtils.waitForNonDeterministicPushCompletion(versionTopic, parentControllerClient, 60, TimeUnit.SECONDS);
+      LOGGER.info("*************** waitForNonDeterministicPushCompletion v1 DONE ***************");
 
       try (VeniceSystemProducer veniceProducer =
           IntegrationTestPushUtils.getSamzaProducerForStream(multiRegionMultiClusterWrapper, 0, storeName)) {
@@ -297,6 +302,8 @@ public class DataRecoveryTest {
         }
       }
 
+      LOGGER.info("*************** sendStreamingRecordWithKeyPrefix DONE ***************");
+
       // Prepare dc-1 for data recovery
       assertCommand(parentControllerClient.prepareDataRecovery("dc-0", "dc-1", storeName, 1, Optional.empty()));
       TestUtils.waitForNonDeterministicAssertion(30, TimeUnit.SECONDS, true, () -> {
@@ -304,9 +311,12 @@ public class DataRecoveryTest {
             parentControllerClient.isStoreVersionReadyForDataRecovery("dc-0", "dc-1", storeName, 1, Optional.empty());
         Assert.assertTrue(readinessResponse.isReady(), readinessResponse.getReason());
       });
+      LOGGER.info("*************** prepareDataRecovery DONE ***************");
+
       // Initiate data recovery
       assertCommand(parentControllerClient.dataRecovery("dc-0", "dc-1", storeName, 1, false, true, Optional.empty()));
       TestUtils.waitForNonDeterministicPushCompletion(versionTopic, parentControllerClient, 60, TimeUnit.SECONDS);
+      LOGGER.info("*************** dataRecovery DONE ***************");
 
       try (AvroGenericStoreClient<String, Object> client = ClientFactory.getAndStartGenericAvroClient(
           ClientConfig.defaultGenericClientConfig(storeName)

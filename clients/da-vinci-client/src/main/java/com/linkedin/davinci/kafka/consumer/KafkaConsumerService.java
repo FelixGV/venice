@@ -279,6 +279,12 @@ public abstract class KafkaConsumerService extends AbstractKafkaConsumerService 
           return null;
         }
       });
+      LOGGER.info("Done unsubscribing from partition {} for version topic {}", pubSubTopicPartition, versionTopic);
+    } else {
+      LOGGER.info(
+          "Consumer not found for partition {} and version topic {} while trying to unsubscribe. Will treat as no-op.",
+          pubSubTopicPartition,
+          versionTopic);
     }
   }
 

@@ -452,7 +452,8 @@ public class VersionImpl implements Version {
         + isIncrementalPushEnabled() + ", useVersionLevelIncrementalPushEnabled="
         + isUseVersionLevelIncrementalPushEnabled() + ", hybridConfig=" + getHybridStoreConfig()
         + ", useVersionLevelHybridConfig=" + isUseVersionLevelHybridConfig() + ", activeActiveReplicationEnabled="
-        + isActiveActiveReplicationEnabled() + ", replicationMetadataVersionId=" + getRmdVersionId() + '}';
+        + isActiveActiveReplicationEnabled() + ", replicationMetadataVersionId=" + getRmdVersionId()
+        + ", dataRecoveryConfig=" + getDataRecoveryVersionConfig() + '}';
   }
 
   @Override

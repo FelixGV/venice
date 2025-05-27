@@ -190,10 +190,9 @@ public class HelixCustomizedViewOfflinePushRepository extends HelixBaseRoutingRe
           this.liveInstancesMap = Collections.unmodifiableMap(liveInstanceSnapshot);
         }
         updates = resourceAssignment.updateResourceAssignment(newResourceAssignment);
-        LOGGER.info("Updated resource assignment and live instances for .");
       }
       LOGGER.info(
-          "Customized view is changed. The number of active resources is {}, and the deleted resources are {}.",
+          "Customized view for OFFLINE_PUSH is changed. The number of active resources is {}, and the deleted resources are {}.",
           resourcesInCustomizedView.size(),
           updates.getDeletedResource());
       // Notify listeners that listen on customized view data change

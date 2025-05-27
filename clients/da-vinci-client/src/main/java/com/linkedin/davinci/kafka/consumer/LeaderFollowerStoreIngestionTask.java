@@ -182,8 +182,8 @@ public class LeaderFollowerStoreIngestionTask extends StoreIngestionTask {
   private final long newLeaderInactiveTime;
   private final StoreWriteComputeProcessor storeWriteComputeHandler;
   private final boolean isNativeReplicationEnabled;
-  private final String nativeReplicationSourceVersionTopicKafkaURL;
-  private final Set<String> nativeReplicationSourceVersionTopicKafkaURLSingletonSet;
+  private volatile String nativeReplicationSourceVersionTopicKafkaURL;
+  private volatile Set<String> nativeReplicationSourceVersionTopicKafkaURLSingletonSet;
   private final VeniceWriterFactory veniceWriterFactory;
   private final HeartbeatMonitoringService heartbeatMonitoringService;
 
@@ -202,7 +202,7 @@ public class LeaderFollowerStoreIngestionTask extends StoreIngestionTask {
   protected final Lazy<VeniceWriter<byte[], byte[], byte[]>> veniceWriterForRealTime;
   protected final Int2ObjectMap<String> kafkaClusterIdToUrlMap;
   protected final Map<String, byte[]> globalRtDivKeyBytesCache;
-  private long dataRecoveryCompletionTimeLagThresholdInMs = 0;
+  private volatile long dataRecoveryCompletionTimeLagThresholdInMs = 0;
 
   protected final Map<String, VeniceViewWriter> viewWriters;
   protected final boolean hasChangeCaptureView;
@@ -219,6 +219,12 @@ public class LeaderFollowerStoreIngestionTask extends StoreIngestionTask {
 
   protected final ExecutorService aaWCIngestionStorageLookupThreadPool;
   private Time time = new SystemTime();
+
+  public void setNativeReplicationSourceVersionTopicKafkaURL(String nativeReplicationSourceVersionTopicKafkaURL) {
+    this.nativeReplicationSourceVersionTopicKafkaURL = nativeReplicationSourceVersionTopicKafkaURL;
+    this.nativeReplicationSourceVersionTopicKafkaURLSingletonSet =
+        Collections.singleton(this.nativeReplicationSourceVersionTopicKafkaURL);
+  }
 
   public LeaderFollowerStoreIngestionTask(
       StorageService storageService,
@@ -268,40 +274,7 @@ public class LeaderFollowerStoreIngestionTask extends StoreIngestionTask {
         serverConfig.isComputeFastAvroEnabled());
     this.isNativeReplicationEnabled = version.isNativeReplicationEnabled();
 
-    /**
-     * Native replication could also be used to perform data recovery by pointing the source version topic kafka url to
-     * a topic with good data in another child fabric.
-     * During data recovery for DaVinci client running in follower mode does not have the configs needed for data recovery
-     * which leads to DaVinci host ingestion failure, ignore data recovery config for daVinci.
-     */
-    if (!this.isDataRecovery) {
-      this.nativeReplicationSourceVersionTopicKafkaURL = version.getPushStreamSourceAddress();
-    } else {
-      this.nativeReplicationSourceVersionTopicKafkaURL = serverConfig.getKafkaClusterIdToUrlMap()
-          .get(
-              serverConfig.getKafkaClusterAliasToIdMap()
-                  .getInt(version.getDataRecoveryVersionConfig().getDataRecoverySourceFabric()));
-      if (nativeReplicationSourceVersionTopicKafkaURL == null) {
-        throw new VeniceException(
-            "Unable to get data recovery source kafka url from the provided source fabric:"
-                + version.getDataRecoveryVersionConfig().getDataRecoverySourceFabric());
-      }
-      dataRecoverySourceVersionNumber = version.getDataRecoveryVersionConfig().getDataRecoverySourceVersionNumber();
-      if (isHybridMode()) {
-        dataRecoveryCompletionTimeLagThresholdInMs = PubSubConstants.BUFFER_REPLAY_MINIMAL_SAFETY_MARGIN / 2;
-        LOGGER.info(
-            "Data recovery info for topic: {}, source kafka url: {}, time lag threshold for completion: {}",
-            getVersionTopic(),
-            nativeReplicationSourceVersionTopicKafkaURL,
-            dataRecoveryCompletionTimeLagThresholdInMs);
-      }
-    }
-    this.nativeReplicationSourceVersionTopicKafkaURLSingletonSet =
-        Collections.singleton(nativeReplicationSourceVersionTopicKafkaURL);
-    LOGGER.info(
-        "Native replication source version topic kafka url set to: {} for topic: {}",
-        nativeReplicationSourceVersionTopicKafkaURL,
-        getVersionTopic());
+    configureNativeReplicationAndDataRecovery(version, true);
 
     this.veniceWriterFactory = builder.getVeniceWriterFactory();
     /**
@@ -1200,11 +1173,35 @@ public class LeaderFollowerStoreIngestionTask extends StoreIngestionTask {
         checkAndUpdateDataRecoveryStatusOfHybridStore(partitionConsumptionState);
       }
     }
-    return partitionConsumptionState.consumeRemotely() && partitionConsumptionState.isEndOfPushReceived()
-        && partitionConsumptionState.getOffsetRecord()
-            .getLeaderTopic(pubSubTopicRepository)
-            .isVersionTopicOrStreamReprocessingTopic()
-        && (!isDataRecovery || partitionConsumptionState.isDataRecoveryCompleted());
+    boolean isVTorSRT = partitionConsumptionState.getOffsetRecord()
+        .getLeaderTopic(pubSubTopicRepository)
+        .isVersionTopicOrStreamReprocessingTopic();
+    boolean shouldLeaderSwitchToLocalConsumption =
+        partitionConsumptionState.consumeRemotely() && partitionConsumptionState.isEndOfPushReceived() && isVTorSRT
+            && (!isDataRecovery || partitionConsumptionState.isDataRecoveryCompleted());
+
+    // TODO: Delete this shit
+    StringBuilder stringBuilder = new StringBuilder();
+    stringBuilder.append("shouldLeaderSwitchToLocalConsumption: ");
+    stringBuilder.append(shouldLeaderSwitchToLocalConsumption);
+    stringBuilder.append(", isDataRecovery: ");
+    stringBuilder.append(this.isDataRecovery);
+    stringBuilder.append(", pcs.isBatchOnly(): ");
+    stringBuilder.append(partitionConsumptionState.isBatchOnly());
+    stringBuilder.append(", pcs.isEndOfPushReceived(): ");
+    stringBuilder.append(partitionConsumptionState.isEndOfPushReceived());
+    stringBuilder.append(", pcs.consumeRemotely(): ");
+    stringBuilder.append(partitionConsumptionState.consumeRemotely());
+    stringBuilder.append(", isVTorSRT: ");
+    stringBuilder.append(isVTorSRT);
+    stringBuilder.append(", pcs.isDataRecoveryCompleted(): ");
+    stringBuilder.append(partitionConsumptionState.isDataRecoveryCompleted());
+    String logMessage = stringBuilder.toString();
+    if (!REDUNDANT_LOGGING_FILTER.isRedundantException(logMessage)) {
+      LOGGER.info(logMessage);
+    }
+
+    return shouldLeaderSwitchToLocalConsumption;
   }
 
   private void checkAndUpdateDataRecoveryStatusOfHybridStore(PartitionConsumptionState partitionConsumptionState) {
@@ -1219,15 +1216,23 @@ public class LeaderFollowerStoreIngestionTask extends StoreIngestionTask {
     if (!isDataRecoveryCompleted) {
       long latestConsumedProducerTimestamp =
           partitionConsumptionState.getOffsetRecord().getLatestProducerProcessingTimeInMs();
-      if (LatencyUtils
-          .getElapsedTimeFromMsToMs(latestConsumedProducerTimestamp) < dataRecoveryCompletionTimeLagThresholdInMs) {
+      long elapsedTime = LatencyUtils.getElapsedTimeFromMsToMs(latestConsumedProducerTimestamp);
+      if (elapsedTime < this.dataRecoveryCompletionTimeLagThresholdInMs) {
         LOGGER.info(
             "Data recovery completed for replica: {} upon consuming records with "
-                + "producer timestamp of {} which is within the data recovery completion lag threshold of {} ms",
+                + "producer timestamp of {} which means the elapsed time {} is < the data recovery completion lag threshold of {} ms",
             partitionConsumptionState.getReplicaId(),
             latestConsumedProducerTimestamp,
-            dataRecoveryCompletionTimeLagThresholdInMs);
+            elapsedTime,
+            this.dataRecoveryCompletionTimeLagThresholdInMs);
         isDataRecoveryCompleted = true;
+      } else {
+        LOGGER.info(
+            "Data recovery not complete yet for replica: {}. Producer timestamp of {} means the elapsedTime {} is >= the data recovery completion lag threshold of {} ms",
+            partitionConsumptionState.getReplicaId(),
+            latestConsumedProducerTimestamp,
+            elapsedTime,
+            this.dataRecoveryCompletionTimeLagThresholdInMs);
       }
     }
     if (!isDataRecoveryCompleted) {
@@ -2428,7 +2433,7 @@ public class LeaderFollowerStoreIngestionTask extends StoreIngestionTask {
         if (isLeader(partitionConsumptionState) && msgType == MessageType.CONTROL_MESSAGE
             && ControlMessageType.valueOf((ControlMessage) kafkaValue.payloadUnion).equals(END_OF_PUSH)) {
           LOGGER.info(
-              "Switching to the VeniceWriter for real-time workload for topic: {}, partition: {}",
+              "Switching to the VeniceWriter for real-time workload for topic: {}, partition: {} (\"just to be extra safe\")",
               getVersionTopic().getName(),
               partition);
           // Just to be extra safe
@@ -4382,4 +4387,118 @@ public class LeaderFollowerStoreIngestionTask extends StoreIngestionTask {
     return heartbeatMonitoringService;
   }
 
+  protected String getDataRecoverySourcePubSub(Version version) {
+    String configuredSource = version.getDataRecoveryVersionConfig().getDataRecoverySourceFabric();
+    int pubSubId = this.serverConfig.getKafkaClusterAliasToIdMap().getInt(configuredSource);
+    String dataRecoverySourcePubSub = this.serverConfig.getKafkaClusterIdToUrlMap().get(pubSubId);
+    if (dataRecoverySourcePubSub == null) {
+      throw new VeniceException(
+          "Unable to get data recovery source pub sub url from the provided config:" + configuredSource);
+    }
+    return dataRecoverySourcePubSub;
+  }
+
+  @Override
+  protected void refreshIngestionContextIfChanged(Store store) throws InterruptedException {
+    super.refreshIngestionContextIfChanged(store);
+
+    Version version = store.getVersion(this.versionNumber);
+    if (version == null) {
+      // Should we fail instead, or trigger a close? It's kind of weird if the version of interest doesn't exist...
+      return;
+    }
+
+    configureNativeReplicationAndDataRecovery(version, false);
+  }
+
+  /**
+   * There are several configurations relating to native replication which are initialized at construction-time but
+   * which can also change later on during run-time. These configurations are impacted by whether the ingestion task
+   * runs in data recovery mode. In order to avoid duplicating the relevant business logic across both the constructor
+   * and the change listener, we consolidate it here. The function logs at most one line, summarizing what it did.
+   *
+   * @param version config coming from ZK
+   * @param constructionTime if true, all fields are guaranteed to be initialized (and logged if DR is enabled),
+   *                         if false, fields will only be mutated and logged if they differ from the intended state
+   */
+  private void configureNativeReplicationAndDataRecovery(Version version, boolean constructionTime) {
+    boolean versionHasDataRecoveryConfig = version.getDataRecoveryVersionConfig() != null;
+    if (!versionHasDataRecoveryConfig && !this.isDataRecovery && !constructionTime) {
+      // In the common case, there is no data recovery going on, neither according to the current SIT state nor the
+      // store config, so we exit early in order to minimize work.
+      return;
+    }
+    boolean isDataRecoveryChanged = false;
+    boolean isDataRecoverySourceVersionNumberChanged = false;
+    boolean isSourcePubSubChanged = false;
+    boolean isDataRecoveryCompletionTimeLagThresholdInMsChanged = false;
+    if (constructionTime || versionHasDataRecoveryConfig != this.isDataRecovery) {
+      this.isDataRecovery = versionHasDataRecoveryConfig;
+      isDataRecoveryChanged = true;
+    }
+    String sourcePubSub;
+    if (versionHasDataRecoveryConfig) {
+      int srcVersionNumber = version.getDataRecoveryVersionConfig().getDataRecoverySourceVersionNumber();
+      if (constructionTime || srcVersionNumber != this.dataRecoverySourceVersionNumber) {
+        this.dataRecoverySourceVersionNumber = srcVersionNumber;
+        isDataRecoverySourceVersionNumberChanged = true;
+      }
+      sourcePubSub = getDataRecoverySourcePubSub(version);
+    } else {
+      sourcePubSub = version.getPushStreamSourceAddress();
+    }
+
+    if (constructionTime || !sourcePubSub.equals(this.nativeReplicationSourceVersionTopicKafkaURL)) {
+      setNativeReplicationSourceVersionTopicKafkaURL(sourcePubSub);
+      isSourcePubSubChanged = true;
+    }
+
+    long dataRecoveryCompletionTimeLagThresholdInMs =
+        this.isDataRecovery && isHybridMode() ? PubSubConstants.BUFFER_REPLAY_MINIMAL_SAFETY_MARGIN / 2 : 0;
+    if (constructionTime
+        || this.dataRecoveryCompletionTimeLagThresholdInMs != dataRecoveryCompletionTimeLagThresholdInMs) {
+      this.dataRecoveryCompletionTimeLagThresholdInMs = dataRecoveryCompletionTimeLagThresholdInMs;
+      isDataRecoveryCompletionTimeLagThresholdInMsChanged = true;
+    }
+
+    /**
+     * Logging policy:
+     * - Only log full details if DR mode is enabled, otherwise partial details suffice.
+     * - One log line at construction-time and one more each time the state changes afterward.
+     */
+    if (constructionTime) {
+      if (this.isDataRecovery) {
+        LOGGER.info(
+            "Constructed LFSIT with isDataRecovery: {}, dataRecoverySourceVersionNumber: {}, nativeReplicationSourceVersionTopicKafkaURL: {}, dataRecoveryCompletionTimeLagThresholdInMs: {}",
+            this.isDataRecovery,
+            this.dataRecoverySourceVersionNumber,
+            this.nativeReplicationSourceVersionTopicKafkaURL,
+            this.dataRecoveryCompletionTimeLagThresholdInMs);
+      } else {
+        LOGGER.info(
+            "Constructed LFSIT with nativeReplicationSourceVersionTopicKafkaURL: {}",
+            this.nativeReplicationSourceVersionTopicKafkaURL);
+      }
+    } else if (isDataRecoveryChanged || isDataRecoverySourceVersionNumberChanged || isSourcePubSubChanged
+        || isDataRecoveryCompletionTimeLagThresholdInMsChanged) {
+      if (this.isDataRecovery) {
+        LOGGER.info(
+            "Reconfigured LFSIT data recovery state, isDataRecovery: {} {}, dataRecoverySourceVersionNumber: {} {}, nativeReplicationSourceVersionTopicKafkaURL: {} {}, dataRecoveryCompletionTimeLagThresholdInMs: {} {}",
+            this.isDataRecovery,
+            logChange(isDataRecoveryChanged),
+            this.dataRecoverySourceVersionNumber,
+            logChange(isDataRecoverySourceVersionNumberChanged),
+            this.nativeReplicationSourceVersionTopicKafkaURL,
+            logChange(isSourcePubSubChanged),
+            this.dataRecoveryCompletionTimeLagThresholdInMs,
+            logChange(isDataRecoveryCompletionTimeLagThresholdInMsChanged));
+      } else {
+        LOGGER.info("Reconfigured LFSIT data recovery state, isDataRecovery: {}", this.isDataRecovery);
+      }
+    }
+  }
+
+  private String logChange(boolean hasChanged) {
+    return hasChanged ? "(changed)" : "(unchanged)";
+  }
 }

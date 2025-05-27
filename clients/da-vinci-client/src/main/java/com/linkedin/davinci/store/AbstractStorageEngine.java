@@ -5,6 +5,7 @@ import static com.linkedin.davinci.store.AbstractStorageEngine.StoragePartitionA
 import static com.linkedin.davinci.store.AbstractStorageEngine.StoragePartitionAdjustmentTrigger.END_BATCH_PUSH;
 
 import com.linkedin.davinci.callback.BytesStreamingCallback;
+import com.linkedin.venice.common.VeniceSystemStoreUtils;
 import com.linkedin.venice.compression.CompressionStrategy;
 import com.linkedin.venice.exceptions.PersistenceFailureException;
 import com.linkedin.venice.exceptions.StorageInitializationException;
@@ -14,12 +15,14 @@ import com.linkedin.venice.kafka.protocol.state.StoreVersionState;
 import com.linkedin.venice.meta.PersistenceType;
 import com.linkedin.venice.offsets.OffsetRecord;
 import com.linkedin.venice.serialization.avro.InternalAvroSpecificSerializer;
+import com.linkedin.venice.utils.ExceptionUtils;
 import com.linkedin.venice.utils.LatencyUtils;
 import com.linkedin.venice.utils.SparseConcurrentList;
 import java.io.Closeable;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -73,6 +76,66 @@ public abstract class AbstractStorageEngine<Partition extends AbstractStoragePar
 
   private boolean suppressLogs = false;
 
+  // DEBUG STATE... TODO: delete
+  private final boolean debugStateEnabled = true;
+
+  private static class DebugState {
+    private final StoragePartitionAdjustmentTrigger storagePartitionAdjustmentTrigger;
+    private final String action;
+    private final long timestamp;
+    private final Exception stack;
+
+    @Override
+    public String toString() {
+      return "action: '" + action + '\''
+          + (storagePartitionAdjustmentTrigger == null
+              ? ""
+              : ", storagePartitionAdjustmentTrigger: '" + storagePartitionAdjustmentTrigger + '\'')
+          + ", timestamp: '" + new Date(timestamp) + "', stack: " + ExceptionUtils.stackTraceToString(stack);
+    }
+
+    public DebugState(StoragePartitionAdjustmentTrigger storagePartitionAdjustmentTrigger, String action) {
+      this.storagePartitionAdjustmentTrigger = storagePartitionAdjustmentTrigger;
+      this.action = action;
+      this.timestamp = System.currentTimeMillis();
+      this.stack = new Exception("Not thrown, only to maintain debug state.");
+    }
+  }
+
+  private final SparseConcurrentList<List<DebugState>> debugStates =
+      debugStateEnabled ? new SparseConcurrentList<>() : null;
+
+  private void addDebugState(
+      int partitionId,
+      StoragePartitionAdjustmentTrigger storagePartitionAdjustmentTrigger,
+      String action) {
+    if (!debugStateEnabled) {
+      return;
+    }
+    this.debugStates.computeIfAbsent(partitionId, k -> new ArrayList<>())
+        .add(new DebugState(storagePartitionAdjustmentTrigger, action));
+  }
+
+  private void printDebugState(int partitionId) {
+    if (!debugStateEnabled) {
+      return;
+    }
+    List<DebugState> debugState = debugStates.get(partitionId);
+    if (debugState == null) {
+      LOGGER.info("Partition {} has no debug states at all!");
+      return;
+    }
+    StringBuilder stringBuilder = new StringBuilder();
+    stringBuilder.append("Debug states for partition ");
+    stringBuilder.append(partitionId);
+    stringBuilder.append(": ");
+    for (DebugState state: debugState) {
+      stringBuilder.append("\n");
+      stringBuilder.append(state);
+    }
+    LOGGER.info(stringBuilder.toString());
+  }
+
   /**
    * This lock is used to guard the re-opening logic in {@link #adjustStoragePartition} since
    * {@link #getPartitionOrThrow} is not synchronized and it could be invoked during the execution
@@ -84,7 +147,8 @@ public abstract class AbstractStorageEngine<Partition extends AbstractStoragePar
    *
    * TODO: evaluate whether we could remove `synchronized` keyword from the functions in this class.
    */
-  private final List<ReadWriteLock> rwLockForStoragePartitionAdjustmentList = new SparseConcurrentList<>();
+  private final SparseConcurrentList<ReadWriteLock> rwLockForStoragePartitionAdjustmentList =
+      new SparseConcurrentList<>();
 
   public AbstractStorageEngine(
       String storeVersionName,
@@ -106,6 +170,20 @@ public abstract class AbstractStorageEngine<Partition extends AbstractStoragePar
           "Failed to get read-write lock for partition: " + partitionId + ", store: " + getStoreVersionName());
     }
     return readWriteLock;
+  }
+
+  /**
+   * N.B.: This should be the only function allowed to add entries to {@link #rwLockForStoragePartitionAdjustmentList}
+   *
+   * It is intentional to keep the read-write lock even the partition gets moved to other places since the same
+   * partition can be moved back or be reopened.
+   *
+   * Creating additional instances of read-write locks for a given partition would introduce race conditions since some
+   * function could be waiting on a previous instance and some other function may start using the new instance of the
+   * read-write lock for the same partition.
+   */
+  public ReadWriteLock getRWLockForPartitionOrCreate(int partitionId) {
+    return this.rwLockForStoragePartitionAdjustmentList.computeIfAbsent(partitionId, k -> new ReentrantReadWriteLock());
   }
 
   public String getStoreVersionName() {
@@ -204,18 +282,23 @@ public abstract class AbstractStorageEngine<Partition extends AbstractStoragePar
     ReadWriteLock readWriteLock = getRWLockForPartitionOrThrow(partitionId);
     readWriteLock.writeLock().lock();
     try {
-      closePartition(partitionId);
-      addStoragePartition(partitionConfig);
+      closePartition(partitionId, mode);
+      addStoragePartition(partitionConfig, mode);
     } finally {
       readWriteLock.writeLock().unlock();
     }
   }
 
   public void addStoragePartition(int partitionId) {
-    addStoragePartition(new StoragePartitionConfig(storeVersionName, partitionId));
+    addStoragePartition(new StoragePartitionConfig(storeVersionName, partitionId), null);
   }
 
-  public synchronized void addStoragePartition(StoragePartitionConfig storagePartitionConfig) {
+  /**
+   * N.B.: This should be the only function allowed to add entries into {@link #partitionList}
+   */
+  public synchronized void addStoragePartition(
+      StoragePartitionConfig storagePartitionConfig,
+      StoragePartitionAdjustmentTrigger mode) {
     validateStoreName(storagePartitionConfig);
     int partitionId = storagePartitionConfig.getPartitionId();
 
@@ -223,38 +306,67 @@ public abstract class AbstractStorageEngine<Partition extends AbstractStoragePar
       throw new StorageInitializationException("The metadata partition is not allowed to be set via this function!");
     }
 
-    if (containsPartition(partitionId)) {
-      LOGGER.error(
-          "Failed to add a storage partition for partitionId: {} Store {}. This partition already exists!",
-          partitionId,
-          this.getStoreVersionName());
-      throw new StorageInitializationException(
-          "Partition " + partitionId + " of store " + this.getStoreVersionName() + " already exists.");
-    }
+    /**
+     * It is intentional to keep the read-write lock even the partition gets moved to other places
+     * since the same partition can be moved back or reopened.
+     * Creating a new instance of read-write lock in this function will introduce some race condition
+     * since some function could be waiting on a previous instance and some other function may start
+     * using the new instance of the read-write lock for the same partition.
+     */
+    ReadWriteLock rwLock = getRWLockForPartitionOrCreate(partitionId);
 
-    Partition partition = createStoragePartition(storagePartitionConfig);
-    this.partitionList.set(partitionId, partition);
-    if (this.rwLockForStoragePartitionAdjustmentList.get(partitionId) == null) {
-      /**
-       * It is intentional to keep the read-write lock even the partition gets moved to other places
-       * since the same partition can be moved back or reopened.
-       * Creating a new instance of read-write lock in this function will introduce some race condition
-       * since some function could be waiting on a previous instance and some other function may start
-       * using the new instance of the read-write lock for the same partition.
-       */
-      this.rwLockForStoragePartitionAdjustmentList.set(partitionId, new ReentrantReadWriteLock());
+    rwLock.writeLock().lock();
+    try {
+      if (containsPartition(partitionId)) {
+        LOGGER.error(
+            "Failed to add a storage partition for partitionId: {} Store {}. This partition already exists!",
+            partitionId,
+            this.getStoreVersionName());
+        throw new StorageInitializationException(
+            "Partition " + partitionId + " of store " + this.getStoreVersionName() + " already exists.");
+      }
+
+      Partition partition = createStoragePartition(storagePartitionConfig);
+      this.partitionList.set(partitionId, partition);
+      addDebugState(partitionId, mode, "addStoragePartition");
+      if (!VeniceSystemStoreUtils.isSystemStore(this.getStoreVersionName())) {
+        LOGGER.info(
+            "Added partition {} for store {}.",
+            partitionId,
+            this.getStoreVersionName(),
+            new Exception("Just for logging purposes."));
+      }
+    } catch (Exception e) {
+      LOGGER.info("Caught {} while trying to add storage partition {}.", e.getClass().getSimpleName(), partitionId);
+      printDebugState(partitionId);
+      throw e;
+    } finally {
+      rwLock.writeLock().unlock();
     }
   }
 
-  public synchronized void closePartition(int partitionId) {
-    AbstractStoragePartition partition = this.partitionList.remove(partitionId);
-    if (partition == null) {
-      LOGGER.error("Failed to close a non existing partition: {} Store {}", partitionId, getStoreVersionName());
-      return;
-    }
-    partition.close();
-    if (getNumberOfPartitions() == 0) {
-      LOGGER.info("All Partitions closed for store {} ", getStoreVersionName());
+  public synchronized void closePartition(int partitionId, StoragePartitionAdjustmentTrigger mode) {
+    ReadWriteLock rwLock = getRWLockForPartitionOrCreate(partitionId);
+    rwLock.writeLock().lock();
+    try {
+      AbstractStoragePartition partition = this.partitionList.remove(partitionId);
+      if (partition == null) {
+        LOGGER.error("Failed to close a non existing partition: {} Store {}", partitionId, getStoreVersionName());
+        return;
+      } else if (!VeniceSystemStoreUtils.isSystemStore(this.getStoreVersionName())) {
+        LOGGER.info(
+            "Closed partition {} for store {}.",
+            partitionId,
+            this.getStoreVersionName(),
+            new Exception("Just for logging purposes."));
+      }
+      addDebugState(partitionId, mode, "closePartition");
+      partition.close();
+      if (getNumberOfPartitions() == 0) {
+        LOGGER.info("All Partitions closed for store {} ", getStoreVersionName());
+      }
+    } finally {
+      rwLock.writeLock().unlock();
     }
   }
 
@@ -305,9 +417,28 @@ public abstract class AbstractStorageEngine<Partition extends AbstractStoragePar
       clearPartitionOffset(partitionId);
     }
 
-    AbstractStoragePartition partition = this.partitionList.remove(partitionId);
+    AbstractStoragePartition partition;
+    ReadWriteLock rwLock = getRWLockForPartitionOrThrow(partitionId);
+    rwLock.writeLock().lock();
+    try {
+      partition = this.partitionList.remove(partitionId);
+    } finally {
+      rwLock.writeLock().unlock();
+    }
+    if (!VeniceSystemStoreUtils.isSystemStore(this.getStoreVersionName())) {
+      LOGGER.info(
+          "Dropped partition {} for store {}.",
+          partitionId,
+          this.getStoreVersionName(),
+          new Exception("Just for logging purposes."));
+    }
     partition.drop();
 
+    if (getNumberOfPartitions() > 0) {
+      addDebugState(partitionId, null, "dropPartition");
+    } else {
+      addDebugState(partitionId, null, "dropLastPartition");
+    }
     if (getNumberOfPartitions() == 0 && dropMetadataPartitionWhenEmpty) {
       if (!suppressLogs) {
         LOGGER.info("All Partitions deleted for Store {}", getStoreVersionName());
@@ -368,7 +499,10 @@ public abstract class AbstractStorageEngine<Partition extends AbstractStoragePar
     long startTime = System.currentTimeMillis();
     List<Partition> tmpList = new ArrayList<>();
     // SparseConcurrentList does not support parallelStream, copy to a tmp list.
-    partitionList.forEach(p -> tmpList.add(p));
+    partitionList.forEach(p -> {
+      tmpList.add(p);
+      addDebugState(p.partitionId, null, "closeAll");
+    });
     tmpList.parallelStream().forEach(Partition::close);
     LOGGER.info(
         "Closing {} rockDB partitions of store {} took {} ms",
@@ -576,6 +710,7 @@ public abstract class AbstractStorageEngine<Partition extends AbstractStoragePar
    */
   public synchronized Optional<OffsetRecord> getPartitionOffset(int partitionId) {
     if (!metadataPartitionCreated()) {
+      printDebugState(partitionId);
       throw new StorageInitializationException("Metadata partition not created!");
     }
     if (partitionId == METADATA_PARTITION_ID) {
@@ -708,7 +843,9 @@ public abstract class AbstractStorageEngine<Partition extends AbstractStoragePar
     if (partition == null) {
       VeniceException e = new PersistenceFailureException(
           "Partition: " + partitionId + " of store: " + getStoreVersionName() + " does not exist");
-      LOGGER.error("Failed to get the partition with msg: {}", e.getMessage());
+      // Logging not useful, since it also gets printed higher up the stack, and the duplication can be confusing.
+      // LOGGER.error("Failed to get the partition with msg: {}", e.getMessage());
+      printDebugState(partitionId);
       throw e;
     }
     return partition;

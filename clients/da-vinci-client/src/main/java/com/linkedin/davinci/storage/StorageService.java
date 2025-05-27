@@ -30,6 +30,7 @@ import com.linkedin.venice.service.AbstractVeniceService;
 import com.linkedin.venice.utils.ExceptionUtils;
 import com.linkedin.venice.utils.LatencyUtils;
 import com.linkedin.venice.utils.Utils;
+import com.linkedin.venice.utils.concurrent.VeniceConcurrentHashMap;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -42,6 +43,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import org.apache.helix.PropertyKey;
@@ -69,6 +71,8 @@ public class StorageService extends AbstractVeniceService {
   private final InternalAvroSpecificSerializer<StoreVersionState> storeVersionStateSerializer;
   private final InternalAvroSpecificSerializer<PartitionState> partitionStateSerializer;
   private final ReadOnlyStoreRepository storeRepository;
+  private final Map<String, Consumer<AbstractStorageEngine>> storageEngineCreationListeners =
+      new VeniceConcurrentHashMap<>();
 
   /**
    * Allocates a new {@code StorageService} object.
@@ -193,6 +197,17 @@ public class StorageService extends AbstractVeniceService {
         storeRepository,
         true,
         true);
+  }
+
+  public void registerStorageEngineCreationListener(String storeVersionName, Consumer<AbstractStorageEngine> listener) {
+    this.storageEngineCreationListeners.put(storeVersionName, listener);
+  }
+
+  private void notifyStorageEngineCreationListener(String storeVersionName, AbstractStorageEngine engine) {
+    Consumer<AbstractStorageEngine> creationListener = this.storageEngineCreationListeners.get(storeVersionName);
+    if (creationListener != null) {
+      creationListener.accept(engine);
+    }
   }
 
   /**
@@ -372,6 +387,9 @@ public class StorageService extends AbstractVeniceService {
         "time spent on creating new storage Engine for store {}: {} ms",
         topicName,
         LatencyUtils.getElapsedTimeFromNSToMS(startTimeInBuildingNewEngine));
+
+    notifyStorageEngineCreationListener(topicName, engine);
+
     return engine;
   }
 
@@ -476,7 +494,7 @@ public class StorageService extends AbstractVeniceService {
       LOGGER.warn("Storage engine {} does not exist, ignoring close partition request.", kafkaTopic);
       return;
     }
-    storageEngine.closePartition(partition);
+    storageEngine.closePartition(partition, null);
   }
 
   public synchronized void removeStorageEngine(String kafkaTopic) {
@@ -492,6 +510,8 @@ public class StorageService extends AbstractVeniceService {
 
     StorageEngineFactory factory = getInternalStorageEngineFactory(storeConfig);
     factory.removeStorageEngine(storageEngine);
+
+    notifyStorageEngineCreationListener(kafkaTopic, null); // TODO: probably remove this??
   }
 
   /**

@@ -84,4 +84,9 @@ public class DataRecoveryVersionConfigImpl implements DataRecoveryVersionConfig 
         isDataRecoveryComplete(),
         getDataRecoverySourceVersionNumber());
   }
+
+  @Override
+  public String toString() {
+    return dataRecoveryConfig.toString();
+  }
 }

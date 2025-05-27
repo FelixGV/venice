@@ -212,7 +212,7 @@ public abstract class StoreIngestionTask implements Runnable, Closeable {
   /** storage destination for consumption */
   protected final StorageService storageService;
   protected final StorageEngineRepository storageEngineRepository;
-  protected final AbstractStorageEngine storageEngine;
+  protected volatile AbstractStorageEngine storageEngine;
 
   /** Topics used for this topic consumption
    * TODO: Using a PubSubVersionTopic and PubSubRealTimeTopic extending PubSubTopic for type safety.
@@ -371,8 +371,8 @@ public abstract class StoreIngestionTask implements Runnable, Closeable {
   private final boolean offsetLagDeltaRelaxEnabled;
   private final boolean ingestionCheckpointDuringGracefulShutdownEnabled;
 
-  protected final boolean isDataRecovery;
-  protected int dataRecoverySourceVersionNumber;
+  protected volatile boolean isDataRecovery;
+  protected volatile int dataRecoverySourceVersionNumber;
   protected final boolean readOnlyForBatchOnlyStoreEnabled;
   protected final MetaStoreWriter metaStoreWriter;
   protected final Function<String, String> kafkaClusterUrlResolver;
@@ -433,6 +433,7 @@ public abstract class StoreIngestionTask implements Runnable, Closeable {
     this.versionTopic = pubSubTopicRepository.getTopic(kafkaVersionTopic);
     this.storeName = versionTopic.getStoreName();
     this.storeVersionName = storeVersionConfig.getStoreVersionName();
+    this.storageService.registerStorageEngineCreationListener(this.storeVersionName, this::setStorageEngine);
     this.isUserSystemStore = VeniceSystemStoreUtils.isUserSystemStore(storeName);
     this.isSystemStore = VeniceSystemStoreUtils.isSystemStore(storeName);
     // if version is not hybrid, it is not possible to create pub sub realTimeTopic, users of this field should do a
@@ -634,6 +635,11 @@ public abstract class StoreIngestionTask implements Runnable, Closeable {
     this.zkHelixAdmin = zkHelixAdmin;
   }
 
+  private void setStorageEngine(AbstractStorageEngine storageEngine) {
+    LOGGER.info("setStorageEngine({})", storageEngine, new Exception("Just for logging purposes."));
+    this.storageEngine = storageEngine;
+  }
+
   /** Package-private on purpose, only intended for tests. Do not use for production use cases. */
   void setPurgeTransientRecordBuffer(boolean purgeTransientRecordBuffer) {
     this.purgeTransientRecordBuffer = purgeTransientRecordBuffer;
@@ -773,7 +779,22 @@ public abstract class StoreIngestionTask implements Runnable, Closeable {
   private void dropPartitionSynchronously(PubSubTopicPartition topicPartition) {
     LOGGER.info("{} Dropping partition: {}", ingestionTaskName, topicPartition);
     int partition = topicPartition.getPartitionNumber();
+    /**
+     * Almost all code paths use the {@link storageEngine}, which appears to be the right thing to do...
+     * BUT, the code path here calls {@link storageService} instead and passes true into the
+     * boolean removeEmptyStorageEngine param.
+     *
+     * This can result in the {@link storageEngine} becoming a dud. If the last open partition gets closed, then the
+     * {@link storageService} gets rid of its own reference to the {@link AbstractStorageEngine}, while the SIT keeps
+     * its ref.
+     *
+     * Later on, if a partition is opened again, the storageService will create a new {@link AbstractStorageEngine}, but
+     * the SIT will try to keep interacting with the old one.
+     *
+     * TODO: Figure out if it's ok to not call into the {@link storageService} here.
+     */
     this.storageService.dropStorePartition(storeVersionConfig, partition, true);
+    // this.storageEngine.dropPartition(partition);
     LOGGER.info("{} Dropped partition: {}", ingestionTaskName, topicPartition);
   }
 
@@ -1514,8 +1535,6 @@ public abstract class StoreIngestionTask implements Runnable, Closeable {
         if (!REDUNDANT_LOGGING_FILTER.isRedundantException(message)) {
           LOGGER.info(message);
         }
-
-        Thread.sleep(readCycleDelayMs);
       } else {
         if (!hybridStoreConfig.isPresent() && serverConfig.isUnsubscribeAfterBatchpushEnabled() && subscribedCount != 0
             && subscribedCount == forceUnSubscribedCount) {
@@ -1529,6 +1548,7 @@ public abstract class StoreIngestionTask implements Runnable, Closeable {
           resetIdleCounter();
           if (serverConfig.isSkipChecksAfterUnSubEnabled()) {
             skipAfterBatchPushUnsubEnabled = true;
+            LOGGER.info("Switched skipAfterBatchPushUnsubEnabled to true");
           }
         } else {
           maybeCloseInactiveIngestionTask();
@@ -1548,7 +1568,6 @@ public abstract class StoreIngestionTask implements Runnable, Closeable {
     if (storageUtilizationManager.hasPausedPartitionIngestion()) {
       storageUtilizationManager.checkAllPartitionsQuota();
     }
-    Thread.sleep(readCycleDelayMs);
   }
 
   protected void refreshIngestionContextIfChanged(Store store) throws InterruptedException {
@@ -1649,8 +1668,8 @@ public abstract class StoreIngestionTask implements Runnable, Closeable {
 
       Store store = null;
       while (isRunning()) {
+        store = storeRepository.getStoreOrThrow(storeName);
         if (!skipAfterBatchPushUnsubEnabled) {
-          store = storeRepository.getStoreOrThrow(storeName);
           refreshIngestionContextIfChanged(store);
           processConsumerActions(store);
           checkLongRunningTaskState();
@@ -1661,6 +1680,7 @@ public abstract class StoreIngestionTask implements Runnable, Closeable {
           processConsumerActions(store);
           checkIngestionProgress(store);
         }
+        Thread.sleep(this.readCycleDelayMs);
       }
 
       List<CompletableFuture<Void>> shutdownFutures = new ArrayList<>(partitionConsumptionStateMap.size());
@@ -1818,7 +1838,10 @@ public abstract class StoreIngestionTask implements Runnable, Closeable {
   }
 
   private void handleIngestionException(Exception e) {
-    LOGGER.error("{} has failed.", ingestionTaskName, e);
+    LOGGER.error(
+        "Ingestion failed due to {}. Will propagate to reporters.",
+        ingestionTaskName,
+        e.getClass().getSimpleName());
     reportError(partitionConsumptionStateMap.values(), errorPartitionId, "Caught Exception during ingestion.", e);
     hostLevelIngestionStats.recordIngestionFailure();
   }
@@ -4338,6 +4361,10 @@ public abstract class StoreIngestionTask implements Runnable, Closeable {
     return newConsumerProps;
   }
 
+  public boolean isDataRecovery() {
+    return this.isDataRecovery;
+  }
+
   /**
    * A function that would apply on a specific partition to check whether the partition is ready to serve.
    */
@@ -4366,9 +4393,9 @@ public abstract class StoreIngestionTask implements Runnable, Closeable {
           if (!partitionConsumptionState.isCompletionReported()) {
             Store store = storeRepository.getStoreOrThrow(storeName);
             reportCompleted(partitionConsumptionState);
-            AbstractStorageEngine storageEngineReloadedFromRepo =
-                storageEngineRepository.getLocalStorageEngine(kafkaVersionTopic);
             if (store.isHybrid()) {
+              AbstractStorageEngine storageEngineReloadedFromRepo =
+                  storageEngineRepository.getLocalStorageEngine(kafkaVersionTopic);
               if (storageEngineReloadedFromRepo == null) {
                 LOGGER.warn("Storage engine {} was removed before reopening", kafkaVersionTopic);
               } else {

@@ -583,6 +583,8 @@ public class KafkaStoreIngestionService extends AbstractVeniceService implements
       }
     };
 
+    LOGGER.info("Creating new SIT for store version {}", version);
+
     return ingestionTaskFactory.getNewIngestionTask(
         storageService,
         store,
@@ -691,6 +693,11 @@ public class KafkaStoreIngestionService extends AbstractVeniceService implements
         if ((v == null) || (!v.isIngestionTaskActive())) {
           createNewStoreIngestionTask.set(true);
           return createStoreIngestionTask(veniceStore, partitionId);
+        } else {
+          LOGGER.info(
+              "SIT already exists for topic {}, with isDataRecovery: {}. Will return the same one.",
+              topic,
+              v.isDataRecovery());
         }
         return v;
       });

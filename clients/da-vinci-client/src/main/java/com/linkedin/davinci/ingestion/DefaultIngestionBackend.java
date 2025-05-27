@@ -34,6 +34,7 @@ public class DefaultIngestionBackend implements IngestionBackend {
   private final StorageService storageService;
   private final KafkaStoreIngestionService storeIngestionService;
   private final VeniceServerConfig serverConfig;
+  /** TODO: Delete this map and all related code paths, as it is completely useless... */
   private final Map<String, AtomicReference<AbstractStorageEngine>> topicStorageEngineReferenceMap =
       new VeniceConcurrentHashMap<>();
   private final BlobTransferManager blobTransferManager;

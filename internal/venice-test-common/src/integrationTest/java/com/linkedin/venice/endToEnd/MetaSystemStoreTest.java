@@ -12,7 +12,6 @@ import static org.testng.Assert.assertNotNull;
 import static org.testng.Assert.assertNull;
 import static org.testng.Assert.assertTrue;
 import static org.testng.Assert.expectThrows;
-import static org.testng.Assert.fail;
 
 import com.linkedin.d2.balancer.D2Client;
 import com.linkedin.davinci.repository.NativeMetadataRepository;
@@ -245,12 +244,11 @@ public class MetaSystemStoreTest {
     /**
      * Wait for the RT topic deletion.
      */
-    TestUtils.waitForNonDeterministicAssertion(30, TimeUnit.SECONDS, () -> {
-      ControllerResponse response = controllerClient.checkResourceCleanupForStoreCreation(metaSystemStoreName);
-      if (response.isError()) {
-        fail("The store cleanup for meta system store: " + metaSystemStoreName + " is not done yet");
-      }
-    });
+    TestUtils.waitForNonDeterministicAssertion(
+        30,
+        TimeUnit.SECONDS,
+        true,
+        () -> assertCommand(controllerClient.checkResourceCleanupForStoreCreation(metaSystemStoreName)));
     LOGGER.info("Resource cleanup is done for meta system store: {}", metaSystemStoreName);
   }
 

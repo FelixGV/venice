@@ -240,7 +240,7 @@ public abstract class AbstractStorageEngineTest extends AbstractStoreTest {
     StoragePartitionConfig transactionalPartitionConfig = new StoragePartitionConfig(storeName, newPartitionId);
     StoragePartitionConfig deferredWritePartitionConfig = new StoragePartitionConfig(storeName, newPartitionId);
     deferredWritePartitionConfig.setDeferredWrite(true);
-    testStoreEngine.addStoragePartition(transactionalPartitionConfig);
+    testStoreEngine.addStoragePartition(transactionalPartitionConfig, null);
     // Current partition should be transactional
     AbstractStoragePartition storagePartition = testStoreEngine.getPartitionOrThrow(newPartitionId);
     Assert.assertNotNull(storagePartition);
@@ -267,7 +267,7 @@ public abstract class AbstractStorageEngineTest extends AbstractStoreTest {
     StoragePartitionConfig transactionalPartitionConfig = new StoragePartitionConfig(storeName, newPartitionId);
     StoragePartitionConfig deferredWritePartitionConfig = new StoragePartitionConfig(storeName, newPartitionId);
     deferredWritePartitionConfig.setDeferredWrite(true);
-    testStoreEngine.addStoragePartition(deferredWritePartitionConfig);
+    testStoreEngine.addStoragePartition(deferredWritePartitionConfig, null);
     // Current partition should be deferred-write
     AbstractStoragePartition storagePartition = testStoreEngine.getPartitionOrThrow(newPartitionId);
     Assert.assertNotNull(storagePartition);

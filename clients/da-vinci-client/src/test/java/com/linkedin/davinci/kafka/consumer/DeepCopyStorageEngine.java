@@ -59,8 +59,10 @@ public class DeepCopyStorageEngine extends AbstractStorageEngine<AbstractStorage
   }
 
   @Override
-  public synchronized void addStoragePartition(StoragePartitionConfig storagePartitionConfig) {
-    this.delegate.addStoragePartition(storagePartitionConfig);
+  public synchronized void addStoragePartition(
+      StoragePartitionConfig storagePartitionConfig,
+      StoragePartitionAdjustmentTrigger mode) {
+    this.delegate.addStoragePartition(storagePartitionConfig, mode);
   }
 
   @Override
@@ -74,8 +76,8 @@ public class DeepCopyStorageEngine extends AbstractStorageEngine<AbstractStorage
   }
 
   @Override
-  public synchronized void closePartition(int partitionId) {
-    this.delegate.closePartition(partitionId);
+  public synchronized void closePartition(int partitionId, StoragePartitionAdjustmentTrigger mode) {
+    this.delegate.closePartition(partitionId, mode);
   }
 
   @Override

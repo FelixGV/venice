@@ -36,7 +36,7 @@ public class RocksDBThrottlerTest {
       RocksDBThrottler throttler = new RocksDBThrottler(5);
       for (int i = 0; i < 100; ++i) {
         final int threadId = i;
-        executorService.submit(() -> throttler.throttledOpen("/test", new TestSupplier(threadId)));
+        executorService.submit(() -> throttler.throttledOpen("test", new TestSupplier(threadId)));
       }
     } finally {
       TestUtils.shutdownExecutor(executorService, 1, TimeUnit.MINUTES);

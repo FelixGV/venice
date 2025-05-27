@@ -1,5 +1,6 @@
 package com.linkedin.davinci.store.rocksdb;
 
+import java.io.File;
 import java.util.List;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
@@ -54,6 +55,11 @@ public class RocksDBThrottler {
       throttlerLock.unlock();
     }
     RocksDB db;
+    File dir = new File(dbPath);
+    if (!dir.exists()) {
+      LOGGER.info("Creating dir for RocksDB dbPath at: {}", dbPath);
+      dir.mkdirs();
+    }
     try {
       LOGGER.info("Opening RocksDB database: {}", dbPath);
       db = rocksDBSupplier.get();
