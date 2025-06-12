@@ -212,7 +212,7 @@ public abstract class StoreIngestionTask implements Runnable, Closeable {
       Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors() * 2);
 
   /** storage destination for consumption */
-  protected final StorageService storageService;
+  // private final StorageService storageService;
   protected final StorageEngine storageEngine;
 
   /** Topics used for this topic consumption
@@ -424,7 +424,6 @@ public abstract class StoreIngestionTask implements Runnable, Closeable {
     this.databaseSyncBytesIntervalForDeferredWriteMode =
         storeVersionConfig.getDatabaseSyncBytesIntervalForDeferredWriteMode();
     this.kafkaProps = kafkaConsumerProperties;
-    this.storageService = storageService;
     this.storageMetadataService = builder.getStorageMetadataService();
     this.storeRepository = builder.getMetadataRepo();
     this.schemaRepository = builder.getSchemaRepo();
@@ -771,7 +770,8 @@ public abstract class StoreIngestionTask implements Runnable, Closeable {
   private void dropPartitionSynchronously(PubSubTopicPartition topicPartition) {
     LOGGER.info("{} Dropping partition: {}", ingestionTaskName, topicPartition);
     int partition = topicPartition.getPartitionNumber();
-    this.storageService.dropStorePartition(storeVersionConfig, partition, true);
+    this.storageEngine.dropPartition(partition);
+    // this.storageService.dropStorePartition(storeVersionConfig, partition, true);
     LOGGER.info("{} Dropped partition: {}", ingestionTaskName, topicPartition);
   }
 
