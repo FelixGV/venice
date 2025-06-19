@@ -273,7 +273,7 @@ public class StatTrackingStoreClient<K, V> extends DelegatingStoreClient<K, V> {
 
   private static void logException(String storeName, Throwable throwable) {
     if (!EXCEPTION_FILTER.isRedundantException(storeName, throwable)) {
-      LOGGER.error("Unhealthy request with error: ", throwable);
+      LOGGER.warn("Unhealthy request with error: ", throwable);
     }
   }
 
