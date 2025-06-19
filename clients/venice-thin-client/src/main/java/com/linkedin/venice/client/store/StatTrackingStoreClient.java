@@ -39,7 +39,8 @@ import org.apache.logging.log4j.Logger;
  */
 public class StatTrackingStoreClient<K, V> extends DelegatingStoreClient<K, V> {
   private static final Logger LOGGER = LogManager.getLogger(StatTrackingStoreClient.class);
-  private static final RedundantExceptionFilter EXCEPTION_FILTER = new RedundantExceptionFilter();
+  private static final RedundantExceptionFilter EXCEPTION_FILTER =
+      RedundantExceptionFilter.getRedundantExceptionFilter();
 
   private static final String STAT_VENICE_CLIENT_NAME = "venice_client";
   private static final String STAT_SCHEMA_READER = "schema_reader";
@@ -273,7 +274,7 @@ public class StatTrackingStoreClient<K, V> extends DelegatingStoreClient<K, V> {
 
   private static void logException(String storeName, Throwable throwable) {
     if (!EXCEPTION_FILTER.isRedundantException(storeName, throwable)) {
-      LOGGER.warn("Unhealthy request with error: ", throwable);
+      LOGGER.error("Unhealthy request with error: ", throwable);
     }
   }
 
